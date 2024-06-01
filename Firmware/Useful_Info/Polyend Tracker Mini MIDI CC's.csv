@@ -1,0 +1,55 @@
+GLOBAL,,,
+CC Number,Parameter,Lever Range Left/Right,Center Button Push
+1,Cutoff,"L127-0, R 0-127",0
+3,Finetune,"L 0-64, R 64-127",64
+5,Tune,"L 0-64, R 64-127",64
+7,Volume,"L127-0, R 0-127",0
+9,Filter Type,"L127-0, R 0-127",0
+11,Resonance,"L127-0, R 0-127",0
+12,Overdrive,"L127-0, R 0-127",0
+13,Bit Depth,"L127-0, R 0-127",0
+14,Reverb Send,"L127-0, R 0-127",0
+15,Delay Send,"L127-0, R 0-127",0
+VOLUME,,,
+20,Automation Type,,
+21,Attack - Shape LFO,,
+22,Decay - Speed LFO,,
+23,Sustain,,
+24,Release,,
+25,Amount,,
+PANNING,,,
+26,Automation Type,,
+27,Attack - Shape LFO,,
+28,Decay - Speed LFO,,
+28,Sustain ,,
+30,Release,,
+31,Amount,,
+CUTOFF,,,
+83,Automation Type ,,
+84,Attack - Shape LFO,,
+85,Decay - Speed LFO ,,
+86,Sustain ,,
+87,Release,,
+88,Amount ,,
+"WAVETABLE
+Position",,,
+102,Automation Type ,,
+103, Attack - Shape LFO ,,
+104,Decay - Speed LFO ,,
+105,Sustain ,,
+106,Release ,,
+107,Amount,,
+"GRANULAR
+Position",,,
+108,Automation Type ,,
+109, Attack - Shape LFO ,,
+110,Decay - Speed LFO ,,
+111,Sustain ,,
+112,Release ,,
+113,Amount,,
+FINETUNE,,,
+114,Automation Type ,,
+115,Attack - Shape LFO,,
+116,Decay - Speed LFO ,,
+117,Sustain,,
+118,Release ,,
