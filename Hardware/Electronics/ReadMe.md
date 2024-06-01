@@ -1,4 +1,4 @@
-## This folder contains schematics, pcb images and a KiCad project for the KB1. 
+## This folder contains schematics and the KiCad project to build the KB1's pcb. 
 ### https://www.kicad.org
 
 ![Hardware/Electronics/kb1 front.png](https://github.com/PocketMidi/KB1/blob/main/Hardware/Electronics/kb1%20front.png)
