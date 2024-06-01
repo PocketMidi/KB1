@@ -1,4 +1,4 @@
-# KB19
+# KB1
 ### A pocket size midi keyboard controller with mini speakers for the Polyend Tracker Mini (2023).
 ![images/hero_1.png](https://github.com/PocketMidi/KB19/blob/main/images/hero_1.png)
 ![images/inner_1.png](https://github.com/PocketMidi/KB19/blob/main/images/inner_1.png)
