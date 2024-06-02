@@ -1,1 +1,1 @@
-## This folder contains the c++ files and reference materials for programming the KB1.
+## This folder contains the code and reference materials for programming the KB1.
