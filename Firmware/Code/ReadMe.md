@@ -27,7 +27,7 @@ These are installable in the Arduino IDE, or as external packages.
 
 
 ## Input Mapping:
-Reference - https://github.com/smallgram/KB1/blob/main/Keyboard/Firmware/KB1_Connection_Map_FW_v1.0%20-%20Sheet1.csv
+Reference - https://github.com/PocketMidi/KB1/blob/main/Firmware/Reference/KB1_Connection_Map_FW_v1.0.csv
 #### MIDI Notes (Keys):
 Various buttons on U1 and U2 pins are mapped to MIDI notes and control changes.
 
