@@ -1,4 +1,4 @@
-GLOBAL,,,
+   GLOBAL,,,
 CC Number,Parameter,Lever Range Left/Right,Center Button Push
 1,Cutoff,"L127-0, R 0-127",0
 3,Finetune,"L 0-64, R 64-127",64
