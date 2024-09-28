@@ -17,6 +17,9 @@ The loop function runs on **Core 0** handling notes, velocities, and octaves. *O
 This firmware utilizes the Arduino framework for the [Xiao ESP32S3 board](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/). 
 
 The board must be set up in the Arduino IDE per the Getting Started Guide above.
+In the BSP (Board Manager) confirm that "esp32 by Espressif Systems" is no higher than v2.0.xx.
+You may need to downgrade if v3.0.xx is installed.
+
 
 #### Additional Libraries:
 Adafruit MCP23017 Library - https://github.com/adafruit/Adafruit-MCP23017-Arduino-Library
