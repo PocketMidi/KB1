@@ -10,8 +10,8 @@
  *
  */
 
-// Uncomment following line to enable Serial Printing /////
-// #define SERIAL_PRINT_ENABLED 1
+// Uncomment following line to enable /////
+#define SERIAL_PRINT_ENABLED 1
 
 #include <Adafruit_MCP23X17.h>
 #include <HardwareSerial.h>
@@ -82,6 +82,13 @@ void playMidiNote(byte note);
 void stopMidiNote(byte note);
 void shiftOctave(int shift);
 void buttonReadTask(void *pvParameters);
+void gotTouch1();
+
+// Touch Shift Mode ///
+bool shiftModeEnabled = false;
+volatile bool shiftModeActive = false;
+int threshold = 1500; // Adjust this value according to your setup
+bool touch1detected = false;
 
 
 // Previous state variables for OCT buttons
@@ -101,7 +108,7 @@ bool isSwd2LeftPressed = false;
 bool isSwd2RightPressed = false;
 bool isSwd2CenterPressed = false;
 const int swd2Interval = 200;      // Interval in milliseconds (0.2 seconds)
-volatile int currentVelocity = 80; // state variable for velocity value
+volatile int currentVelocity = 127; // state variable for velocity value
 int minVelocity = 8;
 
 // LED Blue // Velocity // Lever 2 ////////
@@ -151,8 +158,8 @@ void updateVelocity(int delta)
 }
 void resetVelocity()
 {
-    currentVelocity = 80; // Reset velocity to 80
-    SERIAL_PRINTLN("Velocity Reset to 80");
+    currentVelocity = 127; // Reset velocity to 127
+    SERIAL_PRINTLN("Velocity Reset to 127");
     analogWrite(bluePin, 51); // Set LED to xx% brightness
     delay(250);               // Delay for 0.5 seconds
     analogWrite(bluePin, 0);  // Turn off LED
@@ -180,11 +187,11 @@ void playMidiNote(byte note)
 void stopMidiNote(byte note)
 { // Check if note-on flag is true before sending note-off signal
     if (isNoteOn[note])
-    { // Stop MIDI note with octave shift & velocity 64
-        MIDI.sendNoteOff(note + currentOctave * 12, 64, 1);
+    { // Stop MIDI note with octave shift & velocity 0
+        MIDI.sendNoteOff(note + currentOctave * 12, 0, 1);
         SERIAL_PRINT("Note Off: ");
         SERIAL_PRINT(note + currentOctave * 12);
-        SERIAL_PRINTLN(", Velocity: 64");
+        SERIAL_PRINTLN(", Velocity: 0");
         isNoteOn[note] = false; // Reset note-on flag to false
     }
 }
@@ -195,10 +202,10 @@ void controlPinkBreathingLED(bool state) // Control LED with breathing effect
 {
     static unsigned long previousMillis = 0;
     static int brightness = 0;
-    static int fadeAmount = 3;               // breathing speed
-    static unsigned long pulseInterval = 64; // breathing interval (in milliseconds)
-    const int minBrightness = 8;
-    const int maxBrightness = 48;
+    static int fadeAmount = 1;               // breathing speed
+    static unsigned long pulseInterval = 84; // breathing interval (in milliseconds)
+    const int minBrightness = 4;
+    const int maxBrightness = 18;
     unsigned long currentMillis = millis();
     if (currentMillis - previousMillis >= pulseInterval)
     {
@@ -217,6 +224,16 @@ void controlPinkBreathingLED(bool state) // Control LED with breathing effect
     if (state)
     {
         analogWrite(pinkPin, 0); // Ensure LED is completely off when state is true
+    }
+}
+
+// Toggle shift mode state
+    void gotTouch1() {
+    shiftModeActive = !shiftModeActive; 
+    if (shiftModeActive) {
+        SERIAL_PRINTLN("SHIFT Mode Enabled");
+    } else {
+        SERIAL_PRINTLN("SHIFT Mode Disabled");
     }
 }
 
@@ -255,6 +272,9 @@ void setup()
     for (int i = 0; i < MAX_KEYS; i++)
     {
         keys[i].mcp->pinMode(keys[i].pin, INPUT_PULLUP);
+
+        touchAttachInterrupt(T1, gotTouch1, threshold); 
+        
     }
 
     //////// U1 //////////////////////////////////////////////////////
@@ -454,9 +474,9 @@ void buttonReadTask(void *pvParameters)
 
         ////////// LEVER 2 CENTER ///////////////////////////////////////////////
         if (SWD2CenterState && !prevSWD2CenterState && !isSwd2CenterPressed)
-        { // Reset velocity to 80
+        { // Reset velocity to 127
             resetVelocity();
-            currentVelocity = 80;
+            currentVelocity = 127;
             SERIAL_PRINTLN("SWD2_Center Pressed! Reset Velocity");
             isSwd2CenterPressed = true;
         }
