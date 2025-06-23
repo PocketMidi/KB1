@@ -42,11 +42,11 @@ Various buttons on U1 and U2 pins are mapped to MIDI notes and control changes.
 *SWD1_Left* sends MIDI control change number 3, value 0 when pressed, and 64 when released.
 
 #### MIDI Note Velocity Changes “Lever 2”:
-*SWD2_Right* increments note velocity by 8 upon button press. *Blue LED* indicates increase.
+*SWD2_Right* increments note velocity by 8 upon button press all the way up to 127. *Blue LED* indicates increase.
 
-*SWD2_Center* sets note velocity to 64 when pressed. *Blue LED* indicates reset.
+*SWD2_Center* sets note velocity to 80 when pressed. *Blue LED* indicates reset.
 
-*SWD2_Left* decrements note velocity by 8 on button press. *Blue LED* indicates decrease.
+*SWD2_Left* decrements note velocity by 8 on button press all the way down to 8. *Blue LED* indicates decrease.
 
 #### MIDI Octave Changes:
 *OCT_DN* blinks at different rates based on the octave level decrease.

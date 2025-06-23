@@ -10,7 +10,7 @@
  *
  */
 
-// Uncomment following line to enable /////
+// Uncomment following line to enable Serial Printing /////
 #define SERIAL_PRINT_ENABLED 1
 
 #include <Adafruit_MCP23X17.h>
@@ -108,7 +108,7 @@ bool isSwd2LeftPressed = false;
 bool isSwd2RightPressed = false;
 bool isSwd2CenterPressed = false;
 const int swd2Interval = 200;      // Interval in milliseconds (0.2 seconds)
-volatile int currentVelocity = 127; // state variable for velocity value
+volatile int currentVelocity = 80; // state variable for velocity value
 int minVelocity = 8;
 
 // LED Blue // Velocity // Lever 2 ////////
@@ -158,8 +158,8 @@ void updateVelocity(int delta)
 }
 void resetVelocity()
 {
-    currentVelocity = 127; // Reset velocity to 127
-    SERIAL_PRINTLN("Velocity Reset to 127");
+    currentVelocity = 80; // Reset velocity to 80
+    SERIAL_PRINTLN("Velocity Reset to 80");
     analogWrite(bluePin, 51); // Set LED to xx% brightness
     delay(250);               // Delay for 0.5 seconds
     analogWrite(bluePin, 0);  // Turn off LED
@@ -204,8 +204,8 @@ void controlPinkBreathingLED(bool state) // Control LED with breathing effect
     static int brightness = 0;
     static int fadeAmount = 1;               // breathing speed
     static unsigned long pulseInterval = 84; // breathing interval (in milliseconds)
-    const int minBrightness = 4;
-    const int maxBrightness = 18;
+    const int minBrightness = 2;
+    const int maxBrightness = 12;
     unsigned long currentMillis = millis();
     if (currentMillis - previousMillis >= pulseInterval)
     {
@@ -474,9 +474,9 @@ void buttonReadTask(void *pvParameters)
 
         ////////// LEVER 2 CENTER ///////////////////////////////////////////////
         if (SWD2CenterState && !prevSWD2CenterState && !isSwd2CenterPressed)
-        { // Reset velocity to 127
+        { // Reset velocity to 80
             resetVelocity();
-            currentVelocity = 127;
+            currentVelocity = 80;
             SERIAL_PRINTLN("SWD2_Center Pressed! Reset Velocity");
             isSwd2CenterPressed = true;
         }
