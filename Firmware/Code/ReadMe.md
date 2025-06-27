@@ -1,4 +1,4 @@
-# KB1 Firmware v1.0 Code Summary
+# KB1 Firmware v1.1 Code Summary
 
 ## INTRODUCTION
 #### This code uses the ESP32 platform, which supports FreeRTOS and allows for multicore programming. 
@@ -16,21 +16,22 @@ The loop function runs on **Core 0** handling notes, velocities, and octaves. *O
 
 This firmware utilizes the Arduino framework for the [Xiao ESP32S3 board](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/). 
 
-The board must be set up in the Arduino IDE per the Getting Started Guide above.
-In the BSP (Board Manager) confirm that "esp32 by Espressif Systems" is no higher than v2.0.xx.
-You may need to downgrade if v3.0.xx is installed.
+*It is recommended to follow the Getting Started Guide in the link above when using the Arduino IDE and grab the latest board manager from Espressif.*
+
 
 
 #### Additional Libraries:
-Adafruit MCP23017 Library - https://github.com/adafruit/Adafruit-MCP23017-Arduino-Library
-Arduino Midi Library - https://github.com/FortySevenEffects/arduino_midi_library
-FreeRTOS Library - https://github.com/feilipu/Arduino_FreeRTOS_Library
+[Adafruit MCP23017 Library](https://github.com/adafruit/Adafruit-MCP23017-Arduino-Library)
+
+[Arduino Midi Library](https://github.com/FortySevenEffects/arduino_midi_library)
+
+[FreeRTOS Library](https://github.com/feilipu/Arduino_FreeRTOS_Library)
 
 These are installable in the Arduino IDE, or as external packages.
 
 
 ## Input Mapping:
-Reference - https://github.com/PocketMidi/KB1/blob/main/Firmware/Reference/KB1_Connection_Map_FW_v1.0.csv
+[KB1 Connection Map](https://github.com/PocketMidi/KB1/blob/main/Firmware/Reference/KB1_Connection_Map_FW_v1.0.csv)
 #### MIDI Notes (Keys):
 Various buttons on U1 and U2 pins are mapped to MIDI notes and control changes.
 
