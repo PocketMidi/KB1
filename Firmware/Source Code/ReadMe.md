@@ -1,4 +1,4 @@
-# KB1 Firmware v1.1 Code Summary
+# KB1 Firmware v1.1 Source Code Summary
 
 ## INTRODUCTION
 #### This code uses the ESP32 platform, which supports FreeRTOS and allows for multicore programming. 
