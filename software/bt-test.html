@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 MIDI BLE Controller</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c; /* Dark background */
+            color: #e2e8f0; /* Light text */
+        }
+        .container {
+            max-width: 800px;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield; /* Firefox */
+        }
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8 flex items-center justify-center min-h-screen">
+    <div class="container bg-gray-800 p-6 sm:p-8 rounded-xl shadow-lg w-full">
+        <h1 class="text-3xl sm:text-4xl font-bold text-center mb-6 text-purple-400">ESP32 MIDI BLE Controller</h1>
+
+        <!-- Connection Status -->
+        <div class="mb-6 text-center">
+            <p class="text-lg font-semibold mb-2">Connection Status:</p>
+            <span id="connectionStatus" class="text-red-400 font-bold">Disconnected</span>
+        </div>
+
+        <!-- Connection Buttons -->
+        <div class="flex flex-col sm:flex-row justify-center gap-4 mb-8">
+            <button id="connectButton"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75">
+                Connect Bluetooth
+            </button>
+            <button id="disconnectButton"
+                    class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75"
+                    disabled>
+                Disconnect
+            </button>
+        </div>
+
+        <!-- Settings Section -->
+        <div class="bg-gray-700 p-6 rounded-xl shadow-inner mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-green-400">MIDI CC Settings</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- SWD1 Left/Right CC -->
+                <div>
+                    <label for="swd1LrCcInput" class="block text-sm font-medium text-gray-300 mb-1">SWD1 Left/Right CC</label>
+                    <input type="number" id="swd1LrCcInput" min="0" max="127" value=""
+                           class="w-full p-2 rounded-md bg-gray-900 border border-gray-600 text-white focus:ring-blue-500 focus:border-blue-500">
+                    <p class="text-xs text-gray-400 mt-1">Current: <span id="swd1LrCcValue">N/A</span></p>
+                </div>
+
+                <!-- SWD1 Center CC -->
+                <div>
+                    <label for="swd1CenterCcInput" class="block text-sm font-medium text-gray-300 mb-1">SWD1 Center CC</label>
+                    <input type="number" id="swd1CenterCcInput" min="0" max="127" value=""
+                           class="w-full p-2 rounded-md bg-gray-900 border border-gray-600 text-white focus:ring-blue-500 focus:border-blue-500">
+                    <p class="text-xs text-gray-400 mt-1">Current: <span id="swd1CenterCcValue">N/A</span></p>
+                </div>
+
+                <!-- SWD2 Left/Right CC -->
+                <div>
+                    <label for="swd2LrCcInput" class="block text-sm font-medium text-gray-300 mb-1">SWD2 Left/Right CC</label>
+                    <input type="number" id="swd2LrCcInput" min="0" max="127" value=""
+                           class="w-full p-2 rounded-md bg-gray-900 border border-gray-600 text-white focus:ring-blue-500 focus:border-blue-500">
+                    <p class="text-xs text-gray-400 mt-1">Current: <span id="swd2LrCcValue">N/A</span></p>
+                </div>
+
+                <!-- SWD2 Center CC -->
+                <div>
+                    <label for="swd2CenterCcInput" class="block text-sm font-medium text-gray-300 mb-1">SWD2 Center CC</label>
+                    <input type="number" id="swd2CenterCcInput" min="0" max="127" value=""
+                           class="w-full p-2 rounded-md bg-gray-900 border border-gray-600 text-white focus:ring-blue-500 focus:border-blue-500">
+                    <p class="text-xs text-gray-400 mt-1">Current: <span id="swd2CenterCcValue">N/A</span></p>
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row justify-center gap-4 mt-6">
+                <button id="readAllButton"
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75"
+                        disabled>
+                    Read All Settings
+                </button>
+                <button id="writeAllButton"
+                        class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75"
+                        disabled>
+                    Write Settings to ESP32
+                </button>
+            </div>
+        </div>
+
+        <!-- MIDI CC Fader Example (for future use) -->
+        <div class="bg-gray-700 p-6 rounded-xl shadow-inner">
+            <h2 class="text-2xl font-semibold mb-4 text-yellow-400">MIDI CC Fader Example</h2>
+            <div class="flex flex-col sm:flex-row gap-4 items-center">
+                <div class="w-full sm:w-1/2">
+                    <label for="faderCcNumber" class="block text-sm font-medium text-gray-300 mb-1">CC Number</label>
+                    <input type="number" id="faderCcNumber" min="0" max="127" value="51"
+                           class="w-full p-2 rounded-md bg-gray-900 border border-gray-600 text-white focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="w-full sm:w-1/2">
+                    <label for="faderCcValue" class="block text-sm font-medium text-gray-300 mb-1">CC Value</label>
+                    <input type="range" id="faderCcValue" min="0" max="127" value="64"
+                           class="w-full h-8 bg-gray-900 rounded-lg appearance-none cursor-pointer range-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75">
+                    <p class="text-center text-gray-400 mt-1">Value: <span id="faderCcValueDisplay">64</span></p>
+                </div>
+            </div>
+            <div class="mt-4 text-center">
+                <button id="sendMidiCcButton"
+                        class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-75"
+                        disabled>
+                    Send MIDI CC
+                </button>
+            </div>
+        </div>
+
+        <!-- Message Log -->
+        <div class="mt-8 bg-gray-900 p-4 rounded-xl shadow-inner max-h-48 overflow-y-auto">
+            <h2 class="text-xl font-semibold mb-2 text-gray-300">Message Log</h2>
+            <div id="messageLog" class="text-sm text-gray-400"></div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables for Bluetooth objects
+        let device;
+        let server;
+        let service;
+
+        // Characteristic objects
+        let swd1LrCcCharacteristic;
+        let swd1CenterCcCharacteristic;
+        let swd2LrCcCharacteristic;
+        let swd2CenterCcCharacteristic;
+        let midiCcCharacteristic; // For sending fader data
+
+        // UI Elements
+        const connectionStatusSpan = document.getElementById('connectionStatus');
+        const connectButton = document.getElementById('connectButton');
+        const disconnectButton = document.getElementById('disconnectButton');
+        const readAllButton = document.getElementById('readAllButton');
+        const writeAllButton = document.getElementById('writeAllButton');
+        const sendMidiCcButton = document.getElementById('sendMidiCcButton');
+
+        const swd1LrCcInput = document.getElementById('swd1LrCcInput');
+        const swd1LrCcValueSpan = document.getElementById('swd1LrCcValue');
+        const swd1CenterCcInput = document.getElementById('swd1CenterCcInput');
+        const swd1CenterCcValueSpan = document.getElementById('swd1CenterCcValue');
+        const swd2LrCcInput = document.getElementById('swd2LrCcInput');
+        const swd2LrCcValueSpan = document.getElementById('swd2LrCcValue');
+        const swd2CenterCcInput = document.getElementById('swd2CenterCcInput');
+        const swd2CenterCcValueSpan = document.getElementById('swd2CenterCcValue');
+
+        const faderCcNumberInput = document.getElementById('faderCcNumber');
+        const faderCcValueInput = document.getElementById('faderCcValue');
+        const faderCcValueDisplay = document.getElementById('faderCcValueDisplay');
+        const messageLogDiv = document.getElementById('messageLog');
+
+        // UUIDs (from your ESP32 code)
+        const SERVICE_UUID = 'f22b99e8-81ab-4e46-abff-79a74a1f2ff3';
+        const SWD1_LR_CC_CHAR_UUID = 'b81da776-547b-4cac-ac98-9df1ff822079';
+        const SWD1_CENTER_CC_CHAR_UUID = '5995401f-489d-4efa-88a1-f865df3347cf';
+        const SWD2_LR_CC_CHAR_UUID = '7e7bf97b-384f-4c83-a664-e545b535e918';
+        const SWD2_CENTER_CC_CHAR_UUID = 'a5941dfe-43b2-4f4f-9be0-4d883117d96e';
+        const MIDI_CC_CHAR_UUID = '62e5a7d2-a443-475f-a40e-ada2229148ce';
+
+        // Helper function to log messages to the UI
+        function logMessage(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('p');
+            logEntry.innerHTML = `<span class="text-gray-500">[${timestamp}]</span> ${message}`;
+            if (type === 'error') {
+                logEntry.classList.add('text-red-300');
+            } else if (type === 'success') {
+                logEntry.classList.add('text-green-300');
+            }
+            messageLogDiv.prepend(logEntry); // Add to top
+            if (messageLogDiv.children.length > 50) { // Keep log from getting too long
+                messageLogDiv.removeChild(messageLogDiv.lastChild);
+            }
+        }
+
+        // --- UI State Management ---
+        function setConnectedUI(isConnected) {
+            connectButton.disabled = isConnected;
+            disconnectButton.disabled = !isConnected;
+            readAllButton.disabled = !isConnected;
+            writeAllButton.disabled = !isConnected;
+            sendMidiCcButton.disabled = !isConnected;
+            connectionStatusSpan.textContent = isConnected ? 'Connected' : 'Disconnected';
+            connectionStatusSpan.classList.toggle('text-green-400', isConnected);
+            connectionStatusSpan.classList.toggle('text-red-400', !isConnected);
+        }
+
+        // --- Bluetooth Connection ---
+        async function connectBluetooth() {
+            try {
+                logMessage('Requesting Bluetooth device...');
+                device = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [SERVICE_UUID] }],
+                    optionalServices: [SERVICE_UUID] // Important for accessing services after connection
+                });
+
+                logMessage(`Connecting to GATT server on "${device.name}"...`);
+                device.addEventListener('gattserverdisconnected', onDisconnected);
+                server = await device.gatt.connect();
+                logMessage('Connected to GATT server!', 'success');
+
+                logMessage('Getting service...');
+                service = await server.getPrimaryService(SERVICE_UUID);
+                logMessage('Service found!', 'success');
+
+                logMessage('Getting characteristics...');
+                swd1LrCcCharacteristic = await service.getCharacteristic(SWD1_LR_CC_CHAR_UUID);
+                swd1CenterCcCharacteristic = await service.getCharacteristic(SWD1_CENTER_CC_CHAR_UUID);
+                swd2LrCcCharacteristic = await service.getCharacteristic(SWD2_LR_CC_CHAR_UUID);
+                swd2CenterCcCharacteristic = await service.getCharacteristic(SWD2_CENTER_CC_CHAR_UUID);
+                midiCcCharacteristic = await service.getCharacteristic(MIDI_CC_CHAR_UUID);
+                logMessage('All characteristics found!', 'success');
+
+                setConnectedUI(true);
+                readAllCharacteristics(); // Read initial values after connection
+            } catch (error) {
+                logMessage(`Bluetooth connection error: ${error}`, 'error');
+                setConnectedUI(false);
+            }
+        }
+
+        function onDisconnected(event) {
+            const disconnectedDevice = event.target;
+            logMessage(`Device "${disconnectedDevice.name}" disconnected.`, 'error');
+            setConnectedUI(false);
+            // Reset displayed values
+            swd1LrCcValueSpan.textContent = 'N/A';
+            swd1CenterCcValueSpan.textContent = 'N/A';
+            swd2LrCcValueSpan.textContent = 'N/A';
+            swd2CenterCcValueSpan.textContent = 'N/A';
+        }
+
+        function disconnectBluetooth() {
+            if (device && device.gatt.connected) {
+                logMessage('Disconnecting from device...');
+                device.gatt.disconnect();
+            } else {
+                logMessage('Device not connected.', 'info');
+            }
+        }
+
+        // --- Read Operations ---
+        async function readCharacteristic(characteristic, displayElement, inputElement) {
+            try {
+                const value = await characteristic.readValue();
+                const intValue = value.getUint8(0); // Assuming single byte integer (0-127)
+                displayElement.textContent = intValue;
+                if (inputElement) {
+                    inputElement.value = intValue;
+                }
+                logMessage(`Read ${characteristic.uuid.substring(4, 8)}: ${intValue}`);
+                return intValue;
+            } catch (error) {
+                logMessage(`Error reading ${characteristic.uuid.substring(4, 8)}: ${error}`, 'error');
+                return null;
+            }
+        }
+
+        async function readAllCharacteristics() {
+            logMessage('Reading all settings from ESP32...');
+            await readCharacteristic(swd1LrCcCharacteristic, swd1LrCcValueSpan, swd1LrCcInput);
+            await readCharacteristic(swd1CenterCcCharacteristic, swd1CenterCcValueSpan, swd1CenterCcInput);
+            await readCharacteristic(swd2LrCcCharacteristic, swd2LrCcValueSpan, swd2LrCcInput);
+            await readCharacteristic(swd2CenterCcCharacteristic, swd2CenterCcValueSpan, swd2CenterCcInput);
+            logMessage('All settings read.', 'success');
+        }
+
+        // --- Write Operations ---
+        async function writeCharacteristic(characteristic, value, valueType = 'int') {
+            try {
+                let data;
+                if (valueType === 'int') {
+                    data = new Uint8Array([parseInt(value)]);
+                } else if (valueType === 'string') {
+                    data = new TextEncoder().encode(value);
+                } else {
+                    throw new Error("Unsupported valueType for writing.");
+                }
+
+                await characteristic.writeValue(data);
+                logMessage(`Wrote to ${characteristic.uuid.substring(4, 8)}: ${value}`);
+                return true;
+            } catch (error) {
+                logMessage(`Error writing to ${characteristic.uuid.substring(4, 8)}: ${error}`, 'error');
+                return false;
+            }
+        }
+
+        async function writeConfigCCs() {
+            if (!device || !device.gatt.connected) {
+                logMessage('Not connected to ESP32.', 'error');
+                return;
+            }
+            logMessage('Writing settings to ESP32...');
+            const success1 = await writeCharacteristic(swd1LrCcCharacteristic, swd1LrCcInput.value, 'int');
+            const success2 = await writeCharacteristic(swd1CenterCcCharacteristic, swd1CenterCcInput.value, 'int');
+            const success3 = await writeCharacteristic(swd2LrCcCharacteristic, swd2LrCcInput.value, 'int');
+            const success4 = await writeCharacteristic(swd2CenterCcCharacteristic, swd2CenterCcInput.value, 'int');
+
+            if (success1 && success2 && success3 && success4) {
+                logMessage('All settings written successfully!', 'success');
+                readAllCharacteristics(); // Read back to confirm
+            } else {
+                logMessage('Failed to write all settings.', 'error');
+            }
+        }
+
+        // Function for your future digital faders
+        async function sendMidiCc(ccNumber, ccValue) {
+            if (!device || !device.gatt.connected) {
+                logMessage('Not connected to ESP32.', 'error');
+                return;
+            }
+            if (!midiCcCharacteristic) {
+                logMessage('MIDI CC Characteristic not found.', 'error');
+                return;
+            }
+
+            // ESP32 expects "CC_NUMBER,VALUE" string
+            const midiMessage = `${ccNumber},${ccValue}`;
+            logMessage(`Sending MIDI CC: ${midiMessage}`);
+            await writeCharacteristic(midiCcCharacteristic, midiMessage, 'string');
+        }
+
+
+        // --- Event Listeners ---
+        connectButton.addEventListener('click', connectBluetooth);
+        disconnectButton.addEventListener('click', disconnectBluetooth);
+        readAllButton.addEventListener('click', readAllCharacteristics);
+        writeAllButton.addEventListener('click', writeConfigCCs);
+
+        // Fader example event listener
+        faderCcValueInput.addEventListener('input', () => {
+            faderCcValueDisplay.textContent = faderCcValueInput.value;
+        });
+        sendMidiCcButton.addEventListener('click', () => {
+            const ccNum = parseInt(faderCcNumberInput.value);
+            const ccVal = parseInt(faderCcValueInput.value);
+            if (isNaN(ccNum) || ccNum < 0 || ccNum > 127 || isNaN(ccVal) || ccVal < 0 || ccVal > 127) {
+                logMessage('Invalid CC Number or Value for fader.', 'error');
+                return;
+            }
+            sendMidiCc(ccNum, ccVal);
+        });
+
+        // Initial UI state
+        setConnectedUI(false);
+        faderCcValueDisplay.textContent = faderCcValueInput.value; // Set initial fader value display
+    </script>
+</body>
+</html>
