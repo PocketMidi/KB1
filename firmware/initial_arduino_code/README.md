@@ -1,24 +1,26 @@
-# KB1 Firmware v1.1 Source Code Summary
+> [!WARNING]
+> This is the initial Arduino based source code for the firmware. It is no longer actively developed or maintained. 
 
-## INTRODUCTION
-#### This code uses the ESP32 platform, which supports FreeRTOS and allows for multicore programming. 
+## KB1 Firmware v1.1 Source Code Summary
 
+### Introduction
 
-The **buttonReadTask** function is running on **Core 1**, and the loop function (which contains the main MIDI processing logic) is running on **Core 0**.
-The code initializes the MCP23X17 GPIO expanders, and MIDI objects. 
-Then, it configures the buttons and starts the **buttonReadTask** on **Core 1** using FreeRTOS. 
-The **buttonReadTask** continuously reads the state of buttons connected to the MCP23X17 GPIO expanders. 
-It checks for button presses and releases, triggering MIDI values or other tasks accordingly. 
-The button processing and MIDI functions are separated, allowing the MIDI processing to continue in the background on **Core 0** while the button reading occurs on Core 1. This approach ensures that time-sensitive MIDI processing is not affected by potential delays caused by button reading or other tasks running on **Core 1**. 
-The loop function runs on **Core 0** handling notes, velocities, and octaves. *OCT_DN* and *OCT_UP* buttons modulate octaves, signifying transitions through rhythmic pulsations of their LEDs. Two Levers adjust parameters such as "finetune" (midi cc#3), "sustain", and note velocities during prolonged activation, visually represented by by pink and blue LEDs.
+> [!Note]
+> This code uses the ESP32 platform, which supports FreeRTOS and allows for multicore programming.
 
-## Libraries
+* The **buttonReadTask** function is running on **Core 1**, and the loop function (which contains the main MIDI processing logic) is running on **Core 0**.
+* The code initializes the MCP23X17 GPIO expanders, and MIDI objects. 
+* Then, it configures the buttons and starts the **buttonReadTask** on **Core 1** using FreeRTOS. 
+* The **buttonReadTask** continuously reads the state of buttons connected to the MCP23X17 GPIO expanders. 
+  It checks for button presses and releases, triggering MIDI values or other tasks accordingly. 
+* The button processing and MIDI functions are separated, allowing the MIDI processing to continue in the background on **Core 0** while the button reading occurs on Core 1. This approach ensures that time-sensitive MIDI processing is not affected by potential delays caused by button reading or other tasks running on **Core 1**. 
+* The loop function runs on **Core 0** handling notes, velocities, and octaves. *OCT_DN* and *OCT_UP* buttons modulate octaves, signifying transitions through rhythmic pulsations of their LEDs. Two Levers adjust parameters such as "finetune" (midi cc#3), "sustain", and note velocities during prolonged activation, visually represented by by pink and blue LEDs.
+
+### Libraries
 
 This firmware utilizes the Arduino framework for the [Xiao ESP32S3 board](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/). 
 
 *It is recommended to follow the Getting Started Guide in the link above when using the Arduino IDE and grab the latest board manager from Espressif.*
-
-
 
 #### Additional Libraries:
 [Adafruit MCP23017 Library](https://github.com/adafruit/Adafruit-MCP23017-Arduino-Library)
@@ -29,8 +31,8 @@ This firmware utilizes the Arduino framework for the [Xiao ESP32S3 board](https:
 
 These are installable in the Arduino IDE, or as external packages.
 
+### Input Mapping:
 
-## Input Mapping:
 [KB1 Connection Map](https://github.com/PocketMidi/KB1/blob/main/Firmware/Reference/KB1_Connection_Map_FW_v1.0.csv)
 #### MIDI Notes (Keys):
 Various buttons on U1 and U2 pins are mapped to MIDI notes and control changes.
