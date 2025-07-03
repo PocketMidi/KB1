@@ -31,9 +31,43 @@
 #include <bt/ServerCallbacks.h>
 #include <bt/SecurityCallbacks.h>
 #include <bt/CharacteristicCallbacks.h>
+#include <lever/LeverControls.h>
 
 Adafruit_MCP23X17 mcp_U1;
 Adafruit_MCP23X17 mcp_U2;
+
+MIDI_CREATE_INSTANCE(HardwareSerial, Serial0, MIDI);
+
+// Lever Objects
+LeverControls<decltype(MIDI)> lever1(
+    &mcp_U1,
+    SWD1_LEFT_PIN,
+    &mcp_U2,
+    SWD1_RIGHT_PIN,
+    3,
+    0,
+    127,
+    1, // stepSize
+    FunctionMode::INTERPOLATED,
+    LeverMode::BIPOLAR,
+    1000,
+    200,
+    MIDI);
+LeverControls<decltype(MIDI)> lever2(
+    &mcp_U2,
+    SWD2_LEFT_PIN,
+    &mcp_U2,
+    SWD2_RIGHT_PIN,
+    7,
+    0,
+    127,
+    4, // stepSize
+    FunctionMode::MANUAL,
+    LeverMode::UNIPOLAR,
+    200,
+    200,
+    MIDI);
+
 
 key keys[MAX_KEYS] = {
     {59, 4, true, true, &mcp_U1, "SW1 (B)"},
@@ -56,8 +90,6 @@ key keys[MAX_KEYS] = {
     {76, 9, true, true, &mcp_U2, "SW11 (E)"},
     {77, 8, true, true, &mcp_U2, "SW12 (F)"}
 };
-
-MIDI_CREATE_INSTANCE(HardwareSerial, Serial0, MIDI);
 
 Preferences preferences; // Define Preferences object
 BLEServer* pServer = nullptr;
@@ -91,16 +123,10 @@ volatile bool prevS3State = true;
 volatile bool prevS4State = true;
 
 // Previous state variables for Lever 1
-bool prevSWD1LeftState = false;
 bool prevSWD1CenterState = false;
-bool prevSWD1RightState = false;
 
 // Previous state variables for Lever 2
-volatile bool prevSWD2LeftState = true;
 volatile bool prevSWD2CenterState = true;
-volatile bool prevSWD2RightState = true;
-bool isSwd2LeftPressed = false;
-bool isSwd2RightPressed = false;
 bool isSwd2CenterPressed = false;
 const int swd2Interval = 200;      // Interval in milliseconds (0.2 seconds)
 
@@ -161,6 +187,12 @@ void setup() {
     ccNumberSWD2LeftRight = preferences.getInt("ccSWD2LR", 7);
     ccNumberSWD2Center = preferences.getInt("ccSWD2Center", 1);
 
+    // Set CC numbers for levers
+    lever1.setCCNumber(ccNumberSWD1LeftRight);
+    lever2.setCCNumber(ccNumberSWD2LeftRight);
+    
+
+
     SERIAL_PRINT("Loaded SWD1 LR CC: "); SERIAL_PRINTLN(ccNumberSWD1LeftRight);
     SERIAL_PRINT("Loaded SWD1 Center CC: "); SERIAL_PRINTLN(ccNumberSWD1Center);
     SERIAL_PRINT("Loaded SWD2 LR CC: "); SERIAL_PRINTLN(ccNumberSWD2LeftRight);
@@ -180,6 +212,7 @@ void setup() {
         // ReSharper disable once CppDFAEndlessLoop
         while (true) {}
     }
+    delay(100); // Add a small delay to allow MCP2 to fully initialize
 
     // Configure Keys as input with pull-up
     for (const auto & key : keys) {
@@ -345,10 +378,13 @@ void downTimerCallback(TimerHandle_t xTimer)
 void shiftOctave(const int shift)
 {
     currentOctave += shift;
-    if (currentOctave < -3)
+    if (currentOctave < -3) {
+        SERIAL_PRINTLN("Lowest Octave");
         currentOctave = -3;
-    else if (currentOctave > 3)
+    } else if (currentOctave > 3) {
+        SERIAL_PRINTLN("Highest Octave");
         currentOctave = 3;
+    }
 
     xTimerStop(upTimer, 0);
     xTimerStop(downTimer, 0);
@@ -370,7 +406,7 @@ void shiftOctave(const int shift)
             xTimerChangePeriod(upTimer, pdMS_TO_TICKS(175), 0);
         xTimerStart(upTimer, 0);
     }
-    else
+    else // currentOctave < 0
     {
         mcp_U2.digitalWrite(7, HIGH);
         mcp_U2.digitalWrite(5, LOW);
@@ -523,32 +559,16 @@ void gotTouch1() {
         {
             key.state = !key.mcp->digitalRead(key.pin);
         }
-        const bool SWD1LeftState = !mcp_U1.digitalRead(SWD1_LEFT_PIN);
+
         const bool SWD1CenterState = !mcp_U1.digitalRead(SWD1_CENTER_PIN);
-        const bool SWD1RightState = !mcp_U2.digitalRead(SWD1_RIGHT_PIN);
         const bool S3State = !mcp_U2.digitalRead(4);
         const bool S4State = !mcp_U2.digitalRead(6);
-        const bool SWD2LeftState = !mcp_U2.digitalRead(SWD2_LEFT_PIN);
         const bool SWD2CenterState = !mcp_U2.digitalRead(SWD2_CENTER_PIN);
-        const bool SWD2RightState = !mcp_U2.digitalRead(SWD2_RIGHT_PIN);
 
-        ////////// LEVER 1 LEFT  /////////////////////////////////////////////////
-        if (SWD1LeftState && !prevSWD1LeftState) {
-            MIDI.sendControlChange(ccNumberSWD1LeftRight, 0, 1); // Use configurable CC number
-            SERIAL_PRINT("SWD1_Left Pressed! MIDI CC#"); SERIAL_PRINT(ccNumberSWD1LeftRight); SERIAL_PRINTLN(", Value 0");
-        } else if (!SWD1LeftState && prevSWD1LeftState) {
-            MIDI.sendControlChange(ccNumberSWD1LeftRight, 64, 1); // Use configurable CC number
-            SERIAL_PRINT("SWD1_Left Released! MIDI CC#"); SERIAL_PRINT(ccNumberSWD1LeftRight); SERIAL_PRINTLN(", Value 64");
-        }
+        // Update Levers
+        lever1.update();
+        lever2.update();
 
-        ////////// LEVER 1 RIGHT  /////////////////////////////////////////////////
-        if (SWD1RightState && !prevSWD1RightState) {
-            MIDI.sendControlChange(ccNumberSWD1LeftRight, 127, 1); // Use configurable CC number
-            SERIAL_PRINT("SWD1_Right Pressed! MIDI CC#"); SERIAL_PRINT(ccNumberSWD1LeftRight); SERIAL_PRINTLN(", Value 127");
-        } else if (!SWD1RightState && prevSWD1RightState) {
-            MIDI.sendControlChange(ccNumberSWD1LeftRight, 64, 1); // Use configurable CC number
-            SERIAL_PRINT("SWD1_Right Released! MIDI CC#"); SERIAL_PRINT(ccNumberSWD1LeftRight); SERIAL_PRINTLN(", Value 64");
-        }
 
         ////////// LEVER 1 CENTER (Sustain) /////////////////////////////////////////
         if (SWD1CenterState && !prevSWD1CenterState) {
@@ -563,31 +583,6 @@ void gotTouch1() {
             controlPinkBreathingLED(sustain);
         }
 
-        ////////// LEVER 2 LEFT ///////////////////////////////////////////////
-        if (SWD2LeftState && !prevSWD2LeftState && !isSwd2LeftPressed) {
-            // updateVelocity(-8);
-
-            MIDI.sendControlChange(ccNumberSWD2LeftRight, 0, 1); // Example value 0
-            SERIAL_PRINT("SWD2_Left Pressed! MIDI CC#"); SERIAL_PRINT(ccNumberSWD2LeftRight); SERIAL_PRINTLN(", Value 0");
-            isSwd2LeftPressed = true;
-        } else if (!SWD2LeftState && prevSWD2LeftState) {
-            MIDI.sendControlChange(ccNumberSWD2LeftRight, 64, 1); // Example value 64
-            SERIAL_PRINT("SWD2_Left Released! MIDI CC#"); SERIAL_PRINT(ccNumberSWD2LeftRight); SERIAL_PRINTLN(", Value 64");
-            isSwd2LeftPressed = false;
-        }
-
-        ////////// LEVER 2 RIGHT ///////////////////////////////////////////////
-        if (SWD2RightState && !prevSWD2RightState && !isSwd2RightPressed) {
-            // updateVelocity(8);
-
-            MIDI.sendControlChange(ccNumberSWD2LeftRight, 127, 1); // Example value 127
-            SERIAL_PRINT("SWD2_Right Pressed! MIDI CC#"); SERIAL_PRINT(ccNumberSWD2LeftRight); SERIAL_PRINTLN(", Value 127");
-            isSwd2RightPressed = true;
-        } else if (!SWD2RightState && prevSWD2RightState) {
-            MIDI.sendControlChange(ccNumberSWD2LeftRight, 64, 1); // Example value 64
-            SERIAL_PRINT("SWD2_Right Released! MIDI CC#"); SERIAL_PRINT(ccNumberSWD2LeftRight); SERIAL_PRINTLN(", Value 64");
-            isSwd2RightPressed = false;
-        }
 
         ////////// LEVER 2 CENTER ///////////////////////////////////////////////
         if (SWD2CenterState && !prevSWD2CenterState && !isSwd2CenterPressed) {
@@ -603,12 +598,8 @@ void gotTouch1() {
         }
 
         // Save current button states for Levers
-        prevSWD1LeftState = SWD1LeftState;
         prevSWD1CenterState = SWD1CenterState;
-        prevSWD1RightState = SWD1RightState;
-        prevSWD2LeftState = SWD2LeftState;
         prevSWD2CenterState = SWD2CenterState;
-        prevSWD2RightState = SWD2RightState;
 
         //////////////////  OCTAVE Buttons ////////////////////////////////////////
         if (S3State && S4State)
