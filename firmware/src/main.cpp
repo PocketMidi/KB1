@@ -31,7 +31,8 @@
 #include <bt/ServerCallbacks.h>
 #include <bt/SecurityCallbacks.h>
 #include <bt/CharacteristicCallbacks.h>
-#include <lever/LeverControls.h>
+#include <controls/LeverControls.h>
+#include <controls/TouchControls.h>
 
 Adafruit_MCP23X17 mcp_U1;
 Adafruit_MCP23X17 mcp_U2;
@@ -48,7 +49,7 @@ LeverControls<decltype(MIDI)> lever1(
     0,
     127,
     1,
-    FunctionMode::INTERPOLATED,
+    LeverFunctionMode::INTERPOLATED,
     LeverMode::BIPOLAR,
     1000,
     1000,
@@ -64,13 +65,25 @@ LeverControls<decltype(MIDI)> lever2(
     0,
     127,
     4,
-    FunctionMode::MANUAL,
+    LeverFunctionMode::INCREMENTAL,
     LeverMode::BIPOLAR,
     200,
     200,
     InterpolationType::LINEAR,
     InterpolationType::LINEAR,
     MIDI);
+
+TouchControls<decltype(MIDI)> touch1(
+    T1, 
+    25,
+    0,
+    127,
+    26000,
+    155000, 
+    26000,
+    TouchFunctionMode::CONTINUOUS,
+    MIDI
+);
 
 
 key keys[MAX_KEYS] = {
@@ -117,11 +130,6 @@ int ccNumberSWD1Center = 24;    // Default for SWD1 Center (Sustain)
 int ccNumberSWD2LeftRight = 7;  // Default for SWD2 Left/Right (e.g., Expression)
 int ccNumberSWD2Center = 1;     // Default for SWD2 Center (e.g., Modulation)
 
-// Touch Shift Mode globals
-volatile bool shiftModeActive = false;
-int threshold = 1500; // Adjust this value according to your setup
-bool touch1detected = false; // Not used in provided code, can be removed if not needed
-
 // Previous state variables for OCT buttons
 volatile bool prevS3State = true;
 volatile bool prevS4State = true;
@@ -156,7 +164,6 @@ void playMidiNote(byte note);
 void stopMidiNote(byte note);
 void shiftOctave(int shift);
 void buttonReadTask(void *pvParameters);
-void gotTouch1();
 void upTimerCallback(TimerHandle_t xTimer);
 void downTimerCallback(TimerHandle_t xTimer);
 void resetVelocity();
@@ -222,8 +229,6 @@ void setup() {
     for (const auto & key : keys) {
         key.mcp->pinMode(key.pin, INPUT_PULLUP);
     }
-    // Touch sensor setup
-    touchAttachInterrupt(T1, gotTouch1, threshold); // Ensure T1 is the correct touch pin for your Xiao S3
 
     //////// U1 //////////////////////////////////////////////////////
     // Configure SWD buttons on U1 as inputs with pull-up
@@ -532,31 +537,17 @@ void controlPinkBreathingLED(const bool state)
     }
 }
 
-// Toggle shift mode state
-void gotTouch1() {
-    shiftModeActive = !shiftModeActive;
-}
-
 ////////////////////////  Button Read  /////////////////////////////////
 ////////////////////////////////////////////////////////////////////////
 
-[[noreturn]] void buttonReadTask(void *pvParameters)
-{
+[[noreturn]] void buttonReadTask(void *pvParameters) {
     bool isS3Pressed = false;
     bool isS4Pressed = false;
     bool areS3S4Pressed = false;
 
     while (true)
     {
-        static bool lastShiftModeActive = false;
-        if (shiftModeActive != lastShiftModeActive) {
-            if (shiftModeActive) {
-                SERIAL_PRINTLN("SHIFT Mode Enabled");
-            } else {
-                SERIAL_PRINTLN("SHIFT Mode Disabled");
-            }
-            lastShiftModeActive = shiftModeActive;
-        }
+        touch1.update();
 
         // Read key states & button states on U2
         for (auto & key : keys)

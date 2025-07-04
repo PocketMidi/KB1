@@ -21,4 +21,4 @@
 #define SWD2_CENTER_CC_CHAR_UUID "a5941dfe-43b2-4f4f-9be0-4d883117d96e"
 #define MIDI_CC_CHAR_UUID        "62e5a7d2-a443-475f-a40e-ada2229148ce"
 
-#endif // CONSTANTS_H
+#endif

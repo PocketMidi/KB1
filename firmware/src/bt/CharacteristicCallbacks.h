@@ -7,4 +7,4 @@ class CharacteristicCallbacks final : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) override;
 };
 
-#endif // CHARACTERISTIC_CALLBACKS_H
+#endif

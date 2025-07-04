@@ -9,4 +9,4 @@ class ServerCallbacks final : public BLEServerCallbacks {
     void onDisconnect(BLEServer* pServer) override;
 };
 
-#endif // SERVER_CALLBACKS_H
+#endif
