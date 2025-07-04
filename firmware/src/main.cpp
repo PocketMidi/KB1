@@ -34,6 +34,7 @@
 #include <controls/LeverControls.h>
 #include <controls/TouchControl.h>
 #include "controls/LeverPushControls.h"
+#include <led/LEDController.h>
 
 Adafruit_MCP23X17 mcp_U1;
 Adafruit_MCP23X17 mcp_U2;
@@ -149,7 +150,6 @@ BLECharacteristic* pMidiCcCharacteristic = nullptr;
 // Global state variables and their initial values
 volatile int currentOctave = 0;
 volatile int currentVelocity = 80;
-bool sustain = true; // Set initial state of sustain to true
 int minVelocity = 8;
 
 int ccNumberSWD1LeftRight = 3;  // Default for SWD1 Left/Right
@@ -161,12 +161,6 @@ int ccNumberSWD2Center = 1;     // Default for SWD2 Center (e.g., Modulation)
 volatile bool prevS3State = true;
 volatile bool prevS4State = true;
 
-// LED Blue // Velocity // Lever 2 ////////
-const int bluePin = 7;
-int blueBrightness = 0;
-unsigned long previousTime = 0;         // variables for non-blocking timers
-const unsigned long ledOffDelay = 3000; // xx seconds in milliseconds
-
 // Octave Timers & Callbacks //
 TimerHandle_t upTimer;
 TimerHandle_t downTimer;
@@ -174,8 +168,8 @@ TimerHandle_t downTimer;
 // MIDI notes
 bool isNoteOn[128]; // Initialized in setup()
 
-// LED Pink // Sustain // Lever 1 /////
-const int pinkPin = 8;
+// LED Controller
+LEDController ledController;
 
 
 // Forward declarations for functions defined later in this file
@@ -187,7 +181,7 @@ void upTimerCallback(TimerHandle_t xTimer);
 void downTimerCallback(TimerHandle_t xTimer);
 void resetVelocity();
 void updateVelocity(int delta);
-void controlPinkBreathingLED(bool state);
+
 
 
 /////////////////////////////////////////////////////////////////
@@ -287,9 +281,11 @@ void setup() {
         // ReSharper disable once CppDFAEndlessLoop
         while (true) {}
     }
-    pinMode(pinkPin, OUTPUT);
-    pinMode(bluePin, OUTPUT);
-    analogWrite(bluePin, blueBrightness); // Set initial brightness
+
+    ledController.begin(LedColor::BLUE, 7);
+    ledController.set(LedColor::BLUE, 0);
+    ledController.begin(LedColor::PINK, 8);
+    ledController.set(LedColor::PINK, 0);
 
     // ***** BLE SETUP *****
     BLEDevice::init("KB1");
@@ -374,22 +370,10 @@ void setup() {
 ////////////////////////////////////////////////////////////////////////
 
 void loop() {
-    // This section keeps the blue LED fading out if it was just lit by velocity change
-    const unsigned long currentTime = millis();
-    const unsigned long elapsedTime = currentTime - previousTime;
-    if (elapsedTime < ledOffDelay) {
-        const int fadeValue = map(static_cast<long>(elapsedTime), 0, ledOffDelay, blueBrightness, 0);
-        analogWrite(bluePin, fadeValue);
-    } else {
-        analogWrite(bluePin, 0); // Turn off LED when fade is complete
-    }
+    ledController.update();
 
-    // Call controlPinkBreathingLED in loop() to maintain the breathing effect
-    if (!sustain) { // Only call if sustain is OFF (meaning breathing is desired)
-        controlPinkBreathingLED(sustain);
-    }
-
-    vTaskDelay(1 / portTICK_PERIOD_MS); // Small delay to avoid watchdog timer issues
+    // Small delay to avoid watchdog timer issues
+    vTaskDelay(1 / portTICK_PERIOD_MS);
 }
 
 // Helper functions (defined outside loop/setup)
@@ -476,25 +460,10 @@ void updateVelocity(const int delta) {
     else if (currentVelocity > 127)
         currentVelocity = 127;
 
-    if (delta > 0 || (delta < 0 && blueBrightness < 255 - 25))
-    {
-        if (delta > 0 && blueBrightness < 255 - 25)
-        {
-            blueBrightness += 25;
-        }
-        else if (delta < 0)
-        {
-            if (currentVelocity <= minVelocity || previousVelocity > minVelocity)
-            {
-                blueBrightness = 25;
-            }
-            else if (blueBrightness > 25)
-            {
-                blueBrightness -= 25;
-            }
-        }
-        analogWrite(bluePin, blueBrightness);
-        previousTime = millis();
+    if (delta > 0) {
+        ledController.set(LedColor::BLUE, 255, 500); // Fade to full brightness over 500ms
+    } else if (delta < 0) {
+        ledController.set(LedColor::BLUE, 0, 3000); // Fade to off over 3000ms
     }
     if (currentVelocity != previousVelocity) {
         if (delta > 0) {
@@ -509,43 +478,9 @@ void updateVelocity(const int delta) {
 void resetVelocity() {
     currentVelocity = 80;
     SERIAL_PRINTLN("Velocity Reset to 80");
-    analogWrite(bluePin, 51);
+    ledController.set(LedColor::BLUE, 51, 250);
     delay(250);
-    analogWrite(bluePin, 0);
-}
-
-void controlPinkBreathingLED(const bool state) {
-    static unsigned long previousMillis = 0;
-    static int brightness = 0;
-    static int fadeAmount = 1;
-    static unsigned long pulseInterval = 84;
-    const unsigned long currentMillis = millis();
-
-    if (state)
-    {
-        analogWrite(pinkPin, 0);
-        brightness = 0;
-        previousMillis = currentMillis;
-    }
-    else
-    {
-        if (currentMillis - previousMillis >= pulseInterval)
-        {
-            constexpr int maxBrightness = 12;
-            constexpr int minBrightness = 2;
-            previousMillis = currentMillis;
-            if (brightness <= minBrightness)
-            {
-                fadeAmount = abs(fadeAmount);
-            }
-            else if (brightness >= maxBrightness)
-            {
-                fadeAmount = -abs(fadeAmount);
-            }
-            brightness += fadeAmount;
-            analogWrite(pinkPin, brightness);
-        }
-    }
+    ledController.set(LedColor::BLUE, 0, 0);
 }
 
 ////////////////////////  Button Read  /////////////////////////////////
@@ -564,20 +499,15 @@ void controlPinkBreathingLED(const bool state) {
             key.state = !key.mcp->digitalRead(key.pin);
         }
 
-        // Update TouchControls
         touch1.update();
 
-        // Update LeverControls
         lever1.update();
         lever2.update();
 
-        // Update LeverPushControls
         leverPush1.update();
         leverPush2.update();
 
-
         //////////////////  OCTAVE Buttons ////////////////////////////////////////
-
         const bool S3State = !mcp_U2.digitalRead(4);
         const bool S4State = !mcp_U2.digitalRead(6);
 
@@ -617,7 +547,6 @@ void controlPinkBreathingLED(const bool state) {
         }
         prevS3State = S3State;
         prevS4State = S4State;
-
 
         //////////////////  KEYS /////////////////////////////////////////////
         for (auto & key : keys)
