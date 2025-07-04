@@ -13,7 +13,7 @@ bool SecurityCallbacks::onConfirmPIN(uint32_t pin) {
 }
 uint32_t SecurityCallbacks::onPassKeyRequest() {
     SERIAL_PRINTLN("PassKey Request received, returning 0 (Just Works).");
-    return 0; // For Just Works, or if you don't care to display a key
+    return 0;
 }
 void SecurityCallbacks::onPassKeyNotify(const uint32_t pass_key) {
     SERIAL_PRINT("The passkey is: ");

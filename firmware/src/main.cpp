@@ -32,7 +32,8 @@
 #include <bt/SecurityCallbacks.h>
 #include <bt/CharacteristicCallbacks.h>
 #include <controls/LeverControls.h>
-#include <controls/TouchControls.h>
+#include <controls/TouchControl.h>
+#include "controls/LeverPushControls.h"
 
 Adafruit_MCP23X17 mcp_U1;
 Adafruit_MCP23X17 mcp_U2;
@@ -42,8 +43,8 @@ MIDI_CREATE_INSTANCE(HardwareSerial, Serial0, MIDI);
 // Lever Objects
 LeverControls<decltype(MIDI)> lever1(
     &mcp_U1,
-    SWD1_LEFT_PIN,
     &mcp_U2,
+    SWD1_LEFT_PIN,
     SWD1_RIGHT_PIN,
     3,
     0,
@@ -58,8 +59,8 @@ LeverControls<decltype(MIDI)> lever1(
     MIDI);
 LeverControls<decltype(MIDI)> lever2(
     &mcp_U2,
-    SWD2_LEFT_PIN,
     &mcp_U2,
+    SWD2_LEFT_PIN,
     SWD2_RIGHT_PIN,
     7,
     0,
@@ -73,9 +74,35 @@ LeverControls<decltype(MIDI)> lever2(
     InterpolationType::LINEAR,
     MIDI);
 
-TouchControls<decltype(MIDI)> touch1(
+LeverPushControls<decltype(MIDI)> leverPush1(
+        &mcp_U1,
+        SWD1_CENTER_PIN,
+        24,
+        0,
+        127,
+        LeverPushFunctionMode::INTERPOLATED,
+        200,
+        200,
+        InterpolationType::LINEAR,
+        InterpolationType::LINEAR,
+        MIDI);
+
+LeverPushControls<decltype(MIDI)> leverPush2(
+        &mcp_U2,
+        SWD2_CENTER_PIN,
+        1,
+        0,
+        127,
+        LeverPushFunctionMode::JUMP_AND_INTERPOLATE,
+        200,
+        200,
+        InterpolationType::LINEAR,
+        InterpolationType::LINEAR,
+        MIDI);
+
+TouchControl<decltype(MIDI)> touch1(
     T1, 
-    25,
+    51,
     0,
     127,
     26000,
@@ -134,14 +161,6 @@ int ccNumberSWD2Center = 1;     // Default for SWD2 Center (e.g., Modulation)
 volatile bool prevS3State = true;
 volatile bool prevS4State = true;
 
-// Previous state variables for Lever 1
-bool prevSWD1CenterState = false;
-
-// Previous state variables for Lever 2
-volatile bool prevSWD2CenterState = true;
-bool isSwd2CenterPressed = false;
-const int swd2Interval = 200;      // Interval in milliseconds (0.2 seconds)
-
 // LED Blue // Velocity // Lever 2 ////////
 const int bluePin = 7;
 int blueBrightness = 0;
@@ -176,20 +195,23 @@ void controlPinkBreathingLED(bool state);
 /////////////////////////////////////////////////////////////////
 
 void setup() {
-    Serial.begin(115200); // Start serial monitor
+    SERIAL_BEGIN();
     SERIAL_PRINTLN("Serial monitor started.");
 
-    memset(isNoteOn, false, sizeof(isNoteOn)); // Initialize all note-on flags to false
+    // Initialize all note-on flags to false
+    memset(isNoteOn, false, sizeof(isNoteOn));
 
-    pinMode(LED_BUILTIN, OUTPUT); // initialize digital pin LED_BUILTIN as an output.
-    digitalWrite(LED_BUILTIN, LOW); // Keep built-in LED on continuously (active low for some boards)
+    // initialize digital pin LED_BUILTIN as an output.
+    pinMode(LED_BUILTIN, OUTPUT);
+    // Keep built-in LED on continuously (active low for some boards)
+    digitalWrite(LED_BUILTIN, LOW);
 
-    // Initialize NVS Preferences
+    // Initialize Preferences
     if (!preferences.begin("kb1-settings", false)) {
-        SERIAL_PRINTLN("Error initializing NVS preferences. Rebooting...");
-        ESP.restart(); // Or handle the error gracefully
+        SERIAL_PRINTLN("Error initializing Preferences. Rebooting...");
+        ESP.restart();
     } else {
-        SERIAL_PRINTLN("NVS preferences initialized successfully.");
+        SERIAL_PRINTLN("Preferences initialized successfully.");
     }
 
     // NEW: Load configurable CC numbers from NVS
@@ -201,8 +223,6 @@ void setup() {
     // Set CC numbers for levers
     lever1.setCCNumber(ccNumberSWD1LeftRight);
     lever2.setCCNumber(ccNumberSWD2LeftRight);
-    
-
 
     SERIAL_PRINT("Loaded SWD1 LR CC: "); SERIAL_PRINTLN(ccNumberSWD1LeftRight);
     SERIAL_PRINT("Loaded SWD1 Center CC: "); SERIAL_PRINTLN(ccNumberSWD1Center);
@@ -210,20 +230,20 @@ void setup() {
     SERIAL_PRINT("Loaded SWD2 Center CC: "); SERIAL_PRINTLN(ccNumberSWD2Center);
 
     // Start MCP_U1
-    if (!mcp_U1.begin_I2C(0x20)) // MCP1 is at address 0x20
-    {
+    if (!mcp_U1.begin_I2C(0x20)) {
         SERIAL_PRINTLN("Error initializing U1.");
         // ReSharper disable once CppDFAEndlessLoop
         while (true) {}
     }
     // Start MCP_U2
-    if (!mcp_U2.begin_I2C(0x21)) // MCP2 is at address 0x21
-    {
+    if (!mcp_U2.begin_I2C(0x21)) {
         SERIAL_PRINTLN("Error initializing U2.");
         // ReSharper disable once CppDFAEndlessLoop
         while (true) {}
     }
-    delay(100); // Add a small delay to allow MCP2 to fully initialize
+
+    // Add a small delay to allow MCP2 to fully initialize
+    delay(100);
 
     // Configure Keys as input with pull-up
     for (const auto & key : keys) {
@@ -353,8 +373,7 @@ void setup() {
 ////////////////////////  LOOP  ////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////
 
-void loop()
-{
+void loop() {
     // This section keeps the blue LED fading out if it was just lit by velocity change
     const unsigned long currentTime = millis();
     const unsigned long elapsedTime = currentTime - previousTime;
@@ -374,18 +393,15 @@ void loop()
 }
 
 // Helper functions (defined outside loop/setup)
-void upTimerCallback(TimerHandle_t xTimer)
-{
+void upTimerCallback(TimerHandle_t xTimer) {
     mcp_U2.digitalWrite(7, !mcp_U2.digitalRead(7));
 }
 
-void downTimerCallback(TimerHandle_t xTimer)
-{
+void downTimerCallback(TimerHandle_t xTimer) {
     mcp_U2.digitalWrite(5, !mcp_U2.digitalRead(5));
 }
 
-void shiftOctave(const int shift)
-{
+void shiftOctave(const int shift) {
     currentOctave += shift;
     if (currentOctave < -3) {
         SERIAL_PRINTLN("Lowest Octave");
@@ -430,8 +446,7 @@ void shiftOctave(const int shift)
     delay(80);
 }
 
-void playMidiNote(const byte note)
-{
+void playMidiNote(const byte note) {
     constexpr byte channel = 1;
     MIDI.sendNoteOn(note + currentOctave * 12, currentVelocity, channel);
     SERIAL_PRINT("Note On: ");
@@ -441,8 +456,7 @@ void playMidiNote(const byte note)
     isNoteOn[note] = true;
 }
 
-void stopMidiNote(const byte note)
-{
+void stopMidiNote(const byte note) {
     if (isNoteOn[note])
     {
         constexpr byte channel = 1;
@@ -454,8 +468,7 @@ void stopMidiNote(const byte note)
     }
 }
 
-void updateVelocity(const int delta)
-{
+void updateVelocity(const int delta) {
     const int previousVelocity = currentVelocity;
     currentVelocity += delta;
     if (currentVelocity < minVelocity)
@@ -493,8 +506,7 @@ void updateVelocity(const int delta)
     }
 }
 
-void resetVelocity()
-{
+void resetVelocity() {
     currentVelocity = 80;
     SERIAL_PRINTLN("Velocity Reset to 80");
     analogWrite(bluePin, 51);
@@ -502,8 +514,7 @@ void resetVelocity()
     analogWrite(bluePin, 0);
 }
 
-void controlPinkBreathingLED(const bool state)
-{
+void controlPinkBreathingLED(const bool state) {
     static unsigned long previousMillis = 0;
     static int brightness = 0;
     static int fadeAmount = 1;
@@ -547,60 +558,31 @@ void controlPinkBreathingLED(const bool state)
 
     while (true)
     {
-        touch1.update();
-
         // Read key states & button states on U2
         for (auto & key : keys)
         {
             key.state = !key.mcp->digitalRead(key.pin);
         }
 
-        const bool SWD1CenterState = !mcp_U1.digitalRead(SWD1_CENTER_PIN);
-        const bool S3State = !mcp_U2.digitalRead(4);
-        const bool S4State = !mcp_U2.digitalRead(6);
-        const bool SWD2CenterState = !mcp_U2.digitalRead(SWD2_CENTER_PIN);
+        // Update TouchControls
+        touch1.update();
 
-        // Update Levers
+        // Update LeverControls
         lever1.update();
         lever2.update();
 
+        // Update LeverPushControls
+        leverPush1.update();
+        leverPush2.update();
 
-        ////////// LEVER 1 CENTER (Sustain) /////////////////////////////////////////
-        if (SWD1CenterState && !prevSWD1CenterState) {
-            sustain = !sustain;
-            if (sustain) {
-                MIDI.sendControlChange(ccNumberSWD1Center, 96, 1); // Use configurable CC number
-                SERIAL_PRINT("MIDI CC#"); SERIAL_PRINT(ccNumberSWD1Center); SERIAL_PRINTLN(", Value 96, Channel 1 (from button)");
-            } else {
-                MIDI.sendControlChange(ccNumberSWD1Center, 48, 1); // Use configurable CC number
-                SERIAL_PRINT("MIDI CC#"); SERIAL_PRINT(ccNumberSWD1Center); SERIAL_PRINTLN(", Value 48, Channel 1 (from button)");
-            }
-            controlPinkBreathingLED(sustain);
-        }
-
-
-        ////////// LEVER 2 CENTER ///////////////////////////////////////////////
-        if (SWD2CenterState && !prevSWD2CenterState && !isSwd2CenterPressed) {
-            // resetVelocity();
-
-            MIDI.sendControlChange(ccNumberSWD2Center, 127, 1); // Example value 127 for press
-            SERIAL_PRINT("SWD2_Center Pressed! MIDI CC#"); SERIAL_PRINT(ccNumberSWD2Center); SERIAL_PRINTLN(", Value 127");
-            isSwd2CenterPressed = true;
-        } else if (!SWD2CenterState && prevSWD2CenterState) {
-            MIDI.sendControlChange(ccNumberSWD2Center, 0, 1); // Example value 0 for release
-            SERIAL_PRINT("SWD2_Center Released! MIDI CC#"); SERIAL_PRINT(ccNumberSWD2Center); SERIAL_PRINTLN(", Value 0");
-            isSwd2CenterPressed = false;
-        }
-
-        // Save current button states for Levers
-        prevSWD1CenterState = SWD1CenterState;
-        prevSWD2CenterState = SWD2CenterState;
 
         //////////////////  OCTAVE Buttons ////////////////////////////////////////
-        if (S3State && S4State)
-        {
-            if (!areS3S4Pressed)
-            {
+
+        const bool S3State = !mcp_U2.digitalRead(4);
+        const bool S4State = !mcp_U2.digitalRead(6);
+
+        if (S3State && S4State) {
+            if (!areS3S4Pressed) {
                 shiftOctave(0 - currentOctave);
                 SERIAL_PRINTLN("S3 & S4 Pressed Simultaneously! Octave Reset");
                 areS3S4Pressed = true;

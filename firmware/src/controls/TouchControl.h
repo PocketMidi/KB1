@@ -10,9 +10,9 @@ enum class TouchFunctionMode {
 };
 
 template<typename MidiTransport>
-class TouchControls {
+class TouchControl {
 public:
-    TouchControls(
+    TouchControl(
         int touchPin,
         int ccNumber,
         int minCCValue,
