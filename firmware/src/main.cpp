@@ -47,11 +47,13 @@ LeverControls<decltype(MIDI)> lever1(
     3,
     0,
     127,
-    1, // stepSize
+    1,
     FunctionMode::INTERPOLATED,
     LeverMode::BIPOLAR,
     1000,
-    200,
+    1000,
+    InterpolationType::DECELERATING,
+    InterpolationType::ACCELERATING,
     MIDI);
 LeverControls<decltype(MIDI)> lever2(
     &mcp_U2,
@@ -61,11 +63,13 @@ LeverControls<decltype(MIDI)> lever2(
     7,
     0,
     127,
-    4, // stepSize
+    4,
     FunctionMode::MANUAL,
-    LeverMode::UNIPOLAR,
+    LeverMode::BIPOLAR,
     200,
     200,
+    InterpolationType::LINEAR,
+    InterpolationType::LINEAR,
     MIDI);
 
 

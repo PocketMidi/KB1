@@ -8,12 +8,19 @@
 
 enum class FunctionMode {
     INTERPOLATED,
-    MANUAL
+    MANUAL,
+    JUMP_AND_INTERPOLATE
 };
 
 enum class LeverMode {
     UNIPOLAR,
     BIPOLAR
+};
+
+enum class InterpolationType {
+    LINEAR,
+    ACCELERATING,
+    DECELERATING
 };
 
 template<class MidiTransport>
@@ -32,6 +39,8 @@ public:
         LeverMode mode,
         unsigned long onsetTime,
         unsigned long offsetTime,
+        InterpolationType onsetInterpolationType,
+        InterpolationType offsetInterpolationType,
         MidiTransport& midi
     );
 
@@ -44,6 +53,8 @@ public:
     void setMinCCValue(int number);
     void setMaxCCValue(int number);
     void setStepSize(int size);
+    void setOnsetInterpolationType(InterpolationType type);
+    void setOffsetInterpolationType(InterpolationType type);
 
 private:
     MidiTransport& _midi;
@@ -56,6 +67,8 @@ private:
     FunctionMode _functionMode;
     unsigned long _onsetTime;
     unsigned long _offsetTime;
+    InterpolationType _onsetInterpolationType;
+    InterpolationType _offsetInterpolationType;
 
     int _currentValue;
     int _targetValue;
@@ -89,6 +102,8 @@ LeverControls<MidiTransport>::LeverControls(
     LeverMode mode,
     unsigned long onsetTime,
     unsigned long offsetTime,
+    InterpolationType onsetInterpolationType,
+    InterpolationType offsetInterpolationType,
     MidiTransport& midi)
     :
     _midi(midi),
@@ -104,6 +119,8 @@ LeverControls<MidiTransport>::LeverControls(
     _leverMode(mode),
     _onsetTime(onsetTime),
     _offsetTime(offsetTime),
+    _onsetInterpolationType(onsetInterpolationType),
+    _offsetInterpolationType(offsetInterpolationType),
     _isPressed(false),
     _rampStartTime(0)
     {
@@ -166,6 +183,16 @@ void LeverControls<MidiTransport>::setStepSize(int size) {
 }
 
 template<class MidiTransport>
+void LeverControls<MidiTransport>::setOnsetInterpolationType(InterpolationType type) {
+    _onsetInterpolationType = type;
+}
+
+template<class MidiTransport>
+void LeverControls<MidiTransport>::setOffsetInterpolationType(InterpolationType type) {
+    _offsetInterpolationType = type;
+}
+
+template<class MidiTransport>
 void LeverControls<MidiTransport>::handleInput() {
     bool leftState = !_mcpLeft->digitalRead(_leftPin);
     bool rightState = !_mcpRight->digitalRead(_rightPin);
@@ -181,13 +208,14 @@ void LeverControls<MidiTransport>::handleInput() {
         } else if (!leftState && !rightState && _isPressed) {
             _isPressed = false;
         }
-
         _targetValue = _currentValue;
-    } else {
+    } else if (_functionMode == FunctionMode::JUMP_AND_INTERPOLATE) {
         if (leftState) {
+            _currentValue = _minCCValue;
             _targetValue = _minCCValue;
             _isPressed = true;
         } else if (rightState) {
+            _currentValue = _maxCCValue;
             _targetValue = _maxCCValue;
             _isPressed = true;
         } else {
@@ -199,6 +227,29 @@ void LeverControls<MidiTransport>::handleInput() {
                 }
                 _isPressed = false;
             }
+        }
+
+        if (_targetValue != oldTargetValue) {
+            _rampStartTime = millis();
+            _rampStartValue = _currentValue;
+        }
+    } else if (_functionMode == FunctionMode::INTERPOLATED) {
+        if (leftState) {
+            _targetValue = _minCCValue;
+            _isPressed = true;
+        } else if (rightState) {
+            _targetValue = _maxCCValue;
+            _isPressed = true;
+        }
+        else {
+            if (_isPressed) {
+                if (_leverMode == LeverMode::BIPOLAR) {
+                    _targetValue = 64;
+                } else if (_leverMode == LeverMode::UNIPOLAR) {
+                    _targetValue = _minCCValue;
+                }
+            }
+            _isPressed = false;
         }
 
         if (_targetValue != oldTargetValue) {
@@ -223,6 +274,21 @@ void LeverControls<MidiTransport>::updateValue() {
             _currentValue = _targetValue;
         } else {
             float progress = (float)elapsedTime / (float)rampDuration;
+
+            if (_isPressed) {
+                if (_onsetInterpolationType == InterpolationType::ACCELERATING) {
+                    progress = pow(progress, 2);
+                } else if (_onsetInterpolationType == InterpolationType::DECELERATING) {
+                    progress = 1 - pow(1 - progress, 2);
+                }
+            } else {
+                if (_offsetInterpolationType == InterpolationType::ACCELERATING) {
+                    progress = pow(progress, 2);
+                } else if (_offsetInterpolationType == InterpolationType::DECELERATING) {
+                    progress = 1 - pow(1 - progress, 2);
+                }
+            }
+
             float totalValueChange = _targetValue - _rampStartValue;
             _currentValue = _rampStartValue + (int)(progress * totalValueChange);
         }
