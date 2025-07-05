@@ -163,6 +163,29 @@ void setup() {
     // Keep built-in LED on continuously (active low for some boards)
     digitalWrite(LED_BUILTIN, LOW);
 
+    // Initialize Preferences
+    if (!preferences.begin("kb1-settings", false)) {
+        SERIAL_PRINTLN("Error initializing Preferences. Rebooting...");
+        ESP.restart();
+    } else {
+        SERIAL_PRINTLN("Preferences initialized successfully.");
+    }
+
+    // NEW: Load configurable CC numbers from NVS
+    ccNumberSWD1LeftRight = preferences.getInt("ccSWD1LR", 3);
+    ccNumberSWD1Center = preferences.getInt("ccSWD1Center", 24);
+    ccNumberSWD2LeftRight = preferences.getInt("ccSWD2LR", 7);
+    ccNumberSWD2Center = preferences.getInt("ccSWD2Center", 1);
+
+    // Set CC numbers for levers
+    lever1.setCCNumber(ccNumberSWD1LeftRight);
+    lever2.setCCNumber(ccNumberSWD2LeftRight);
+
+    SERIAL_PRINT("Loaded SWD1 LR CC: "); SERIAL_PRINTLN(ccNumberSWD1LeftRight);
+    SERIAL_PRINT("Loaded SWD1 Center CC: "); SERIAL_PRINTLN(ccNumberSWD1Center);
+    SERIAL_PRINT("Loaded SWD2 LR CC: "); SERIAL_PRINTLN(ccNumberSWD2LeftRight);
+    SERIAL_PRINT("Loaded SWD2 Center CC: "); SERIAL_PRINTLN(ccNumberSWD2Center);
+
     // Start MCP_U1
     if (!mcp_U1.begin_I2C(0x20)) {
         SERIAL_PRINTLN("Error initializing U1.");
@@ -190,28 +213,16 @@ void setup() {
     mcp_U2.pinMode(SWD2_CENTER_PIN, INPUT_PULLUP);
     mcp_U2.pinMode(SWD2_RIGHT_PIN, INPUT_PULLUP);
 
-    // Initialize Preferences
-    if (!preferences.begin("kb1-settings", false)) {
-        SERIAL_PRINTLN("Error initializing Preferences. Rebooting...");
-        ESP.restart();
-    } else {
-        SERIAL_PRINTLN("Preferences initialized successfully.");
-    }
+    xTaskCreatePinnedToCore(readInputs, "readInputs", 4096, nullptr, 1, nullptr, 1);
 
-    // NEW: Load configurable CC numbers from NVS
-    ccNumberSWD1LeftRight = preferences.getInt("ccSWD1LR", 3);
-    ccNumberSWD1Center = preferences.getInt("ccSWD1Center", 24);
-    ccNumberSWD2LeftRight = preferences.getInt("ccSWD2LR", 7);
-    ccNumberSWD2Center = preferences.getInt("ccSWD2Center", 1);
+    MIDI.begin(1);
 
-    // Set CC numbers for levers
-    lever1.setCCNumber(ccNumberSWD1LeftRight);
-    lever2.setCCNumber(ccNumberSWD2LeftRight);
+    octaveControl.begin();
+    keyboardControl.begin();
 
-    SERIAL_PRINT("Loaded SWD1 LR CC: "); SERIAL_PRINTLN(ccNumberSWD1LeftRight);
-    SERIAL_PRINT("Loaded SWD1 Center CC: "); SERIAL_PRINTLN(ccNumberSWD1Center);
-    SERIAL_PRINT("Loaded SWD2 LR CC: "); SERIAL_PRINTLN(ccNumberSWD2LeftRight);
-    SERIAL_PRINT("Loaded SWD2 Center CC: "); SERIAL_PRINTLN(ccNumberSWD2Center);
+    scaleManager.setScale(ScaleType::MINOR);
+    scaleManager.enableWhiteKeyQuantization(true);
+
 
     ledController.begin(LedColor::OCTAVE_UP, 7, &mcp_U2);
     ledController.begin(LedColor::OCTAVE_DOWN, 5, &mcp_U2);
@@ -317,16 +328,6 @@ void setup() {
     pAdvertising->setMinPreferred(0x12);
     BLEDevice::startAdvertising();
     SERIAL_PRINTLN("Waiting for a BLE client connection...");
-
-
-    octaveControl.begin();
-    keyboardControl.begin();
-
-    scaleManager.setScale(ScaleType::CHROMATIC);
-
-    MIDI.begin(1);
-
-    xTaskCreatePinnedToCore(readInputs, "readInputs", 4096, nullptr, 1, nullptr, 1);
 }
 
 //---------------------------------------------------
