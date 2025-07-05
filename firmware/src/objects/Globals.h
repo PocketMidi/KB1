@@ -19,6 +19,19 @@ struct key {
     bool prevState;
     Adafruit_MCP23X17 *mcp;
     char name[12];
+
+    // Constructor to allow initialization
+    key(uint8_t m, uint8_t p, bool s, bool ps, Adafruit_MCP23X17 *_mcp, const char* n)
+        : midi(m), pin(p), state(s), prevState(ps), mcp(_mcp)
+    {
+        strncpy(name, n, sizeof(name) - 1);
+        name[sizeof(name) - 1] = '\0'; // Ensure null-termination
+    }
+
+    // Default constructor needed for array initialization
+    key() : midi(0), pin(0), state(false), prevState(false), mcp(nullptr) {
+        name[0] = '\0';
+    }
 };
 
 enum class InterpolationType {

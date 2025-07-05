@@ -11,12 +11,11 @@
  */
 
 #include <Arduino.h>
-#include <Preferences.h>
 #include <Adafruit_MCP23X17.h>
+#include <Preferences.h>
 #include <MIDI.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <freertos/timers.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
@@ -31,13 +30,17 @@
 #include <bt/ServerCallbacks.h>
 #include <bt/SecurityCallbacks.h>
 #include <bt/CharacteristicCallbacks.h>
+#include <led/LEDController.h>
 #include <controls/LeverControls.h>
 #include <controls/TouchControl.h>
-#include "controls/LeverPushControls.h"
-#include <led/LEDController.h>
+#include <controls/LeverPushControls.h>
+#include "controls/OctaveControl.h"
+#include "controls/KeyboardControl.h"
 
 Adafruit_MCP23X17 mcp_U1;
 Adafruit_MCP23X17 mcp_U2;
+
+LEDController ledController;
 
 MIDI_CREATE_INSTANCE(HardwareSerial, Serial0, MIDI);
 
@@ -113,28 +116,9 @@ TouchControl<decltype(MIDI)> touch1(
     MIDI
 );
 
+OctaveControl<Adafruit_MCP23X17, LEDController> octaveControl(mcp_U2, ledController);
 
-key keys[MAX_KEYS] = {
-    {59, 4, true, true, &mcp_U1, "SW1 (B)"},
-    {60, 14, true, true, &mcp_U1, "SW2 (C)"},
-    {61, 1, true, true, &mcp_U1, "SB1 (C#)"},
-    {62, 13, true, true, &mcp_U1, "SW3 (D)"},
-    {63, 2, true, true, &mcp_U1, "SB2 (D#)"},
-    {64, 12, true, true, &mcp_U1, "SW4 (E)"},
-    {65, 11, true, true, &mcp_U1, "SW5 (F)"},
-    {66, 0, true, true, &mcp_U1, "SB3 (F#)"},
-    {67, 10, true, true, &mcp_U1, "SW6 (G)"},
-    {68, 3, true, true, &mcp_U1, "SB4 (G#)"},
-    {69, 9, true, true, &mcp_U1, "SW7 (A)"},
-    {70, 14, true, true, &mcp_U2, "SB5 (A#)"},
-    {71, 8, true, true, &mcp_U1, "SW8 (B)"},
-    {72, 11, true, true, &mcp_U2, "SW9 (C)"},
-    {73, 13, true, true, &mcp_U2, "SB6 (C#)"},
-    {74, 10, true, true, &mcp_U2, "SW10 (D)"},
-    {75, 12, true, true, &mcp_U2, "SB7 (D#)"},
-    {76, 9, true, true, &mcp_U2, "SW11 (E)"},
-    {77, 8, true, true, &mcp_U2, "SW12 (F)"}
-};
+KeyboardControl<decltype(MIDI), decltype(octaveControl), LEDController> keyboardControl(MIDI, octaveControl, ledController);
 
 Preferences preferences; // Define Preferences object
 BLEServer* pServer = nullptr;
@@ -148,39 +132,15 @@ BLECharacteristic* pSWD2CenterCCCharacteristic = nullptr;
 BLECharacteristic* pMidiCcCharacteristic = nullptr;
 
 // Global state variables and their initial values
-volatile int currentOctave = 0;
-volatile int currentVelocity = 80;
-int minVelocity = 8;
 
 int ccNumberSWD1LeftRight = 3;  // Default for SWD1 Left/Right
 int ccNumberSWD1Center = 24;    // Default for SWD1 Center (Sustain)
 int ccNumberSWD2LeftRight = 7;  // Default for SWD2 Left/Right (e.g., Expression)
 int ccNumberSWD2Center = 1;     // Default for SWD2 Center (e.g., Modulation)
 
-// Previous state variables for OCT buttons
-volatile bool prevS3State = true;
-volatile bool prevS4State = true;
-
-// Octave Timers & Callbacks //
-TimerHandle_t upTimer;
-TimerHandle_t downTimer;
-
-// MIDI notes
-bool isNoteOn[128]; // Initialized in setup()
-
-// LED Controller
-LEDController ledController;
-
 
 // Forward declarations for functions defined later in this file
-void playMidiNote(byte note);
-void stopMidiNote(byte note);
-void shiftOctave(int shift);
 void buttonReadTask(void *pvParameters);
-void upTimerCallback(TimerHandle_t xTimer);
-void downTimerCallback(TimerHandle_t xTimer);
-void resetVelocity();
-void updateVelocity(int delta);
 
 
 
@@ -191,9 +151,6 @@ void updateVelocity(int delta);
 void setup() {
     SERIAL_BEGIN();
     SERIAL_PRINTLN("Serial monitor started.");
-
-    // Initialize all note-on flags to false
-    memset(isNoteOn, false, sizeof(isNoteOn));
 
     // initialize digital pin LED_BUILTIN as an output.
     pinMode(LED_BUILTIN, OUTPUT);
@@ -239,20 +196,12 @@ void setup() {
     // Add a small delay to allow MCP2 to fully initialize
     delay(100);
 
-    // Configure Keys as input with pull-up
-    for (const auto & key : keys) {
-        key.mcp->pinMode(key.pin, INPUT_PULLUP);
-    }
-
     //////// U1 //////////////////////////////////////////////////////
     // Configure SWD buttons on U1 as inputs with pull-up
     mcp_U1.pinMode(SWD1_LEFT_PIN, INPUT_PULLUP);
     mcp_U1.pinMode(SWD1_CENTER_PIN, INPUT_PULLUP);
 
-    //////// U2 //////////////////////////////////////////////////////
-    // Configure S3 & S4 buttons on U2 as inputs with pull-up
-    mcp_U2.pinMode(4, INPUT_PULLUP); // U2 pin 4, S3 button
-    mcp_U2.pinMode(6, INPUT_PULLUP); // U2 pin 6, S4 button
+    octaveControl.begin();
     // Configure SWD buttons on U2 as inputs with pull-up
     mcp_U2.pinMode(SWD1_RIGHT_PIN, INPUT_PULLUP);
     mcp_U2.pinMode(SWD2_LEFT_PIN, INPUT_PULLUP);
@@ -266,26 +215,11 @@ void setup() {
     MIDI.begin(1); // Initialize MIDI on channel 1
     SERIAL_PRINTLN("MIDI library initialized on channel 1.");
 
-    //////// Octave Button LEDs ////////////////////////////////////////////
-    // Configure LEDs on U2 // Set LEDs to initial state (both off)
-    mcp_U2.pinMode(5, OUTPUT);
-    mcp_U2.pinMode(7, OUTPUT);
-    mcp_U2.digitalWrite(5, HIGH); // DN LED (active low)
-    mcp_U2.digitalWrite(7, HIGH); // UP LED (active low)
-
-    //////// Lever Indicator LEDs ////////////////////////////////////////////
-    upTimer = xTimerCreate("UpTimer", pdMS_TO_TICKS(1500), pdTRUE, (void *)nullptr, upTimerCallback);
-    downTimer = xTimerCreate("DownTimer", pdMS_TO_TICKS(1500), pdTRUE, (void *)nullptr, downTimerCallback);
-    if (upTimer == nullptr || downTimer == nullptr) {
-        SERIAL_PRINTLN("Error creating timers!");
-        // ReSharper disable once CppDFAEndlessLoop
-        while (true) {}
-    }
+    ledController.begin(LedColor::OCTAVE_UP, 7, &mcp_U2);
+    ledController.begin(LedColor::OCTAVE_DOWN, 5, &mcp_U2);
 
     ledController.begin(LedColor::BLUE, 7);
-    ledController.set(LedColor::BLUE, 0);
     ledController.begin(LedColor::PINK, 8);
-    ledController.set(LedColor::PINK, 0);
 
     // ***** BLE SETUP *****
     BLEDevice::init("KB1");
@@ -371,134 +305,13 @@ void setup() {
 
 void loop() {
     ledController.update();
-
     // Small delay to avoid watchdog timer issues
     vTaskDelay(1 / portTICK_PERIOD_MS);
 }
 
-// Helper functions (defined outside loop/setup)
-void upTimerCallback(TimerHandle_t xTimer) {
-    mcp_U2.digitalWrite(7, !mcp_U2.digitalRead(7));
-}
-
-void downTimerCallback(TimerHandle_t xTimer) {
-    mcp_U2.digitalWrite(5, !mcp_U2.digitalRead(5));
-}
-
-void shiftOctave(const int shift) {
-    currentOctave += shift;
-    if (currentOctave < -3) {
-        SERIAL_PRINTLN("Lowest Octave");
-        currentOctave = -3;
-    } else if (currentOctave > 3) {
-        SERIAL_PRINTLN("Highest Octave");
-        currentOctave = 3;
-    }
-
-    xTimerStop(upTimer, 0);
-    xTimerStop(downTimer, 0);
-
-    if (currentOctave == 0)
-    {
-        mcp_U2.digitalWrite(5, HIGH);
-        mcp_U2.digitalWrite(7, HIGH);
-    }
-    else if (currentOctave > 0)
-    {
-        mcp_U2.digitalWrite(5, HIGH);
-        mcp_U2.digitalWrite(7, LOW);
-        if (currentOctave == 1)
-            xTimerChangePeriod(upTimer, pdMS_TO_TICKS(750), 0);
-        else if (currentOctave == 2)
-            xTimerChangePeriod(upTimer, pdMS_TO_TICKS(375), 0);
-        else if (currentOctave == 3)
-            xTimerChangePeriod(upTimer, pdMS_TO_TICKS(175), 0);
-        xTimerStart(upTimer, 0);
-    }
-    else // currentOctave < 0
-    {
-        mcp_U2.digitalWrite(7, HIGH);
-        mcp_U2.digitalWrite(5, LOW);
-        if (currentOctave == -1)
-            xTimerChangePeriod(downTimer, pdMS_TO_TICKS(750), 0);
-        else if (currentOctave == -2)
-            xTimerChangePeriod(downTimer, pdMS_TO_TICKS(375), 0);
-        else if (currentOctave == -3)
-            xTimerChangePeriod(downTimer, pdMS_TO_TICKS(175), 0);
-        xTimerStart(downTimer, 0);
-    }
-    delay(80);
-}
-
-void playMidiNote(const byte note) {
-    constexpr byte channel = 1;
-    MIDI.sendNoteOn(note + currentOctave * 12, currentVelocity, channel);
-    SERIAL_PRINT("Note On: ");
-    SERIAL_PRINT(note + currentOctave * 12);
-    SERIAL_PRINT(", Velocity: ");
-    SERIAL_PRINTLN(currentVelocity);
-    isNoteOn[note] = true;
-}
-
-void stopMidiNote(const byte note) {
-    if (isNoteOn[note])
-    {
-        constexpr byte channel = 1;
-        MIDI.sendNoteOff(note + currentOctave * 12, 0, channel);
-        SERIAL_PRINT("Note Off: ");
-        SERIAL_PRINT(note + currentOctave * 12);
-        SERIAL_PRINTLN(", Velocity: 0");
-        isNoteOn[note] = false;
-    }
-}
-
-void updateVelocity(const int delta) {
-    const int previousVelocity = currentVelocity;
-    currentVelocity += delta;
-    if (currentVelocity < minVelocity)
-        currentVelocity = minVelocity;
-    else if (currentVelocity > 127)
-        currentVelocity = 127;
-
-    if (delta > 0) {
-        ledController.set(LedColor::BLUE, 255, 500); // Fade to full brightness over 500ms
-    } else if (delta < 0) {
-        ledController.set(LedColor::BLUE, 0, 3000); // Fade to off over 3000ms
-    }
-    if (currentVelocity != previousVelocity) {
-        if (delta > 0) {
-            SERIAL_PRINT("Current Velocity Increased to: ");
-        } else {
-            SERIAL_PRINT("Current Velocity Decreased to: ");
-        }
-        SERIAL_PRINTLN(currentVelocity);
-    }
-}
-
-void resetVelocity() {
-    currentVelocity = 80;
-    SERIAL_PRINTLN("Velocity Reset to 80");
-    ledController.set(LedColor::BLUE, 51, 250);
-    delay(250);
-    ledController.set(LedColor::BLUE, 0, 0);
-}
-
-////////////////////////  Button Read  /////////////////////////////////
-////////////////////////////////////////////////////////////////////////
 
 [[noreturn]] void buttonReadTask(void *pvParameters) {
-    bool isS3Pressed = false;
-    bool isS4Pressed = false;
-    bool areS3S4Pressed = false;
-
-    while (true)
-    {
-        // Read key states & button states on U2
-        for (auto & key : keys)
-        {
-            key.state = !key.mcp->digitalRead(key.pin);
-        }
-
+    while (true) {
         touch1.update();
 
         lever1.update();
@@ -507,65 +320,9 @@ void resetVelocity() {
         leverPush1.update();
         leverPush2.update();
 
-        //////////////////  OCTAVE Buttons ////////////////////////////////////////
-        const bool S3State = !mcp_U2.digitalRead(4);
-        const bool S4State = !mcp_U2.digitalRead(6);
+        octaveControl.update();
 
-        if (S3State && S4State) {
-            if (!areS3S4Pressed) {
-                shiftOctave(0 - currentOctave);
-                SERIAL_PRINTLN("S3 & S4 Pressed Simultaneously! Octave Reset");
-                areS3S4Pressed = true;
-                vTaskDelay(100 / portTICK_PERIOD_MS);
-            }
-        }
-        else
-        {
-            areS3S4Pressed = false;
-            if (!S3State && isS3Pressed)
-            {
-                shiftOctave(-1);
-                SERIAL_PRINTLN("S3 Released! Octave Down by 1");
-                isS3Pressed = false;
-                vTaskDelay(50 / portTICK_PERIOD_MS);
-            }
-            else if (S3State)
-            {
-                isS3Pressed = true;
-            }
-            if (!S4State && isS4Pressed)
-            {
-                shiftOctave(1);
-                SERIAL_PRINTLN("S4 Released! Octave Up by 1");
-                isS4Pressed = false;
-                vTaskDelay(50 / portTICK_PERIOD_MS);
-            }
-            else if (S4State)
-            {
-                isS4Pressed = true;
-            }
-        }
-        prevS3State = S3State;
-        prevS4State = S4State;
-
-        //////////////////  KEYS /////////////////////////////////////////////
-        for (auto & key : keys)
-        {
-            if (key.state != key.prevState)
-            {
-                if (key.state)
-                {
-                    playMidiNote(key.midi);
-                    SERIAL_PRINT(key.name);
-                    SERIAL_PRINTLN(" Pressed!");
-                }
-                else
-                {
-                    stopMidiNote(key.midi);
-                }
-            }
-            key.prevState = key.state;
-        }
+        keyboardControl.updateKeyboardState();
 
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }

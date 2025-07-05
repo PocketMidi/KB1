@@ -2,10 +2,13 @@
 #define LED_CONTROLLER_H
 
 #include <Arduino.h>
+#include <Adafruit_MCP23X17.h>
 
 enum class LedColor {
     PINK,
-    BLUE
+    BLUE,
+    OCTAVE_UP,
+    OCTAVE_DOWN
 };
 
 enum class LedMode {
@@ -16,28 +19,30 @@ enum class LedMode {
 class LEDController {
 public:
     LEDController();
-    void begin(LedColor color, int pin);
+    void begin(LedColor color, int pin, Adafruit_MCP23X17* mcp = nullptr);
     void set(LedColor color, int targetBrightness, unsigned long duration = 0);
-    void pulse(LedColor color, unsigned long pulseSpeed);
+    void pulse(LedColor color, unsigned long duration);
     void update();
 
 private:
     struct LedState {
         int pin;
+        Adafruit_MCP23X17* mcp;
         LedMode mode;
         int currentBrightness;
         int targetBrightness;
+        int startBrightness;
         unsigned long startTime;
-        unsigned long duration; // For interpolation
-        unsigned long pulseSpeed; // For pulsing
-        unsigned long lastPulseMillis; // For pulsing
-        int fadeAmount; // For pulsing
+        unsigned long duration; // For interpolation or pulse cycle
+        unsigned long pulseDuration;
     };
 
-    LedState pinkLed;
-    LedState blueLed;
+    LedState pinkLed{};
+    LedState blueLed{};
+    LedState octaveUpLed{};
+    LedState octaveDownLed{};
 
-    void updateLed(LedState& led);
+    static void updateLed(LedState& led);
 };
 
 #endif
