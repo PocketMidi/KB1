@@ -44,9 +44,10 @@ public:
     }
 
     void begin() {
-        // Initialize prevState for all keys based on their current physical state
+        // Initialize state and prevState for all keys based on their current physical state
         for (auto & key : _keys) {
-            key.prevState = !key.mcp->digitalRead(key.pin);
+            key.state = !key.mcp->digitalRead(key.pin);
+            key.prevState = key.state;
         }
     }
 
