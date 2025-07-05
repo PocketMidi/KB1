@@ -1,65 +1,82 @@
 #include <bt/CharacteristicCallbacks.h>
+#include <bt/BluetoothController.h>
 #include <objects/Globals.h>
 #include <music/ScaleManager.h>
 
-extern ScaleManager scaleManager;
+CharacteristicCallbacks::CharacteristicCallbacks(
+    BluetoothController* controller,
+    Preferences& preferences,
+    ScaleManager& scaleManager,
+    int& ccNumberSWD1LeftRight,
+    int& ccNumberSWD1Center,
+    int& ccNumberSWD2LeftRight,
+    int& ccNumberSWD2Center)
+    : _controller(controller),
+      _preferences(preferences),
+      _scaleManager(scaleManager),
+      _ccNumberSWD1LeftRight(ccNumberSWD1LeftRight),
+      _ccNumberSWD1Center(ccNumberSWD1Center),
+      _ccNumberSWD2LeftRight(ccNumberSWD2LeftRight),
+      _ccNumberSWD2Center(ccNumberSWD2Center)
+{
+}
 
 void CharacteristicCallbacks::onWrite(BLECharacteristic *pCharacteristic) {
     const std::string rxValue = pCharacteristic->getValue();
 
-    if (pCharacteristic == pSWD1LRCCCharacteristic) {
+    if (pCharacteristic == _controller->getSWD1LRCCCharacteristic()) {
         if (!rxValue.empty()) {
             // Read the raw byte value sent from the web app
             const int newCC = (int)rxValue[0];
             if (newCC >= 0 && newCC <= 127) { // Validate MIDI CC range
-                if (ccNumberSWD1LeftRight != newCC) {
-                    ccNumberSWD1LeftRight = newCC;
-                    preferences.putInt("ccSWD1LR", ccNumberSWD1LeftRight); // Save to NVS
+                if (_ccNumberSWD1LeftRight != newCC) {
+                    _ccNumberSWD1LeftRight = newCC;
+                    _preferences.putInt("ccSWD1LR", _ccNumberSWD1LeftRight); // Save to NVS
                     SERIAL_PRINT("SWD1 LR CC set (BLE) and saved: ");
-                    SERIAL_PRINTLN(ccNumberSWD1LeftRight);
+                    SERIAL_PRINTLN(_ccNumberSWD1LeftRight);
                 }
             }
         }
-    } else if (pCharacteristic == pSWD1CenterCCCharacteristic) {
+    } else if (pCharacteristic == _controller->getSWD1CenterCCCharacteristic()) {
         if (!rxValue.empty()) {
             // Read the raw byte value sent from the web app
             const int newCC = (int)rxValue[0];
             if (newCC >= 0 && newCC <= 127) {
-                if (ccNumberSWD1Center != newCC) {
-                    ccNumberSWD1Center = newCC;
-                    preferences.putInt("ccSWD1Center", ccNumberSWD1Center); // Save to NVS
+                if (_ccNumberSWD1Center != newCC) {
+                    _ccNumberSWD1Center = newCC;
+                    _preferences.putInt("ccSWD1Center", _ccNumberSWD1Center); // Save to NVS
                     SERIAL_PRINT("SWD1 Center CC set (BLE) and saved: ");
-                    SERIAL_PRINTLN(ccNumberSWD1Center);
+                    SERIAL_PRINTLN(_ccNumberSWD1Center);
                 }
             }
         }
-    } else if (pCharacteristic == pSWD2LRCCCharacteristic) {
+    } else if (pCharacteristic == _controller->getSWD2LRCCCharacteristic()) {
         if (!rxValue.empty()) {
             // Read the raw byte value sent from the web app
             const int newCC = (int)rxValue[0];
             if (newCC >= 0 && newCC <= 127) {
-                if (ccNumberSWD2LeftRight != newCC) {
-                    ccNumberSWD2LeftRight = newCC;
-                    preferences.putInt("ccSWD2LR", ccNumberSWD2LeftRight); // Save to NVS
+                if (_ccNumberSWD2LeftRight != newCC) {
+                    _ccNumberSWD2LeftRight = newCC;
+                    _preferences.putInt("ccSWD2LR", _ccNumberSWD2LeftRight); // Save to NVS
                     SERIAL_PRINT("SWD2 LR CC set (BLE) and saved: ");
-                    SERIAL_PRINTLN(ccNumberSWD2LeftRight);
+                    SERIAL_PRINTLN(_ccNumberSWD2LeftRight);
                 }
             }
         }
-    } else if (pCharacteristic == pSWD2CenterCCCharacteristic) {
+    } else if (pCharacteristic == _controller->getSWD2CenterCCCharacteristic()) {
         if (!rxValue.empty()) {
             // Read the raw byte value sent from the web app
             const int newCC = (int)rxValue[0];
             if (newCC >= 0 && newCC <= 127) {
-                if (ccNumberSWD2Center != newCC) {
-                    ccNumberSWD2Center = newCC;
-                    preferences.putInt("ccSWD2Center", ccNumberSWD2Center); // Save to NVS
+                if (_ccNumberSWD2Center != newCC) {
+                    _ccNumberSWD2Center = newCC;
+                    _preferences.putInt("ccSWD2Center", _ccNumberSWD2Center); // Save to NVS
                     SERIAL_PRINT("SWD2 Center CC set (BLE) and saved: ");
-                    SERIAL_PRINTLN(ccNumberSWD2Center);
+                    SERIAL_PRINTLN(_ccNumberSWD2Center);
                 }
             }
         }
-    } else if (pCharacteristic == pMidiCcCharacteristic) { // Handle incoming MIDI CCs from faders
+    } else if (pCharacteristic == _controller->getMidiCcCharacteristic()) { // Handle incoming MIDI CCs from faders
         if (!rxValue.empty()) {
             SERIAL_PRINT("Received BLE MIDI CC: ");
             SERIAL_PRINTLN(rxValue.c_str());
@@ -87,22 +104,22 @@ void CharacteristicCallbacks::onWrite(BLECharacteristic *pCharacteristic) {
                 SERIAL_PRINTLN("Invalid MIDI CC string format. Expected 'CC_NUMBER,VALUE'.");
             }
         }
-    } else if (pCharacteristic == pScaleTypeCharacteristic) {
+    } else if (pCharacteristic == _controller->getScaleTypeCharacteristic()) {
         if (!rxValue.empty()) {
             const int newScaleType = (int)rxValue[0];
             if (newScaleType >= 0 && newScaleType <= static_cast<int>(ScaleType::BLUES)) { // Validate against enum range
-                scaleManager.setScale(static_cast<ScaleType>(newScaleType));
-                preferences.putUChar("scaleType", newScaleType); // Save to NVS
+                _scaleManager.setScale(static_cast<ScaleType>(newScaleType));
+                _preferences.putUChar("scaleType", newScaleType); // Save to NVS
                 SERIAL_PRINT("Scale Type set (BLE) and saved: ");
                 SERIAL_PRINTLN(newScaleType);
             }
         }
-    } else if (pCharacteristic == pRootNoteCharacteristic) {
+    } else if (pCharacteristic == _controller->getRootNoteCharacteristic()) {
         if (!rxValue.empty()) {
             const int newRootNote = (int)rxValue[0];
             if (newRootNote >= 0 && newRootNote <= 127) { // Validate MIDI note range
-                scaleManager.setRootNote(newRootNote);
-                preferences.putUChar("rootNote", newRootNote); // Save to NVS
+                _scaleManager.setRootNote(newRootNote);
+                _preferences.putUChar("rootNote", newRootNote); // Save to NVS
                 SERIAL_PRINT("Root Note set (BLE) and saved: ");
                 SERIAL_PRINTLN(newRootNote);
             }

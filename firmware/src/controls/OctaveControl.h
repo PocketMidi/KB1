@@ -3,13 +3,17 @@
 
 #include "led/LEDController.h"
 #include "objects/Globals.h"
+#include "bt/BluetoothController.h"
 
 template <typename GpioExpander, typename LedManager>
 class OctaveControl {
 public:
-    OctaveControl(GpioExpander& mcp, LedManager& ledController)
-        : mcp(mcp), ledController(ledController), currentOctave(0), 
-          isS3Pressed(false), isS4Pressed(false), areS3S4Pressed(false) {}
+    OctaveControl(GpioExpander& mcp, LedManager& ledController, BluetoothController* bluetoothController)
+        : mcp(mcp), ledController(ledController), _bluetoothController(bluetoothController), currentOctave(0),
+          isS3Pressed(false), isS4Pressed(false), areS3S4Pressed(false),
+          _s3s4PressStartTime(0), _bluetoothToggleTriggered(false) {}
+
+    void setBluetoothController(BluetoothController* controller) { _bluetoothController = controller; }
 
     void begin() {
         mcp.pinMode(S3_PIN, INPUT_PULLUP);
@@ -22,12 +26,32 @@ public:
 
         if (s3State && s4State) {
             if (!areS3S4Pressed) {
-                shiftOctave(0 - currentOctave);
-                SERIAL_PRINTLN("S3 & S4 Pressed Simultaneously! Octave Reset");
+                _s3s4PressStartTime = millis();
                 areS3S4Pressed = true;
+                _bluetoothToggleTriggered = false;
+            }
+            if (!_bluetoothToggleTriggered && (millis() - _s3s4PressStartTime >= 3000)) {
+                if (_bluetoothController) {
+                    if (_bluetoothController->isEnabled()) {
+                        _bluetoothController->disable();
+                        SERIAL_PRINTLN("Bluetooth Disabled by Octave Buttons.");
+                    } else {
+                        _bluetoothController->enable();
+                        SERIAL_PRINTLN("Bluetooth Enabled by Octave Buttons.");
+                    }
+                }
+                _bluetoothToggleTriggered = true;
             }
         } else {
-            areS3S4Pressed = false;
+            if (!s3State && !s4State) {
+                if (areS3S4Pressed) {
+                    areS3S4Pressed = false;
+                    _s3s4PressStartTime = 0;
+                    _bluetoothToggleTriggered = false;
+                }
+            }
+
+            // Handle individual octave shifts on release
             if (!s3State && isS3Pressed) {
                 shiftOctave(-1);
                 SERIAL_PRINTLN("S3 Released! Octave Down by 1");
@@ -82,14 +106,18 @@ private:
 
     GpioExpander& mcp;
     LedManager& ledController;
+    BluetoothController* _bluetoothController;
     int currentOctave;
 
     bool isS3Pressed;
     bool isS4Pressed;
     bool areS3S4Pressed;
 
+    unsigned long _s3s4PressStartTime;
+    bool _bluetoothToggleTriggered;
+
     static const int S3_PIN = 4;
     static const int S4_PIN = 6;
 };
 
-#endif //OCTAVE_CONTROL_H
+#endif

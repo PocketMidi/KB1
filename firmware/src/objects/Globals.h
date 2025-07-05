@@ -5,9 +5,7 @@
 #include <Adafruit_MCP23X17.h>
 #include <Preferences.h>
 #include <MIDI.h>
-#include <BLECharacteristic.h>
 #include <objects/Constants.h>
-#include <BLEServer.h>
 
 extern Adafruit_MCP23X17 mcp_U1;
 extern Adafruit_MCP23X17 mcp_U2;
@@ -46,17 +44,6 @@ extern Preferences preferences;
 extern key keys[MAX_KEYS];
 
 extern MIDI_NAMESPACE::MidiInterface<MIDI_NAMESPACE::SerialMIDI<HardwareSerial>> MIDI;
-
-// BLE Globals
-extern BLEServer* pServer;
-extern bool deviceConnected;
-extern BLECharacteristic* pSWD1LRCCCharacteristic;
-extern BLECharacteristic* pSWD1CenterCCCharacteristic;
-extern BLECharacteristic* pSWD2LRCCCharacteristic;
-extern BLECharacteristic* pSWD2CenterCCCharacteristic;
-extern BLECharacteristic* pMidiCcCharacteristic;
-extern BLECharacteristic* pScaleTypeCharacteristic;
-extern BLECharacteristic* pRootNoteCharacteristic;
 
 extern int ccNumberSWD1LeftRight;
 extern int ccNumberSWD1Center;

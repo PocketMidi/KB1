@@ -1,4 +1,5 @@
 #include <bt/SecurityCallbacks.h>
+#include "objects/Globals.h"
 
 void SecurityCallbacks::onAuthenticationComplete(const esp_ble_auth_cmpl_t cmpl) {
     if (cmpl.success) {

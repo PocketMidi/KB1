@@ -21,25 +21,17 @@
 #include <freertos/task.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
-#include <BLEUtils.h>
-#include <BLE2902.h>
-#include <BLESecurity.h>
 #include <esp_bt_main.h>
-#include <esp_gap_ble_api.h>
-#include <esp_gatts_api.h>
-#include <esp_bt_defs.h>
 #include <objects/Constants.h>
 #include <objects/Globals.h>
-#include <bt/ServerCallbacks.h>
-#include <bt/SecurityCallbacks.h>
-#include <bt/CharacteristicCallbacks.h>
+#include <bt/BluetoothController.h>
 #include <led/LEDController.h>
+#include <music/ScaleManager.h>
+#include "controls/KeyboardControl.h"
 #include <controls/LeverControls.h>
 #include <controls/TouchControl.h>
 #include <controls/LeverPushControls.h>
 #include "controls/OctaveControl.h"
-#include "controls/KeyboardControl.h"
-#include <music/ScaleManager.h>
 
 //----------------------------------
 // Declarations
@@ -123,23 +115,14 @@ TouchControl<decltype(MIDI)> touch1(
     MIDI
 );
 
-OctaveControl<Adafruit_MCP23X17, LEDController> octaveControl(mcp_U2, ledController);
+OctaveControl<Adafruit_MCP23X17, LEDController> octaveControl(mcp_U2, ledController, nullptr);
 
 ScaleManager scaleManager;
 KeyboardControl<decltype(MIDI), decltype(octaveControl), LEDController> keyboardControl(MIDI, octaveControl, ledController, scaleManager);
 
 Preferences preferences; // Define Preferences object
-BLEServer* pServer = nullptr;
-bool deviceConnected = false;
 
-// NEW: Definitions of new BLE Characteristic pointers
-BLECharacteristic* pSWD1LRCCCharacteristic = nullptr;
-BLECharacteristic* pSWD1CenterCCCharacteristic = nullptr;
-BLECharacteristic* pSWD2LRCCCharacteristic = nullptr;
-BLECharacteristic* pSWD2CenterCCCharacteristic = nullptr;
-BLECharacteristic* pMidiCcCharacteristic = nullptr;
-BLECharacteristic* pRootNoteCharacteristic = nullptr;
-BLECharacteristic* pScaleTypeCharacteristic = nullptr;
+BluetoothController* bluetoothControllerPtr = nullptr; // Declare as a pointer
 
 // Global state variables and their initial values
 int ccNumberSWD1LeftRight = 3;  // Default for SWD1 Left/Right
@@ -202,7 +185,6 @@ void setup() {
     // Add a small delay to allow MCP2 to fully initialize
     delay(100);
 
-    //////// U1 //////////////////////////////////////////////////////
     // Configure SWD buttons on U1 as inputs with pull-up
     mcp_U1.pinMode(SWD1_LEFT_PIN, INPUT_PULLUP);
     mcp_U1.pinMode(SWD1_CENTER_PIN, INPUT_PULLUP);
@@ -230,104 +212,17 @@ void setup() {
     ledController.begin(LedColor::BLUE, 7);
     ledController.begin(LedColor::PINK, 8);
 
-    // ***** BLE SETUP *****
-    BLEDevice::init("KB1");
-    BLEDevice::setSecurityCallbacks(new SecurityCallbacks());
-
-    esp_ble_auth_req_t auth_req = ESP_LE_AUTH_BOND;
-    esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, &auth_req, sizeof(uint8_t));
-
-    esp_ble_io_cap_t iocap = ESP_IO_CAP_NONE;
-    esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(uint8_t));
-
-    pServer = BLEDevice::createServer();
-    pServer->setCallbacks(new ServerCallbacks());
-
-    BLEService *pService = pServer->createService(SERVICE_UUID);
-
-    auto valSWD1LR = static_cast<uint8_t>(ccNumberSWD1LeftRight);
-    pSWD1LRCCCharacteristic = pService->createCharacteristic(
-        SWD1_LR_CC_CHAR_UUID,
-        BLECharacteristic::PROPERTY_READ |
-        BLECharacteristic::PROPERTY_WRITE |
-        BLECharacteristic::PROPERTY_NOTIFY
+    bluetoothControllerPtr = new BluetoothController(
+        preferences,
+        scaleManager,
+        ledController,
+        ccNumberSWD1LeftRight,
+        ccNumberSWD1Center,
+        ccNumberSWD2LeftRight,
+        ccNumberSWD2Center
     );
-    pSWD1LRCCCharacteristic->addDescriptor(new BLE2902());
-    pSWD1LRCCCharacteristic->setCallbacks(new CharacteristicCallbacks());
-    pSWD1LRCCCharacteristic->setValue(&valSWD1LR, 1);
-
-    auto valSWD1Center = static_cast<uint8_t>(ccNumberSWD1Center);
-    pSWD1CenterCCCharacteristic = pService->createCharacteristic(
-        SWD1_CENTER_CC_CHAR_UUID,
-        BLECharacteristic::PROPERTY_READ |
-        BLECharacteristic::PROPERTY_WRITE |
-        BLECharacteristic::PROPERTY_NOTIFY
-    );
-    pSWD1CenterCCCharacteristic->addDescriptor(new BLE2902());
-    pSWD1CenterCCCharacteristic->setCallbacks(new CharacteristicCallbacks());
-    pSWD1CenterCCCharacteristic->setValue(&valSWD1Center, 1);
-
-    auto valSWD2LR = static_cast<uint8_t>(ccNumberSWD2LeftRight);
-    pSWD2LRCCCharacteristic = pService->createCharacteristic(
-        SWD2_LR_CC_CHAR_UUID,
-        BLECharacteristic::PROPERTY_READ |
-        BLECharacteristic::PROPERTY_WRITE |
-        BLECharacteristic::PROPERTY_NOTIFY
-    );
-    pSWD2LRCCCharacteristic->addDescriptor(new BLE2902());
-    pSWD2LRCCCharacteristic->setCallbacks(new CharacteristicCallbacks());
-    pSWD2LRCCCharacteristic->setValue(&valSWD2LR, 1);
-
-    auto valSWD2Center = static_cast<uint8_t>(ccNumberSWD2Center);
-    pSWD2CenterCCCharacteristic = pService->createCharacteristic(
-        SWD2_CENTER_CC_CHAR_UUID,
-        BLECharacteristic::PROPERTY_READ |
-        BLECharacteristic::PROPERTY_WRITE |
-        BLECharacteristic::PROPERTY_NOTIFY
-    );
-    pSWD2CenterCCCharacteristic->addDescriptor(new BLE2902());
-    pSWD2CenterCCCharacteristic->setCallbacks(new CharacteristicCallbacks());
-    pSWD2CenterCCCharacteristic->setValue(&valSWD2Center, 1);
-
-    // Create MIDI CC Characteristic (Write Without Response for efficiency)
-    pMidiCcCharacteristic = pService->createCharacteristic(
-        MIDI_CC_CHAR_UUID,
-        BLECharacteristic::PROPERTY_WRITE_NR // WRITE_NR for "Write Without Response"
-    );
-    pMidiCcCharacteristic->setCallbacks(new CharacteristicCallbacks());
-
-    pRootNoteCharacteristic = pService->createCharacteristic(
-        ROOT_NOTE_CHAR_UUID,
-        BLECharacteristic::PROPERTY_READ |
-        BLECharacteristic::PROPERTY_WRITE |
-        BLECharacteristic::PROPERTY_NOTIFY
-    );
-    pRootNoteCharacteristic->addDescriptor(new BLE2902());
-    pRootNoteCharacteristic->setCallbacks(new CharacteristicCallbacks());
-    auto initialRootNote = static_cast<uint8_t>(scaleManager.getRootNote());
-    pRootNoteCharacteristic->setValue(&initialRootNote, 1);
-
-    pScaleTypeCharacteristic = pService->createCharacteristic(
-        SCALE_TYPE_CHAR_UUID,
-        BLECharacteristic::PROPERTY_READ |
-        BLECharacteristic::PROPERTY_WRITE |
-        BLECharacteristic::PROPERTY_NOTIFY
-    );
-    pScaleTypeCharacteristic->addDescriptor(new BLE2902());
-    pScaleTypeCharacteristic->setCallbacks(new CharacteristicCallbacks());
-    auto initialScaleType = static_cast<uint8_t>(scaleManager.getScaleType());
-    pScaleTypeCharacteristic->setValue(&initialScaleType, 1);
-
-    // Start the service
-    pService->start();
-
-    BLEAdvertising *pAdvertising = pServer->getAdvertising();
-    pAdvertising->addServiceUUID(SERVICE_UUID);
-    pAdvertising->setScanResponse(true);
-    pAdvertising->setMinPreferred(0x06);
-    pAdvertising->setMinPreferred(0x12);
-    BLEDevice::startAdvertising();
-    SERIAL_PRINTLN("Waiting for a BLE client connection...");
+    octaveControl.setBluetoothController(bluetoothControllerPtr);
+    
 }
 
 //---------------------------------------------------

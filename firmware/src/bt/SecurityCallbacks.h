@@ -2,7 +2,6 @@
 #define SECURITY_CALLBACKS_H
 
 #include <BLESecurity.h>
-#include <objects/Globals.h>
 
 class SecurityCallbacks : public BLESecurityCallbacks {
     void onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) override;

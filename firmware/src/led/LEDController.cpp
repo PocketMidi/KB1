@@ -70,7 +70,7 @@ void LEDController::begin(LedColor color, int pin, Adafruit_MCP23X17* mcp) {
         led->mcp = mcp;
         if (mcp) {
             mcp->pinMode(pin, OUTPUT);
-            mcp->digitalWrite(pin, HIGH); // Off for active-low
+            mcp->digitalWrite(pin, HIGH);
         } else {
             pinMode(led->pin, OUTPUT);
             analogWrite(led->pin, led->currentBrightness);
@@ -112,7 +112,7 @@ void LEDController::set(LedColor color, int targetBrightness, unsigned long dura
     }
 }
 
-void LEDController::pulse(LedColor color, unsigned long duration) {
+void LEDController::pulse(LedColor color, unsigned long pulseSpeed, unsigned long totalPulsationDuration) {
     LedState* led = nullptr;
     switch (color) {
         case LedColor::PINK:
@@ -131,7 +131,8 @@ void LEDController::pulse(LedColor color, unsigned long duration) {
 
     if (led) {
         led->mode = LedMode::PULSE;
-        led->pulseDuration = duration;
+        led->pulseDuration = (pulseSpeed == 0) ? 1 : pulseSpeed;
+        led->duration = totalPulsationDuration;
         led->startTime = millis();
     }
 }
@@ -144,7 +145,10 @@ void LEDController::update() {
 }
 
 void LEDController::updateLed(LedState& led) {
-    if (led.pin == -1) return; // LED not initialized
+    if (led.pin == -1) {
+        // LED not initialized
+        return;
+    }
 
     unsigned long currentTime = millis();
     unsigned long elapsedTime = currentTime - led.startTime;
@@ -158,6 +162,17 @@ void LEDController::updateLed(LedState& led) {
                 // No interpolation for MCP, just wait until duration ends
             }
         } else if (led.mode == LedMode::PULSE) {
+            if (led.duration != 0 && elapsedTime >= led.duration) {
+                // Stop pulsing after total duration
+                led.mode = LedMode::STATIC;
+                led.currentBrightness = 0;
+                if (led.mcp) {
+                    led.mcp->digitalWrite(led.pin, HIGH); // Turn off for active-low
+                } else {
+                    analogWrite(led.pin, 0);
+                }
+                return; // Exit update for this LED
+            }
             float progress = (float)(elapsedTime % led.pulseDuration) / (float)led.pulseDuration;
             int state = progress < 0.5f ? LOW : HIGH; // 50% duty cycle
             led.mcp->digitalWrite(led.pin, state);
@@ -174,14 +189,21 @@ void LEDController::updateLed(LedState& led) {
                 analogWrite(led.pin, led.currentBrightness);
             }
         } else if (led.mode == LedMode::PULSE) {
+            if (led.duration != 0 && elapsedTime >= led.duration) {
+                // Stop pulsing after total duration
+                led.mode = LedMode::STATIC;
+                led.currentBrightness = 0;
+                analogWrite(led.pin, 0);
+                return; // Exit update for this LED
+            }
             float progress = (float)(elapsedTime % led.pulseDuration) / (float)led.pulseDuration;
             float brightness;
             if (progress < 0.5f) {
                 // Fade in
-                brightness = 2.0f * progress; // Scale progress from [0, 0.5) to [0, 1)
+                brightness = 2.0f * progress;
             } else {
                 // Fade out
-                brightness = 2.0f * (1.0f - progress); // Scale progress from [0.5, 1) to (1, 0]
+                brightness = 2.0f * (1.0f - progress);
             }
             led.currentBrightness = (int)(brightness * 255.0f);
             analogWrite(led.pin, led.currentBrightness);

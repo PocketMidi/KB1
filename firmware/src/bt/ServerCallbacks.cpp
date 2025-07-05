@@ -1,14 +1,18 @@
-#include <bt/ServerCallbacks.h>
 #include <BLEDevice.h>
+#include <bt/ServerCallbacks.h>
+#include <bt/BluetoothController.h>
+#include "objects/Globals.h"
+
+ServerCallbacks::ServerCallbacks(BluetoothController* controller) : _controller(controller) {}
 
 void ServerCallbacks::onConnect(BLEServer* pServer) {
-    deviceConnected = true;
+    _controller->setDeviceConnected(true);
     SERIAL_PRINTLN("BLE Client Connected!");
-    BLEDevice::getAdvertising()->stop();
+    _controller->getAdvertising()->stop();
 }
 
 void ServerCallbacks::onDisconnect(BLEServer* pServer) {
-    deviceConnected = false;
+    _controller->setDeviceConnected(false);
     SERIAL_PRINTLN("BLE Client Disconnected!");
-    BLEDevice::startAdvertising();
+    _controller->getAdvertising()->start();
 }

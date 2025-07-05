@@ -21,7 +21,7 @@ public:
     LEDController();
     void begin(LedColor color, int pin, Adafruit_MCP23X17* mcp = nullptr);
     void set(LedColor color, int targetBrightness, unsigned long duration = 0);
-    void pulse(LedColor color, unsigned long duration);
+    void pulse(LedColor color, unsigned long pulseSpeed, unsigned long totalPulsationDuration = 0);
     void update();
 
 private:
@@ -33,8 +33,8 @@ private:
         int targetBrightness;
         int startBrightness;
         unsigned long startTime;
-        unsigned long duration; // For interpolation or pulse cycle
-        unsigned long pulseDuration;
+        unsigned long duration; // For interpolation or total pulsation duration
+        unsigned long pulseDuration; // For individual pulse cycle duration
     };
 
     LedState pinkLed{};
