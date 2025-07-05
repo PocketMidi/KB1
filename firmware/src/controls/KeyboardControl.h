@@ -44,8 +44,8 @@ public:
     }
 
     void begin() {
-        // Initialize state and prevState for all keys based on their current physical state
         for (auto & key : _keys) {
+            key.mcp->pinMode(key.pin, INPUT_PULLUP);
             key.state = !key.mcp->digitalRead(key.pin);
             key.prevState = key.state;
         }
