@@ -10,6 +10,9 @@
  *
  */
 
+//----------------------------------
+// Includes
+//----------------------------------
 #include <Arduino.h>
 #include <Adafruit_MCP23X17.h>
 #include <Preferences.h>
@@ -36,7 +39,11 @@
 #include <controls/LeverPushControls.h>
 #include "controls/OctaveControl.h"
 #include "controls/KeyboardControl.h"
+#include <music/ScaleManager.h>
 
+//----------------------------------
+// Declarations
+//----------------------------------
 Adafruit_MCP23X17 mcp_U1;
 Adafruit_MCP23X17 mcp_U2;
 
@@ -118,7 +125,8 @@ TouchControl<decltype(MIDI)> touch1(
 
 OctaveControl<Adafruit_MCP23X17, LEDController> octaveControl(mcp_U2, ledController);
 
-KeyboardControl<decltype(MIDI), decltype(octaveControl), LEDController> keyboardControl(MIDI, octaveControl, ledController);
+ScaleManager scaleManager;
+KeyboardControl<decltype(MIDI), decltype(octaveControl), LEDController> keyboardControl(MIDI, octaveControl, ledController, scaleManager);
 
 Preferences preferences; // Define Preferences object
 BLEServer* pServer = nullptr;
@@ -130,24 +138,22 @@ BLECharacteristic* pSWD1CenterCCCharacteristic = nullptr;
 BLECharacteristic* pSWD2LRCCCharacteristic = nullptr;
 BLECharacteristic* pSWD2CenterCCCharacteristic = nullptr;
 BLECharacteristic* pMidiCcCharacteristic = nullptr;
+BLECharacteristic* pRootNoteCharacteristic = nullptr;
+BLECharacteristic* pScaleTypeCharacteristic = nullptr;
 
 // Global state variables and their initial values
-
 int ccNumberSWD1LeftRight = 3;  // Default for SWD1 Left/Right
 int ccNumberSWD1Center = 24;    // Default for SWD1 Center (Sustain)
 int ccNumberSWD2LeftRight = 7;  // Default for SWD2 Left/Right (e.g., Expression)
 int ccNumberSWD2Center = 1;     // Default for SWD2 Center (e.g., Modulation)
 
+void readInputs(void *pvParameters);
 
-// Forward declarations for functions defined later in this file
-void buttonReadTask(void *pvParameters);
-
-
-
-/////////////////////////////////////////////////////////////////
-////////////////////////  SETUP  ////////////////////////////////
-/////////////////////////////////////////////////////////////////
-
+//---------------------------------------------------
+//
+//  Setup
+//
+//---------------------------------------------------
 void setup() {
     SERIAL_BEGIN();
     SERIAL_PRINTLN("Serial monitor started.");
@@ -156,6 +162,33 @@ void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
     // Keep built-in LED on continuously (active low for some boards)
     digitalWrite(LED_BUILTIN, LOW);
+
+    // Start MCP_U1
+    if (!mcp_U1.begin_I2C(0x20)) {
+        SERIAL_PRINTLN("Error initializing U1.");
+        // ReSharper disable once CppDFAEndlessLoop
+        while (true) {}
+    }
+    // Start MCP_U2
+    if (!mcp_U2.begin_I2C(0x21)) {
+        SERIAL_PRINTLN("Error initializing U2.");
+        // ReSharper disable once CppDFAEndlessLoop
+        while (true) {}
+    }
+
+    // Add a small delay to allow MCP2 to fully initialize
+    delay(100);
+
+    //////// U1 //////////////////////////////////////////////////////
+    // Configure SWD buttons on U1 as inputs with pull-up
+    mcp_U1.pinMode(SWD1_LEFT_PIN, INPUT_PULLUP);
+    mcp_U1.pinMode(SWD1_CENTER_PIN, INPUT_PULLUP);
+
+    // Configure SWD buttons on U2 as inputs with pull-up
+    mcp_U2.pinMode(SWD1_RIGHT_PIN, INPUT_PULLUP);
+    mcp_U2.pinMode(SWD2_LEFT_PIN, INPUT_PULLUP);
+    mcp_U2.pinMode(SWD2_CENTER_PIN, INPUT_PULLUP);
+    mcp_U2.pinMode(SWD2_RIGHT_PIN, INPUT_PULLUP);
 
     // Initialize Preferences
     if (!preferences.begin("kb1-settings", false)) {
@@ -179,41 +212,6 @@ void setup() {
     SERIAL_PRINT("Loaded SWD1 Center CC: "); SERIAL_PRINTLN(ccNumberSWD1Center);
     SERIAL_PRINT("Loaded SWD2 LR CC: "); SERIAL_PRINTLN(ccNumberSWD2LeftRight);
     SERIAL_PRINT("Loaded SWD2 Center CC: "); SERIAL_PRINTLN(ccNumberSWD2Center);
-
-    // Start MCP_U1
-    if (!mcp_U1.begin_I2C(0x20)) {
-        SERIAL_PRINTLN("Error initializing U1.");
-        // ReSharper disable once CppDFAEndlessLoop
-        while (true) {}
-    }
-    // Start MCP_U2
-    if (!mcp_U2.begin_I2C(0x21)) {
-        SERIAL_PRINTLN("Error initializing U2.");
-        // ReSharper disable once CppDFAEndlessLoop
-        while (true) {}
-    }
-
-    // Add a small delay to allow MCP2 to fully initialize
-    delay(100);
-
-    //////// U1 //////////////////////////////////////////////////////
-    // Configure SWD buttons on U1 as inputs with pull-up
-    mcp_U1.pinMode(SWD1_LEFT_PIN, INPUT_PULLUP);
-    mcp_U1.pinMode(SWD1_CENTER_PIN, INPUT_PULLUP);
-
-    octaveControl.begin();
-    // Configure SWD buttons on U2 as inputs with pull-up
-    mcp_U2.pinMode(SWD1_RIGHT_PIN, INPUT_PULLUP);
-    mcp_U2.pinMode(SWD2_LEFT_PIN, INPUT_PULLUP);
-    mcp_U2.pinMode(SWD2_CENTER_PIN, INPUT_PULLUP);
-    mcp_U2.pinMode(SWD2_RIGHT_PIN, INPUT_PULLUP);
-
-    //////// Button Read Task ////////////////////////////////////////////
-    xTaskCreatePinnedToCore(buttonReadTask, "ButtonReadTask", 4096, nullptr, 1, nullptr, 1);
-
-    //////// MIDI //////////////////////////////////////////////////////
-    MIDI.begin(1); // Initialize MIDI on channel 1
-    SERIAL_PRINTLN("MIDI library initialized on channel 1.");
 
     ledController.begin(LedColor::OCTAVE_UP, 7, &mcp_U2);
     ledController.begin(LedColor::OCTAVE_DOWN, 5, &mcp_U2);
@@ -287,6 +285,28 @@ void setup() {
     );
     pMidiCcCharacteristic->setCallbacks(new CharacteristicCallbacks());
 
+    pRootNoteCharacteristic = pService->createCharacteristic(
+        ROOT_NOTE_CHAR_UUID,
+        BLECharacteristic::PROPERTY_READ |
+        BLECharacteristic::PROPERTY_WRITE |
+        BLECharacteristic::PROPERTY_NOTIFY
+    );
+    pRootNoteCharacteristic->addDescriptor(new BLE2902());
+    pRootNoteCharacteristic->setCallbacks(new CharacteristicCallbacks());
+    auto initialRootNote = static_cast<uint8_t>(scaleManager.getRootNote());
+    pRootNoteCharacteristic->setValue(&initialRootNote, 1);
+
+    pScaleTypeCharacteristic = pService->createCharacteristic(
+        SCALE_TYPE_CHAR_UUID,
+        BLECharacteristic::PROPERTY_READ |
+        BLECharacteristic::PROPERTY_WRITE |
+        BLECharacteristic::PROPERTY_NOTIFY
+    );
+    pScaleTypeCharacteristic->addDescriptor(new BLE2902());
+    pScaleTypeCharacteristic->setCallbacks(new CharacteristicCallbacks());
+    auto initialScaleType = static_cast<uint8_t>(scaleManager.getScaleType());
+    pScaleTypeCharacteristic->setValue(&initialScaleType, 1);
+
     // Start the service
     pService->start();
 
@@ -297,31 +317,37 @@ void setup() {
     pAdvertising->setMinPreferred(0x12);
     BLEDevice::startAdvertising();
     SERIAL_PRINTLN("Waiting for a BLE client connection...");
+
+
+    octaveControl.begin();
+    keyboardControl.begin();
+
+    scaleManager.setScale(ScaleType::CHROMATIC);
+
+    MIDI.begin(1);
+
+    xTaskCreatePinnedToCore(readInputs, "readInputs", 4096, nullptr, 1, nullptr, 1);
 }
 
-////////////////////////////////////////////////////////////////////////
-////////////////////////  LOOP  ////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////
-
+//---------------------------------------------------
+//
+//  Loops
+//
+//---------------------------------------------------
 void loop() {
     ledController.update();
     // Small delay to avoid watchdog timer issues
     vTaskDelay(1 / portTICK_PERIOD_MS);
 }
 
-
-[[noreturn]] void buttonReadTask(void *pvParameters) {
+[[noreturn]] void readInputs(void *pvParameters) {
     while (true) {
         touch1.update();
-
         lever1.update();
         lever2.update();
-
         leverPush1.update();
         leverPush2.update();
-
         octaveControl.update();
-
         keyboardControl.updateKeyboardState();
 
         vTaskDelay(10 / portTICK_PERIOD_MS);

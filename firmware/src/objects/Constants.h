@@ -20,5 +20,7 @@
 #define SWD2_LR_CC_CHAR_UUID     "7e7bf97b-384f-4c83-a664-e545b535e918"
 #define SWD2_CENTER_CC_CHAR_UUID "a5941dfe-43b2-4f4f-9be0-4d883117d96e"
 #define MIDI_CC_CHAR_UUID        "62e5a7d2-a443-475f-a40e-ada2229148ce"
+#define SCALE_TYPE_CHAR_UUID     "72c99bbd-a929-4e0c-abed-23d3a8aaf9c0"
+#define ROOT_NOTE_CHAR_UUID      "37b95b6d-45b0-46b6-85ba-ad4a3c33c731"
 
 #endif

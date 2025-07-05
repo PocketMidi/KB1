@@ -1,5 +1,8 @@
 #include <bt/CharacteristicCallbacks.h>
 #include <objects/Globals.h>
+#include <music/ScaleManager.h>
+
+extern ScaleManager scaleManager;
 
 void CharacteristicCallbacks::onWrite(BLECharacteristic *pCharacteristic) {
     const std::string rxValue = pCharacteristic->getValue();
@@ -56,8 +59,7 @@ void CharacteristicCallbacks::onWrite(BLECharacteristic *pCharacteristic) {
                 }
             }
         }
-    }
-    else if (pCharacteristic == pMidiCcCharacteristic) { // Handle incoming MIDI CCs from faders
+    } else if (pCharacteristic == pMidiCcCharacteristic) { // Handle incoming MIDI CCs from faders
         if (!rxValue.empty()) {
             SERIAL_PRINT("Received BLE MIDI CC: ");
             SERIAL_PRINTLN(rxValue.c_str());
@@ -83,6 +85,26 @@ void CharacteristicCallbacks::onWrite(BLECharacteristic *pCharacteristic) {
                 }
             } else {
                 SERIAL_PRINTLN("Invalid MIDI CC string format. Expected 'CC_NUMBER,VALUE'.");
+            }
+        }
+    } else if (pCharacteristic == pScaleTypeCharacteristic) {
+        if (!rxValue.empty()) {
+            const int newScaleType = (int)rxValue[0];
+            if (newScaleType >= 0 && newScaleType <= static_cast<int>(ScaleType::BLUES)) { // Validate against enum range
+                scaleManager.setScale(static_cast<ScaleType>(newScaleType));
+                preferences.putUChar("scaleType", newScaleType); // Save to NVS
+                SERIAL_PRINT("Scale Type set (BLE) and saved: ");
+                SERIAL_PRINTLN(newScaleType);
+            }
+        }
+    } else if (pCharacteristic == pRootNoteCharacteristic) {
+        if (!rxValue.empty()) {
+            const int newRootNote = (int)rxValue[0];
+            if (newRootNote >= 0 && newRootNote <= 127) { // Validate MIDI note range
+                scaleManager.setRootNote(newRootNote);
+                preferences.putUChar("rootNote", newRootNote); // Save to NVS
+                SERIAL_PRINT("Root Note set (BLE) and saved: ");
+                SERIAL_PRINTLN(newRootNote);
             }
         }
     }

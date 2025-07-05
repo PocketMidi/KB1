@@ -22,7 +22,7 @@ struct key {
 
     // Constructor to allow initialization
     key(uint8_t m, uint8_t p, bool s, bool ps, Adafruit_MCP23X17 *_mcp, const char* n)
-        : midi(m), pin(p), state(s), prevState(ps), mcp(_mcp)
+        : midi(m), pin(p), state(s), prevState(false), mcp(_mcp)
     {
         strncpy(name, n, sizeof(name) - 1);
         name[sizeof(name) - 1] = '\0'; // Ensure null-termination
@@ -55,6 +55,8 @@ extern BLECharacteristic* pSWD1CenterCCCharacteristic;
 extern BLECharacteristic* pSWD2LRCCCharacteristic;
 extern BLECharacteristic* pSWD2CenterCCCharacteristic;
 extern BLECharacteristic* pMidiCcCharacteristic;
+extern BLECharacteristic* pScaleTypeCharacteristic;
+extern BLECharacteristic* pRootNoteCharacteristic;
 
 extern int ccNumberSWD1LeftRight;
 extern int ccNumberSWD1Center;

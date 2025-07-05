@@ -5,17 +5,17 @@
 #include <Adafruit_MCP23X17.h>
 #include <MIDI.h>
 #include <objects/Globals.h>
-#include <controls/OctaveControl.h>
 #include <led/LEDController.h>
-
+#include <music/ScaleManager.h>
 
 template<typename MidiTransport, typename OctaveControlType, typename LEDControllerType>
 class KeyboardControl {
 public:
-    KeyboardControl(MidiTransport& midi, OctaveControlType& octaveCtrl, LEDControllerType& ledCtrl)
+    KeyboardControl(MidiTransport& midi, OctaveControlType& octaveCtrl, LEDControllerType& ledCtrl, ScaleManager& scaleManager)
         : _midi(midi),
           _octaveControl(octaveCtrl),
           _ledController(ledCtrl),
+          _scaleManager(scaleManager),
           _currentVelocity(80),
           _minVelocity(8)
     {
@@ -43,11 +43,19 @@ public:
         _keys[18] = {77, 8, true, true, &mcp_U2, "SW12 (F)"};
     }
 
+    void begin() {
+        // Initialize prevState for all keys based on their current physical state
+        for (auto & key : _keys) {
+            key.prevState = !key.mcp->digitalRead(key.pin);
+        }
+    }
+
     void playMidiNote(const byte note) {
         constexpr byte channel = 1;
-        _midi.sendNoteOn(note + _octaveControl.getOctave() * 12, _currentVelocity, channel);
+        int quantizedNote = _scaleManager.quantizeNote(note + _octaveControl.getOctave() * 12);
+        _midi.sendNoteOn(quantizedNote, _currentVelocity, channel);
         SERIAL_PRINT("Note On: ");
-        SERIAL_PRINT(note + _octaveControl.getOctave() * 12);
+        SERIAL_PRINT(quantizedNote);
         SERIAL_PRINT(", Velocity: ");
         SERIAL_PRINTLN(_currentVelocity);
         _isNoteOn[note] = true;
@@ -57,9 +65,10 @@ public:
         if (_isNoteOn[note])
         {
             constexpr byte channel = 1;
-            _midi.sendNoteOff(note + _octaveControl.getOctave() * 12, 0, channel);
+            int quantizedNote = _scaleManager.quantizeNote(note + _octaveControl.getOctave() * 12);
+            _midi.sendNoteOff(quantizedNote, 0, channel);
             SERIAL_PRINT("Note Off: ");
-            SERIAL_PRINT(note + _octaveControl.getOctave() * 12);
+            SERIAL_PRINT(quantizedNote);
             SERIAL_PRINTLN(", Velocity: 0");
             _isNoteOn[note] = false;
         }
@@ -74,9 +83,9 @@ public:
             _currentVelocity = 127;
 
         if (delta > 0) {
-            _ledController.set(LedColor::BLUE, 255, 500); // Fade to full brightness over 500ms
+            _ledController.set(LedColor::BLUE, 255, 500);
         } else if (delta < 0) {
-            _ledController.set(LedColor::BLUE, 0, 3000); // Fade to off over 3000ms
+            _ledController.set(LedColor::BLUE, 0, 3000);
         }
         if (_currentVelocity != previousVelocity) {
             if (delta > 0) {
@@ -98,24 +107,17 @@ public:
 
     void updateKeyboardState() {
         // Read key states & button states on U2
-        for (auto & key : _keys)
-        {
+        for (auto & key : _keys) {
             key.state = !key.mcp->digitalRead(key.pin);
         }
 
-        //////////////////  KEYS /////////////////////////////////////////////
-        for (auto & key : _keys)
-        {
-            if (key.state != key.prevState)
-            {
-                if (key.state)
-                {
+        for (auto & key : _keys) {
+            if (key.state != key.prevState) {
+                if (key.state) {
                     playMidiNote(key.midi);
                     SERIAL_PRINT(key.name);
                     SERIAL_PRINTLN(" Pressed!");
-                }
-                else
-                {
+                } else {
                     stopMidiNote(key.midi);
                 }
             }
@@ -127,6 +129,7 @@ private:
     MidiTransport& _midi;
     OctaveControlType& _octaveControl;
     LEDControllerType& _ledController;
+    ScaleManager& _scaleManager; // Add ScaleManager member
 
     volatile int _currentVelocity;
     int _minVelocity;
