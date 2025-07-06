@@ -47,6 +47,7 @@ public:
     void setStepSize(int size);
     void setOnsetInterpolationType(InterpolationType type);
     void setOffsetInterpolationType(InterpolationType type);
+    void setValue(int number);
 
 private:
     MidiTransport& _midi;
@@ -180,6 +181,11 @@ void LeverControls<MidiTransport>::setOnsetInterpolationType(InterpolationType t
 template<class MidiTransport>
 void LeverControls<MidiTransport>::setOffsetInterpolationType(InterpolationType type) {
     _offsetInterpolationType = type;
+}
+
+template<class MidiTransport>
+void LeverControls<MidiTransport>::setValue(int value) {
+    _currentValue = value;;
 }
 
 template<class MidiTransport>

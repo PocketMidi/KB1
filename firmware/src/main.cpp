@@ -43,7 +43,6 @@ LEDController ledController;
 
 MIDI_CREATE_INSTANCE(HardwareSerial, Serial0, MIDI);
 
-// Lever Objects
 LeverControls<decltype(MIDI)> lever1(
     &mcp_U1,
     &mcp_U2,
@@ -59,7 +58,24 @@ LeverControls<decltype(MIDI)> lever1(
     1000,
     InterpolationType::DECELERATING,
     InterpolationType::ACCELERATING,
-    MIDI);
+    MIDI
+);
+
+LeverPushControls<decltype(MIDI)> leverPush1(
+    &mcp_U1,
+    SWD1_CENTER_PIN,
+    24,
+    0,
+    127,
+    LeverPushFunctionMode::INTERPOLATED,
+    200,
+    200,
+    InterpolationType::LINEAR,
+    InterpolationType::LINEAR,
+    MIDI,
+    lever1
+);
+
 LeverControls<decltype(MIDI)> lever2(
     &mcp_U2,
     &mcp_U2,
@@ -75,35 +91,25 @@ LeverControls<decltype(MIDI)> lever2(
     200,
     InterpolationType::LINEAR,
     InterpolationType::LINEAR,
-    MIDI);
-
-LeverPushControls<decltype(MIDI)> leverPush1(
-        &mcp_U1,
-        SWD1_CENTER_PIN,
-        24,
-        0,
-        127,
-        LeverPushFunctionMode::INTERPOLATED,
-        200,
-        200,
-        InterpolationType::LINEAR,
-        InterpolationType::LINEAR,
-        MIDI);
+    MIDI
+);
 
 LeverPushControls<decltype(MIDI)> leverPush2(
         &mcp_U2,
         SWD2_CENTER_PIN,
-        1,
-        0,
+        7,
+        64,
         127,
-        LeverPushFunctionMode::JUMP_AND_INTERPOLATE,
+        LeverPushFunctionMode::RESET,
         200,
         200,
         InterpolationType::LINEAR,
         InterpolationType::LINEAR,
-        MIDI);
+        MIDI,
+        lever2
+);
 
-TouchControl<decltype(MIDI)> touch1(
+TouchControl<decltype(MIDI)> touch(
     T1, 
     51,
     0,
@@ -115,10 +121,19 @@ TouchControl<decltype(MIDI)> touch1(
     MIDI
 );
 
-OctaveControl<Adafruit_MCP23X17, LEDController> octaveControl(mcp_U2, ledController, nullptr);
+OctaveControl<Adafruit_MCP23X17, LEDController> octaveControl(
+    mcp_U2,
+    ledController,
+    nullptr
+);
 
 ScaleManager scaleManager;
-KeyboardControl<decltype(MIDI), decltype(octaveControl), LEDController> keyboardControl(MIDI, octaveControl, ledController, scaleManager);
+KeyboardControl<decltype(MIDI), decltype(octaveControl), LEDController> keyboardControl(
+    MIDI,
+    octaveControl,
+    ledController,
+    scaleManager
+);
 
 Preferences preferences; // Define Preferences object
 
@@ -238,7 +253,7 @@ void loop() {
 
 [[noreturn]] void readInputs(void *pvParameters) {
     while (true) {
-        touch1.update();
+        touch.update();
         lever1.update();
         lever2.update();
         leverPush1.update();

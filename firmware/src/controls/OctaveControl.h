@@ -8,7 +8,8 @@
 template <typename GpioExpander, typename LedManager>
 class OctaveControl {
 public:
-    OctaveControl(GpioExpander& mcp, LedManager& ledController, BluetoothController* bluetoothController)
+    OctaveControl(
+        GpioExpander& mcp, LedManager& ledController, BluetoothController* bluetoothController)
         : mcp(mcp), ledController(ledController), _bluetoothController(bluetoothController), currentOctave(0),
           isS3Pressed(false), isS4Pressed(false), areS3S4Pressed(false),
           _s3s4PressStartTime(0), _bluetoothToggleTriggered(false) {}

@@ -9,6 +9,7 @@ enum class LeverPushFunctionMode {
     INTERPOLATED,
     JUMP_AND_INTERPOLATE,
     STATIC,
+    RESET,
 };
 
 template<class MidiTransport>
@@ -25,7 +26,8 @@ public:
         unsigned long offsetTime,
         InterpolationType onsetInterpolationType,
         InterpolationType offsetInterpolationType,
-        MidiTransport& midi
+        MidiTransport& midi,
+        LeverControls<MidiTransport>& leverControls
     );
 
     void update();
@@ -40,6 +42,7 @@ public:
 
 private:
     MidiTransport& _midi;
+    LeverControls<MidiTransport>& _leverControls;
     Adafruit_MCP23X17* _mcp;
     int _centerPin;
 
@@ -76,8 +79,10 @@ LeverPushControls<MidiTransport>::LeverPushControls(
     unsigned long offsetTime,
     InterpolationType onsetInterpolationType,
     InterpolationType offsetInterpolationType,
-    MidiTransport& midi)
+    MidiTransport& midi,
+    LeverControls<MidiTransport>& leverControls)
     :
+    _leverControls(leverControls),
     _midi(midi),
     _mcp(mcp),
     _centerPin(centerPin),
@@ -150,7 +155,12 @@ void LeverPushControls<MidiTransport>::handleInput() {
     bool state = !_mcp->digitalRead(_centerPin);
     int oldTargetValue = _targetValue;
 
-    if (_functionMode == LeverPushFunctionMode::STATIC) {
+    if (_functionMode == LeverPushFunctionMode::RESET) {
+        if (state) {
+            _currentValue = _minCCValue;
+            _leverControls.setValue(_currentValue);
+        }
+    } else if (_functionMode == LeverPushFunctionMode::STATIC) {
         if (state && !_isPressed) {
             _currentValue = _maxCCValue;
             _isPressed = true;
