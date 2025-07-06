@@ -4,7 +4,8 @@
   //  Imports
   //
   //---------------------------------------------------
-  import { onMounted } from 'vue';
+  import { onBeforeUnmount, onMounted } from 'vue';
+  import Bluetooth from '@/utils/Bluetooth.ts';
 
   //---------------------------------------------------
   //
@@ -53,7 +54,9 @@
   // onUpdated(() => {});
   // onActivated(() => {});
   // onDeactivated(() => {});
-  // onBeforeUnmount(() => {});
+  onBeforeUnmount(() => {
+    Bluetooth.disconnect();
+  });
   // onUnmounted(() => {});
 
   //---------------------------------------------------
@@ -61,7 +64,17 @@
   //  Methods
   //
   //---------------------------------------------------
+  async function connect() {
+    const connected = await Bluetooth.connect();
+    if (connected) {
+      const settings = await Bluetooth.getSettings();
+      console.log(settings);
+    }
+  }
 
+  function disconnect() {
+    Bluetooth.disconnect();
+  }
   //---------------------------------------------------
   //
   //  Expose
@@ -71,9 +84,18 @@
 </script>
 
 <template>
+  <button @click="connect">Connect</button>
+  <button @click="disconnect">Discconect</button>
   <RouterView />
 </template>
 
 <style lang="scss">
   @use '/src/assets/scss/app';
+
+  button {
+    font-family: inherit;
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-borders);
+    background: transparent;
+  }
 </style>
