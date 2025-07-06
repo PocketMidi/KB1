@@ -18,7 +18,9 @@ public:
         int rightPin,
         LeverSettings& settings,
         MidiTransport& midi,
-        KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>, LEDController>& keyboardControl
+        LEDController& ledController,
+        LedColor ledColor,
+        KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>>& keyboardControl
     );
 
     void update();
@@ -42,7 +44,9 @@ private:
     int _leftPin;
     int _rightPin;
     LeverSettings& _settings;
-    KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>, LEDController>& _keyboardControl;
+    KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>>& _keyboardControl;
+    LEDController& _ledController;
+    LedColor _ledColor;
 
     bool _isPressed;
     int _lastSentValue;
@@ -64,7 +68,9 @@ LeverControls<MidiTransport>::LeverControls(
     int rightPin,
     LeverSettings& settings,
     MidiTransport& midi,
-    KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>, LEDController>& keyboardControl)
+    LEDController& ledController,
+    LedColor ledColor,
+    KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>>& keyboardControl)
     :
     _midi(midi),
     _mcpLeft(mcpLeft),
@@ -72,6 +78,8 @@ LeverControls<MidiTransport>::LeverControls(
     _leftPin(leftPin),
     _rightPin(rightPin),
     _settings(settings),
+    _ledController(ledController),
+    _ledColor(ledColor),
     _keyboardControl(keyboardControl),
     _isPressed(false),
     _rampStartTime(0)
@@ -263,6 +271,8 @@ void LeverControls<MidiTransport>::updateValue() {
         if (_settings.ccNumber == 7) {
             _keyboardControl.setVelocity(_currentValue);
         }
+
+        // _ledController.set(_ledColor, _currentValue);
         _lastSentValue = _currentValue;
     }
 }

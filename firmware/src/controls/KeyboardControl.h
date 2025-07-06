@@ -8,13 +8,12 @@
 #include <led/LEDController.h>
 #include <music/ScaleManager.h>
 
-template<typename MidiTransport, typename OctaveControlType, typename LEDControllerType>
+template<typename MidiTransport, typename OctaveControlType>
 class KeyboardControl {
 public:
-    KeyboardControl(MidiTransport& midi, OctaveControlType& octaveCtrl, LEDControllerType& ledCtrl, ScaleManager& scaleManager)
+    KeyboardControl(MidiTransport& midi, OctaveControlType& octaveCtrl, ScaleManager& scaleManager)
         : _midi(midi),
           _octaveControl(octaveCtrl),
-          _ledController(ledCtrl),
           _scaleManager(scaleManager),
           _currentVelocity(81),
           _minVelocity(2)
@@ -84,11 +83,6 @@ public:
             _currentVelocity = 127;
         }
 
-        if (delta > 0) {
-            _ledController.set(LedColor::BLUE, 255, 500);
-        } else if (delta < 0) {
-            _ledController.set(LedColor::BLUE, 0, 3000);
-        }
         if (_currentVelocity != previousVelocity) {
             if (delta > 0) {
                 SERIAL_PRINT("Current Velocity Increased to: ");
@@ -126,7 +120,6 @@ public:
 private:
     MidiTransport& _midi;
     OctaveControlType& _octaveControl;
-    LEDControllerType& _ledController;
     ScaleManager& _scaleManager; // Add ScaleManager member
 
     volatile int _currentVelocity;

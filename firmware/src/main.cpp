@@ -58,10 +58,9 @@ ScaleManager scaleManager(scaleSettings);
 //----------------------------------
 // KeyboardControl Setup
 //----------------------------------
-KeyboardControl<decltype(MIDI), decltype(octaveControl), LEDController> keyboardControl(
+KeyboardControl<decltype(MIDI), decltype(octaveControl)> keyboardControl(
     MIDI,
     octaveControl,
-    ledController,
     scaleManager
 );
 
@@ -87,6 +86,8 @@ LeverControls<decltype(MIDI)> lever1(
     SWD1_RIGHT_PIN,
     lever1Settings,
     MIDI,
+    ledController,
+    LedColor::PINK,
     keyboardControl
 );
 
@@ -109,6 +110,8 @@ LeverPushControls<decltype(MIDI)> leverPush1(
     leverPush1Settings,
     lever1,
     MIDI,
+    ledController,
+    LedColor::PINK,
     keyboardControl
 );
 
@@ -134,6 +137,8 @@ LeverControls<decltype(MIDI)> lever2(
     SWD2_RIGHT_PIN,
     lever2Settings,
     MIDI,
+    ledController,
+    LedColor::BLUE,
     keyboardControl
 );
 
@@ -156,6 +161,8 @@ LeverPushControls<decltype(MIDI)> leverPush2(
         leverPush2Settings,
         lever2,
         MIDI,
+        ledController,
+        LedColor::BLUE,
         keyboardControl
 );
 
