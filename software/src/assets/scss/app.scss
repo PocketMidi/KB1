@@ -1,0 +1,30 @@
+/* -------------------------------
+  Imports
+------------------------------- */
+@use 'reset';
+@use 'fonts';
+@use 'query';
+@use 'variables';
+
+/* -------------------------------
+  Globals / Body
+------------------------------- */
+html {
+  position: relative;
+  font-size: 62.5%;
+  padding: 0;
+  margin: 0;
+}
+body {
+  padding: 0;
+  margin: 0;
+  font-size: 1.4rem;
+  @include fonts.roboto;
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary, transparent);
+}
+
+h3,
+p {
+  margin: 0;
+}
