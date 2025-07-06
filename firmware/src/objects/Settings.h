@@ -23,8 +23,8 @@ struct LeverPushSettings {
     int minCCValue;
     int maxCCValue;
     LeverPushFunctionMode functionMode;
-    int onsetTime;
-    int offsetTime;
+    unsigned long onsetTime;
+    unsigned long offsetTime;
     InterpolationType onsetType;
     InterpolationType offsetType;
 };

@@ -16,8 +16,8 @@ public:
           _octaveControl(octaveCtrl),
           _ledController(ledCtrl),
           _scaleManager(scaleManager),
-          _currentVelocity(80),
-          _minVelocity(8)
+          _currentVelocity(81),
+          _minVelocity(2)
     {
         memset(_isNoteOn, false, sizeof(_isNoteOn));
 
@@ -78,10 +78,11 @@ public:
     void updateVelocity(const int delta) {
         const int previousVelocity = _currentVelocity;
         _currentVelocity += delta;
-        if (_currentVelocity < _minVelocity)
+        if (_currentVelocity < _minVelocity) {
             _currentVelocity = _minVelocity;
-        else if (_currentVelocity > 127)
+        } else if (_currentVelocity > 127) {
             _currentVelocity = 127;
+        }
 
         if (delta > 0) {
             _ledController.set(LedColor::BLUE, 255, 500);
@@ -98,12 +99,8 @@ public:
         }
     }
 
-    void resetVelocity() {
-        _currentVelocity = 80;
-        SERIAL_PRINTLN("Velocity Reset to 80");
-        _ledController.set(LedColor::BLUE, 51, 250);
-        delay(250);
-        _ledController.set(LedColor::BLUE, 0, 0);
+    void setVelocity(const int value) {
+        _currentVelocity = value;
     }
 
     void updateKeyboardState() {

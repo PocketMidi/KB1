@@ -5,6 +5,8 @@
 #include <Adafruit_MCP23X17.h>
 #include <objects/Globals.h>
 #include <objects/Settings.h>
+#include <controls/OctaveControl.h>
+#include <controls/KeyboardControl.h>
 
 template<class MidiTransport>
 class LeverPushControls {
@@ -14,7 +16,8 @@ public:
         int centerPin,
         LeverPushSettings& settings,
         LeverControls<MidiTransport>& leverControls,
-        MidiTransport& midi
+        MidiTransport& midi,
+        KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>, LEDController>& keyboardControl
     );
 
     void update();
@@ -33,6 +36,7 @@ private:
     LeverPushSettings& _settings;
     LeverControls<MidiTransport>& _leverControls;
     MidiTransport& _midi;
+    KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>, LEDController>& _keyboardControl;
 
     bool _isPressed;
     int _lastSentValue;
@@ -52,13 +56,15 @@ LeverPushControls<MidiTransport>::LeverPushControls(
     int centerPin,
     LeverPushSettings& settings,
     LeverControls<MidiTransport>& leverControls,
-    MidiTransport& midi)
+    MidiTransport& midi,
+    KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>, LEDController>& keyboardControl)
     :
     _mcp(mcp),
     _centerPin(centerPin),
     _settings(settings),
     _leverControls(leverControls),
     _midi(midi),
+    _keyboardControl(keyboardControl),
     _isPressed(false),
     _rampStartTime(0),
     _currentValue(_settings.minCCValue),
@@ -121,7 +127,14 @@ void LeverPushControls<MidiTransport>::handleInput() {
     if (_settings.functionMode == LeverPushFunctionMode::RESET) {
         if (state) {
             _currentValue = _settings.minCCValue;
-            _leverControls.setValue(_currentValue);
+            if (_settings.ccNumber == 7) {
+                _keyboardControl.setVelocity(_currentValue);
+                if (_leverControls.getCCNumber() == 7) {
+                    _leverControls.setValue(_currentValue);
+                }
+            } else {
+                _leverControls.setValue(_currentValue);
+            }
         }
     } else if (_settings.functionMode == LeverPushFunctionMode::STATIC) {
         if (state && !_isPressed) {
@@ -205,6 +218,9 @@ void LeverPushControls<MidiTransport>::updateValue() {
         SERIAL_PRINT("Sending CC "); SERIAL_PRINT(_settings.ccNumber);
         SERIAL_PRINT(", Value: "); SERIAL_PRINTLN(_currentValue);
         _midi.sendControlChange(_settings.ccNumber, _currentValue, 1);
+        if (_settings.ccNumber == 7) {
+            _keyboardControl.setVelocity(_currentValue);
+        }
         _lastSentValue = _currentValue;
     }
 }

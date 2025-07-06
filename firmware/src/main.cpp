@@ -38,114 +38,6 @@ LEDController ledController;
 MIDI_CREATE_INSTANCE(HardwareSerial, Serial0, MIDI);
 
 //----------------------------------
-// Lever 1 Setup
-//----------------------------------
-LeverSettings lever1Settings = {
-    .ccNumber = 3,
-    .minCCValue = 0,
-    .maxCCValue = 127,
-    .stepSize = 1,
-    .functionMode = LeverFunctionMode::INTERPOLATED,
-    .valueMode = ValueMode::BIPOLAR,
-    .onsetTime = 1000,
-    .offsetTime = 1000,
-    .onsetType = InterpolationType::LINEAR,
-    .offsetType = InterpolationType::LINEAR,
-};
-LeverControls<decltype(MIDI)> lever1(
-    &mcp_U1,
-    &mcp_U2,
-    SWD1_LEFT_PIN,
-    SWD1_RIGHT_PIN,
-    lever1Settings,
-    MIDI
-);
-
-//----------------------------------
-// LeverPush 1  Setup
-//----------------------------------
-LeverPushSettings leverPush1Settings = {
-    .ccNumber = 24,
-    .minCCValue = 0,
-    .maxCCValue = 127,
-    .functionMode = LeverPushFunctionMode::INTERPOLATED,
-    .onsetTime = 200,
-    .offsetTime = 200,
-    .onsetType = InterpolationType::LINEAR,
-    .offsetType = InterpolationType::LINEAR,
-};
-LeverPushControls<decltype(MIDI)> leverPush1(
-    &mcp_U1,
-    SWD1_CENTER_PIN,
-    leverPush1Settings,
-    lever1,
-    MIDI
-);
-
-//----------------------------------
-// Lever 2 Setup
-//----------------------------------
-LeverSettings lever2Settings = {
-    .ccNumber = 7,
-    .minCCValue = 0,
-    .maxCCValue = 127,
-    .stepSize = 4,
-    .functionMode = LeverFunctionMode::INCREMENTAL,
-    .valueMode = ValueMode::BIPOLAR,
-    .onsetTime = 200,
-    .offsetTime = 200,
-    .onsetType = InterpolationType::LINEAR,
-    .offsetType = InterpolationType::LINEAR,
-};
-LeverControls<decltype(MIDI)> lever2(
-    &mcp_U2,
-    &mcp_U2,
-    SWD2_LEFT_PIN,
-    SWD2_RIGHT_PIN,
-    lever2Settings,
-    MIDI
-);
-
-//----------------------------------
-// LeverPush 2 Setup
-//----------------------------------
-LeverPushSettings leverPush2Settings = {
-    .ccNumber = 7,
-    .minCCValue = 64,
-    .maxCCValue = 127,
-    .functionMode = LeverPushFunctionMode::RESET,
-    .onsetTime = 200,
-    .offsetTime = 200,
-    .onsetType = InterpolationType::LINEAR,
-    .offsetType = InterpolationType::LINEAR,
-};
-LeverPushControls<decltype(MIDI)> leverPush2(
-        &mcp_U2,
-        SWD2_CENTER_PIN,
-        leverPush2Settings,
-        lever2,
-        MIDI
-);
-
-//----------------------------------
-// Touch Sensor Setup
-//----------------------------------
-TouchSettings touchSettings = {
-    .ccNumber = 51,
-    .minCCValue = 0,
-    .maxCCValue = 127,
-    .functionMode = TouchFunctionMode::HOLD,
-};
-TouchControl<decltype(MIDI)> touch(
-    T1,
-    touchSettings,
-    26000,
-    155000, 
-    26000,
-    MIDI
-);
-
-//----------------------------------
 // Octave Control Setup
 //----------------------------------
 OctaveControl<Adafruit_MCP23X17, LEDController> octaveControl(
@@ -171,6 +63,118 @@ KeyboardControl<decltype(MIDI), decltype(octaveControl), LEDController> keyboard
     octaveControl,
     ledController,
     scaleManager
+);
+
+//----------------------------------
+// Lever 1 Setup
+//----------------------------------
+LeverSettings lever1Settings = {
+    .ccNumber = 3,
+    .minCCValue = 0,
+    .maxCCValue = 127,
+    .stepSize = 1,
+    .functionMode = LeverFunctionMode::INTERPOLATED,
+    .valueMode = ValueMode::BIPOLAR,
+    .onsetTime = 1000,
+    .offsetTime = 1000,
+    .onsetType = InterpolationType::LINEAR,
+    .offsetType = InterpolationType::LINEAR,
+};
+LeverControls<decltype(MIDI)> lever1(
+    &mcp_U1,
+    &mcp_U2,
+    SWD1_LEFT_PIN,
+    SWD1_RIGHT_PIN,
+    lever1Settings,
+    MIDI,
+    keyboardControl
+);
+
+//----------------------------------
+// LeverPush 1  Setup
+//----------------------------------
+LeverPushSettings leverPush1Settings = {
+    .ccNumber = 24,
+    .minCCValue = 0,
+    .maxCCValue = 127,
+    .functionMode = LeverPushFunctionMode::INTERPOLATED,
+    .onsetTime = 200,
+    .offsetTime = 200,
+    .onsetType = InterpolationType::LINEAR,
+    .offsetType = InterpolationType::LINEAR,
+};
+LeverPushControls<decltype(MIDI)> leverPush1(
+    &mcp_U1,
+    SWD1_CENTER_PIN,
+    leverPush1Settings,
+    lever1,
+    MIDI,
+    keyboardControl
+);
+
+//----------------------------------
+// Lever 2 Setup
+//----------------------------------
+LeverSettings lever2Settings = {
+    .ccNumber = 7,
+    .minCCValue = 0,
+    .maxCCValue = 127,
+    .stepSize = 2,
+    .functionMode = LeverFunctionMode::INCREMENTAL,
+    .valueMode = ValueMode::BIPOLAR,
+    .onsetTime = 200,
+    .offsetTime = 200,
+    .onsetType = InterpolationType::LINEAR,
+    .offsetType = InterpolationType::LINEAR,
+};
+LeverControls<decltype(MIDI)> lever2(
+    &mcp_U2,
+    &mcp_U2,
+    SWD2_LEFT_PIN,
+    SWD2_RIGHT_PIN,
+    lever2Settings,
+    MIDI,
+    keyboardControl
+);
+
+//----------------------------------
+// LeverPush 2 Setup
+//----------------------------------
+LeverPushSettings leverPush2Settings = {
+    .ccNumber = 7,
+    .minCCValue = 81,
+    .maxCCValue = 127,
+    .functionMode = LeverPushFunctionMode::RESET,
+    .onsetTime = 200,
+    .offsetTime = 200,
+    .onsetType = InterpolationType::LINEAR,
+    .offsetType = InterpolationType::LINEAR,
+};
+LeverPushControls<decltype(MIDI)> leverPush2(
+        &mcp_U2,
+        SWD2_CENTER_PIN,
+        leverPush2Settings,
+        lever2,
+        MIDI,
+        keyboardControl
+);
+
+//----------------------------------
+// Touch Sensor Setup
+//----------------------------------
+TouchSettings touchSettings = {
+    .ccNumber = 51,
+    .minCCValue = 0,
+    .maxCCValue = 127,
+    .functionMode = TouchFunctionMode::HOLD,
+};
+TouchControl<decltype(MIDI)> touch(
+    T1,
+    touchSettings,
+    26000,
+    155000, 
+    26000,
+    MIDI
 );
 
 Preferences preferences; // Define Preferences object

@@ -3,6 +3,9 @@
 
 #include <Arduino.h>
 #include <Adafruit_MCP23X17.h>
+
+#include <controls/OctaveControl.h>
+#include <controls/KeyboardControl.h>
 #include <objects/Settings.h>
 
 template<class MidiTransport>
@@ -14,7 +17,8 @@ public:
         int leftPin,
         int rightPin,
         LeverSettings& settings,
-        MidiTransport& midi
+        MidiTransport& midi,
+        KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>, LEDController>& keyboardControl
     );
 
     void update();
@@ -23,6 +27,7 @@ public:
     void setOnsetTime(unsigned long time);
     void setOffsetTime(unsigned long time);
     void setCCNumber(int number);
+    int getCCNumber();
     void setMinCCValue(int number);
     void setMaxCCValue(int number);
     void setStepSize(int size);
@@ -37,6 +42,7 @@ private:
     int _leftPin;
     int _rightPin;
     LeverSettings& _settings;
+    KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>, LEDController>& _keyboardControl;
 
     bool _isPressed;
     int _lastSentValue;
@@ -57,7 +63,8 @@ LeverControls<MidiTransport>::LeverControls(
     int leftPin,
     int rightPin,
     LeverSettings& settings,
-    MidiTransport& midi)
+    MidiTransport& midi,
+    KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>, LEDController>& keyboardControl)
     :
     _midi(midi),
     _mcpLeft(mcpLeft),
@@ -65,6 +72,7 @@ LeverControls<MidiTransport>::LeverControls(
     _leftPin(leftPin),
     _rightPin(rightPin),
     _settings(settings),
+    _keyboardControl(keyboardControl),
     _isPressed(false),
     _rampStartTime(0)
     {
@@ -92,8 +100,8 @@ void LeverControls<MidiTransport>::setFunctionMode(LeverFunctionMode functionMod
 }
 
 template<class MidiTransport>
-void LeverControls<MidiTransport>::setValueMode(ValueMode leverMode) {
-    _settings.valueMode = leverMode;
+void LeverControls<MidiTransport>::setValueMode(ValueMode valueMode) {
+    _settings.valueMode = valueMode;
 }
 
 template<class MidiTransport>
@@ -109,6 +117,11 @@ void LeverControls<MidiTransport>::setOffsetTime(unsigned long time) {
 template<class MidiTransport>
 void LeverControls<MidiTransport>::setCCNumber(int number) {
     _settings.ccNumber = number;
+}
+
+template<class MidiTransport>
+int LeverControls<MidiTransport>::getCCNumber() {
+    return _settings.ccNumber;
 }
 
 template<class MidiTransport>
@@ -247,6 +260,9 @@ void LeverControls<MidiTransport>::updateValue() {
         SERIAL_PRINT("Sending CC "); SERIAL_PRINT(_settings.ccNumber);
         SERIAL_PRINT(", Value: "); SERIAL_PRINTLN(_currentValue);
         _midi.sendControlChange(_settings.ccNumber, _currentValue, 1);
+        if (_settings.ccNumber == 7) {
+            _keyboardControl.setVelocity(_currentValue);
+        }
         _lastSentValue = _currentValue;
     }
 }
