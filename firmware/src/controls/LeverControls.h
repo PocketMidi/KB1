@@ -3,17 +3,7 @@
 
 #include <Arduino.h>
 #include <Adafruit_MCP23X17.h>
-
-enum class LeverMode {
-    UNIPOLAR,
-    BIPOLAR
-};
-
-enum class LeverFunctionMode {
-    INTERPOLATED,
-    JUMP_AND_INTERPOLATE,
-    INCREMENTAL,
-};
+#include <objects/Settings.h>
 
 template<class MidiTransport>
 class LeverControls {
@@ -23,22 +13,13 @@ public:
         Adafruit_MCP23X17* mcpRight,
         int leftPin,
         int rightPin,
-        int ccNumber,
-        int minCCValue,
-        int maxCCValue,
-        int stepSize,
-        LeverFunctionMode functionMode,
-        LeverMode mode,
-        unsigned long onsetTime,
-        unsigned long offsetTime,
-        InterpolationType onsetInterpolationType,
-        InterpolationType offsetInterpolationType,
+        LeverSettings& settings,
         MidiTransport& midi
     );
 
     void update();
     void setFunctionMode(LeverFunctionMode functionMode);
-    void setLeverMode(LeverMode leverMode);
+    void setValueMode(ValueMode valueMode);
     void setOnsetTime(unsigned long time);
     void setOffsetTime(unsigned long time);
     void setCCNumber(int number);
@@ -47,7 +28,7 @@ public:
     void setStepSize(int size);
     void setOnsetInterpolationType(InterpolationType type);
     void setOffsetInterpolationType(InterpolationType type);
-    void setValue(int number);
+    void setValue(int value);
 
 private:
     MidiTransport& _midi;
@@ -55,25 +36,15 @@ private:
     Adafruit_MCP23X17* _mcpRight;
     int _leftPin;
     int _rightPin;
-
-    LeverMode _leverMode;
-    LeverFunctionMode _functionMode;
-    InterpolationType _onsetInterpolationType;
-    InterpolationType _offsetInterpolationType;
+    LeverSettings& _settings;
 
     bool _isPressed;
     int _lastSentValue;
     int _currentValue;
     int _targetValue;
 
-    unsigned long _onsetTime;
-    unsigned long _offsetTime;
     unsigned long _rampStartTime;
     int _rampStartValue;
-    int _ccNumber;
-    int _minCCValue;
-    int _maxCCValue;
-    int _stepSize;
 
     void handleInput();
     void updateValue();
@@ -85,16 +56,7 @@ LeverControls<MidiTransport>::LeverControls(
     Adafruit_MCP23X17* mcpRight,
     int leftPin,
     int rightPin,
-    int ccNumber,
-    int minCCValue,
-    int maxCCValue,
-    int stepSize,
-    LeverFunctionMode functionMode,
-    LeverMode mode,
-    unsigned long onsetTime,
-    unsigned long offsetTime,
-    InterpolationType onsetInterpolationType,
-    InterpolationType offsetInterpolationType,
+    LeverSettings& settings,
     MidiTransport& midi)
     :
     _midi(midi),
@@ -102,27 +64,18 @@ LeverControls<MidiTransport>::LeverControls(
     _mcpRight(mcpRight),
     _leftPin(leftPin),
     _rightPin(rightPin),
-    _ccNumber(ccNumber),
-    _minCCValue(minCCValue),
-    _maxCCValue(maxCCValue),
-    _stepSize(stepSize),
-    _functionMode(functionMode),
-    _leverMode(mode),
-    _onsetTime(onsetTime),
-    _offsetTime(offsetTime),
-    _onsetInterpolationType(onsetInterpolationType),
-    _offsetInterpolationType(offsetInterpolationType),
+    _settings(settings),
     _isPressed(false),
     _rampStartTime(0)
     {
-        if (_leverMode == LeverMode::BIPOLAR) {
+        if (_settings.valueMode == ValueMode::BIPOLAR) {
             _currentValue = 64;
             _targetValue = 64;
             _rampStartValue = 64;
         } else {
-            _currentValue = _minCCValue;
-            _targetValue = _minCCValue;
-            _rampStartValue = _minCCValue;
+            _currentValue = _settings.minCCValue;
+            _targetValue = _settings.minCCValue;
+            _rampStartValue = _settings.minCCValue;
         }
         _lastSentValue = _currentValue;
     }
@@ -135,57 +88,57 @@ void LeverControls<MidiTransport>::update() {
 
 template<class MidiTransport>
 void LeverControls<MidiTransport>::setFunctionMode(LeverFunctionMode functionMode) {
-    _functionMode = functionMode;
+    _settings.functionMode = functionMode;
 }
 
 template<class MidiTransport>
-void LeverControls<MidiTransport>::setLeverMode(LeverMode leverMode) {
-    _leverMode = leverMode;
+void LeverControls<MidiTransport>::setValueMode(ValueMode leverMode) {
+    _settings.valueMode = leverMode;
 }
 
 template<class MidiTransport>
 void LeverControls<MidiTransport>::setOnsetTime(unsigned long time) {
-    _onsetTime = time;
+    _settings.onsetTime = time;
 }
 
 template<class MidiTransport>
 void LeverControls<MidiTransport>::setOffsetTime(unsigned long time) {
-    _offsetTime = time;
+    _settings.offsetTime = time;
 }
 
 template<class MidiTransport>
 void LeverControls<MidiTransport>::setCCNumber(int number) {
-    _ccNumber = number;
+    _settings.ccNumber = number;
 }
 
 template<class MidiTransport>
 void LeverControls<MidiTransport>::setMinCCValue(int number) {
-    _minCCValue = number;
+    _settings.minCCValue = number;
 }
 
 template<class MidiTransport>
 void LeverControls<MidiTransport>::setMaxCCValue(int number) {
-    _maxCCValue = number;
+    _settings.maxCCValue = number;
 }
 
 template<class MidiTransport>
 void LeverControls<MidiTransport>::setStepSize(int size) {
-    _stepSize = size;
+    _settings.stepSize = size;
 }
 
 template<class MidiTransport>
 void LeverControls<MidiTransport>::setOnsetInterpolationType(InterpolationType type) {
-    _onsetInterpolationType = type;
+    _settings.onsetType = type;
 }
 
 template<class MidiTransport>
 void LeverControls<MidiTransport>::setOffsetInterpolationType(InterpolationType type) {
-    _offsetInterpolationType = type;
+    _settings.offsetType = type;
 }
 
 template<class MidiTransport>
 void LeverControls<MidiTransport>::setValue(int value) {
-    _currentValue = value;;
+    _currentValue = value;
 }
 
 template<class MidiTransport>
@@ -194,32 +147,32 @@ void LeverControls<MidiTransport>::handleInput() {
     bool rightState = !_mcpRight->digitalRead(_rightPin);
     int oldTargetValue = _targetValue;
 
-    if (_functionMode == LeverFunctionMode::INCREMENTAL) {
+    if (_settings.functionMode == LeverFunctionMode::INCREMENTAL) {
         if (leftState && !_isPressed) {
-            _currentValue = max(_minCCValue, _currentValue - _stepSize);
+            _currentValue = max(_settings.minCCValue, _currentValue - _settings.stepSize);
             _isPressed = true;
         } else if (rightState && !_isPressed) {
-            _currentValue = min(_maxCCValue, _currentValue + _stepSize);
+            _currentValue = min(_settings.maxCCValue, _currentValue + _settings.stepSize);
             _isPressed = true;
         } else if (!leftState && !rightState && _isPressed) {
             _isPressed = false;
         }
         _targetValue = _currentValue;
-    } else if (_functionMode == LeverFunctionMode::JUMP_AND_INTERPOLATE) {
+    } else if (_settings.functionMode == LeverFunctionMode::PEAK_AND_DECAY) {
         if (leftState) {
-            _currentValue = _minCCValue;
-            _targetValue = _minCCValue;
+            _currentValue = _settings.minCCValue;
+            _targetValue = _settings.minCCValue;
             _isPressed = true;
         } else if (rightState) {
-            _currentValue = _maxCCValue;
-            _targetValue = _maxCCValue;
+            _currentValue = _settings.maxCCValue;
+            _targetValue = _settings.maxCCValue;
             _isPressed = true;
         } else {
             if (_isPressed) {
-                if (_leverMode == LeverMode::BIPOLAR) {
+                if (_settings.valueMode == ValueMode::BIPOLAR) {
                     _targetValue = 64;
-                } else if (_leverMode == LeverMode::UNIPOLAR) {
-                    _targetValue = _minCCValue;
+                } else if (_settings.valueMode == ValueMode::UNIPOLAR) {
+                    _targetValue = _settings.minCCValue;
                 }
                 _isPressed = false;
             }
@@ -229,20 +182,20 @@ void LeverControls<MidiTransport>::handleInput() {
             _rampStartTime = millis();
             _rampStartValue = _currentValue;
         }
-    } else if (_functionMode == LeverFunctionMode::INTERPOLATED) {
+    } else if (_settings.functionMode == LeverFunctionMode::INTERPOLATED) {
         if (leftState) {
-            _targetValue = _minCCValue;
+            _targetValue = _settings.minCCValue;
             _isPressed = true;
         } else if (rightState) {
-            _targetValue = _maxCCValue;
+            _targetValue = _settings.maxCCValue;
             _isPressed = true;
         }
         else {
             if (_isPressed) {
-                if (_leverMode == LeverMode::BIPOLAR) {
+                if (_settings.valueMode == ValueMode::BIPOLAR) {
                     _targetValue = 64;
-                } else if (_leverMode == LeverMode::UNIPOLAR) {
-                    _targetValue = _minCCValue;
+                } else if (_settings.valueMode == ValueMode::UNIPOLAR) {
+                    _targetValue = _settings.minCCValue;
                 }
             }
             _isPressed = false;
@@ -257,13 +210,13 @@ void LeverControls<MidiTransport>::handleInput() {
 
 template<class MidiTransport>
 void LeverControls<MidiTransport>::updateValue() {
-    if (_functionMode == LeverFunctionMode::INTERPOLATED || _functionMode == LeverFunctionMode::JUMP_AND_INTERPOLATE) {
+    if (_settings.functionMode == LeverFunctionMode::INTERPOLATED || _settings.functionMode == LeverFunctionMode::PEAK_AND_DECAY) {
         if (_currentValue == _targetValue && _currentValue == _lastSentValue) {
             return;
         }
 
         unsigned long currentTime = millis();
-        unsigned long rampDuration = _isPressed ? _onsetTime : _offsetTime;
+        unsigned long rampDuration = _isPressed ? _settings.onsetTime : _settings.offsetTime;
         unsigned long elapsedTime = currentTime - _rampStartTime;
 
         if (rampDuration == 0 || elapsedTime >= rampDuration) {
@@ -272,15 +225,15 @@ void LeverControls<MidiTransport>::updateValue() {
             float progress = (float)elapsedTime / (float)rampDuration;
 
             if (_isPressed) {
-                if (_onsetInterpolationType == InterpolationType::ACCELERATING) {
+                if (_settings.onsetType == InterpolationType::EXPONENTIAL) {
                     progress = pow(progress, 2);
-                } else if (_onsetInterpolationType == InterpolationType::DECELERATING) {
+                } else if (_settings.onsetType == InterpolationType::LOGARITHMIC) {
                     progress = 1 - pow(1 - progress, 2);
                 }
             } else {
-                if (_offsetInterpolationType == InterpolationType::ACCELERATING) {
+                if (_settings.offsetType == InterpolationType::EXPONENTIAL) {
                     progress = pow(progress, 2);
-                } else if (_offsetInterpolationType == InterpolationType::DECELERATING) {
+                } else if (_settings.offsetType == InterpolationType::LOGARITHMIC) {
                     progress = 1 - pow(1 - progress, 2);
                 }
             }
@@ -291,9 +244,9 @@ void LeverControls<MidiTransport>::updateValue() {
     }
 
     if (_currentValue != _lastSentValue) {
-        SERIAL_PRINT("Sending CC "); SERIAL_PRINT(_ccNumber);
+        SERIAL_PRINT("Sending CC "); SERIAL_PRINT(_settings.ccNumber);
         SERIAL_PRINT(", Value: "); SERIAL_PRINTLN(_currentValue);
-        _midi.sendControlChange(_ccNumber, _currentValue, 1);
+        _midi.sendControlChange(_settings.ccNumber, _currentValue, 1);
         _lastSentValue = _currentValue;
     }
 }

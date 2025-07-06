@@ -1,5 +1,4 @@
 #include <music/ScaleManager.h>
-#include <algorithm>
 #include <objects/Globals.h>
 
 const ScaleDefinition ScaleManager::_allScales[] = {
@@ -18,16 +17,15 @@ const ScaleDefinition ScaleManager::_allScales[] = {
     {ScaleType::LOCRIAN, "Locrian", {0, 1, 3, 4, 6, 8, 10}}
 };
 
-ScaleManager::ScaleManager() :
-    _currentScaleType(ScaleType::CHROMATIC),
-    _rootNote(60),
+ScaleManager::ScaleManager(ScaleSettings& settings) :
+    _settings(settings),
     _whiteKeysQuantize(true) {
     updateScaleIntervals();
 }
 
 void ScaleManager::setScale(ScaleType type) {
-    if (_currentScaleType != type) {
-        _currentScaleType = type;
+    if (_settings.scaleType != type) {
+        _settings.scaleType = type;
         updateScaleIntervals();
         SERIAL_PRINT("Scale set to: ");
         for (const auto& scale : _allScales) {
@@ -40,15 +38,15 @@ void ScaleManager::setScale(ScaleType type) {
 }
 
 void ScaleManager::setRootNote(int root) {
-    if (_rootNote != root) {
-        _rootNote = root;
+    if (_settings.rootNote != root) {
+        _settings.rootNote = root;
         SERIAL_PRINT("Root note set to: ");
-        SERIAL_PRINTLN(_rootNote);
+        SERIAL_PRINTLN(_settings.rootNote);
     }
 }
 
 int ScaleManager::quantizeNote(int note) const {
-    if (_currentScaleType == ScaleType::CHROMATIC) {
+    if (_settings.scaleType == ScaleType::CHROMATIC) {
         return note;
     }
 
@@ -67,24 +65,24 @@ int ScaleManager::quantizeNote(int note) const {
 
         if (whiteKeyIndex == -1) {
             // Not a white key — shouldn't happen if using white keys only
-            return getClosestNoteInScale(note, _currentScaleIntervals, _rootNote);
+            return getClosestNoteInScale(note, _currentScaleIntervals, _settings.rootNote);
         }
 
         // Map white key index to scale degree
-        int octaveOffset = (note / 12) - (_rootNote / 12);
+        int octaveOffset = (note / 12) - (_settings.rootNote / 12);
         int scaleDegree = whiteKeyIndex % _currentScaleIntervals.size();
 
-        int targetNote = _rootNote + _currentScaleIntervals[scaleDegree] + (octaveOffset * 12);
+        int targetNote = _settings.rootNote + _currentScaleIntervals[scaleDegree] + (octaveOffset * 12);
         return targetNote;
     }
 
-    return getClosestNoteInScale(note, _currentScaleIntervals, _rootNote);
+    return getClosestNoteInScale(note, _currentScaleIntervals, _settings.rootNote);
 }
 
 void ScaleManager::updateScaleIntervals() {
     _currentScaleIntervals.clear();
     for (const auto& scale : _allScales) {
-        if (scale.type == _currentScaleType) {
+        if (scale.type == _settings.scaleType) {
             _currentScaleIntervals = scale.intervals;
             break;
         }

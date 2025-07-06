@@ -4,34 +4,41 @@
 #include <bt/SecurityCallbacks.h>
 #include <objects/Constants.h>
 #include <objects/Globals.h>
+#include <objects/Settings.h>
 
 BluetoothController::BluetoothController(
     Preferences& preferences,
     ScaleManager& scaleManager,
     LEDController& ledController,
-    int& ccNumberSWD1LeftRight,
-    int& ccNumberSWD1Center,
-    int& ccNumberSWD2LeftRight,
-    int& ccNumberSWD2Center)
-    : _preferences(preferences),
-      _scaleManager(scaleManager),
-      _ledController(ledController),
-      _ccNumberSWD1LeftRight(ccNumberSWD1LeftRight),
-      _ccNumberSWD1Center(ccNumberSWD1Center),
-      _ccNumberSWD2LeftRight(ccNumberSWD2LeftRight),
-      _ccNumberSWD2Center(ccNumberSWD2Center),
-      _pServer(nullptr),
-      _pAdvertising(nullptr),
-      _deviceConnected(false),
-      _pSWD1LRCCCharacteristic(nullptr),
-      _pSWD1CenterCCCharacteristic(nullptr),
-      _pSWD2LRCCCharacteristic(nullptr),
-      _pSWD2CenterCCCharacteristic(nullptr),
-      _pMidiCcCharacteristic(nullptr),
-      _pRootNoteCharacteristic(nullptr),
-      _pScaleTypeCharacteristic(nullptr),
-      _pService(nullptr),
-      _isEnabled(false)
+    LeverSettings& lever1Settings,
+    LeverPushSettings& leverPush1Settings,
+    LeverSettings& lever2Settings,
+    LeverPushSettings& leverPush2Settings,
+    TouchSettings& touchSettings,
+    ScaleSettings& scaleSettings)
+    :
+    _preferences(preferences),
+    _scaleManager(scaleManager),
+    _ledController(ledController),
+    _lever1Settings(lever1Settings),
+    _leverPush1Settings(leverPush1Settings),
+    _lever2Settings(lever2Settings),
+    _leverPush2Settings(leverPush2Settings),
+    _touchSettings(touchSettings),
+    _scaleSettings(scaleSettings),
+
+    _pServer(nullptr),
+    _pAdvertising(nullptr),
+    _deviceConnected(false),
+    _pLever1SettingsCharacteristic(nullptr),
+    _pLeverPush1SettingsCharacteristic(nullptr),
+    _pLever2SettingsCharacteristic(nullptr),
+    _pLeverPush2SettingsCharacteristic(nullptr),
+    _pTouchSettingsCharacteristic(nullptr),
+    _pScaleSettingsCharacteristic(nullptr),
+    _pMidiCharacteristic(nullptr),
+    _pService(nullptr),
+    _isEnabled(false)
 {
 }
 
@@ -53,78 +60,139 @@ void BluetoothController::enable() {
 
         _pService = _pServer->createService(SERVICE_UUID);
 
-        auto valSWD1LR = static_cast<uint8_t>(_ccNumberSWD1LeftRight);
-        _pSWD1LRCCCharacteristic = _pService->createCharacteristic(
-            SWD1_LR_CC_CHAR_UUID,
+        _pLever1SettingsCharacteristic = _pService->createCharacteristic(
+            LEVER1_SETTINGS_UUID,
+            BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE
+        );
+        _pLever1SettingsCharacteristic->addDescriptor(new BLE2902());
+        _pLever1SettingsCharacteristic->setValue((uint8_t*)&_lever1Settings, sizeof(LeverSettings));
+        _pLever1SettingsCharacteristic->setCallbacks(new CharacteristicCallbacks(
+            this,
+            _preferences,
+            _scaleManager,
+            _lever1Settings,
+            _leverPush1Settings,
+            _lever2Settings,
+            _leverPush2Settings,
+            _touchSettings,
+            _scaleSettings
+        ));
+
+        _pLeverPush1SettingsCharacteristic = _pService->createCharacteristic(
+            LEVERPUSH1_SETTINGS_UUID,
+            BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE
+        );
+        _pLeverPush1SettingsCharacteristic->addDescriptor(new BLE2902());
+        _pLeverPush1SettingsCharacteristic->setValue((uint8_t*)&_leverPush1Settings, sizeof(LeverPushSettings));
+        _pLeverPush1SettingsCharacteristic->setCallbacks(new CharacteristicCallbacks(
+            this,
+            _preferences,
+            _scaleManager,
+            _lever1Settings,
+            _leverPush1Settings,
+            _lever2Settings,
+            _leverPush2Settings,
+            _touchSettings,
+            _scaleSettings
+        ));
+
+        _pLever2SettingsCharacteristic = _pService->createCharacteristic(
+            LEVER2_SETTINGS_UUID,
+            BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE
+        );
+        _pLever2SettingsCharacteristic->addDescriptor(new BLE2902());
+        _pLever2SettingsCharacteristic->setValue((uint8_t*)&_lever2Settings, sizeof(LeverSettings));
+        _pLever2SettingsCharacteristic->setCallbacks(new CharacteristicCallbacks(
+            this,
+            _preferences,
+            _scaleManager,
+            _lever1Settings,
+            _leverPush1Settings,
+            _lever2Settings,
+            _leverPush2Settings,
+            _touchSettings,
+            _scaleSettings
+        ));
+
+        _pLeverPush2SettingsCharacteristic = _pService->createCharacteristic(
+            LEVERPUSH2_SETTINGS_UUID,
+            BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE
+        );
+        _pLeverPush2SettingsCharacteristic->addDescriptor(new BLE2902());
+        _pLeverPush2SettingsCharacteristic->setValue((uint8_t*)&_leverPush2Settings, sizeof(LeverPushSettings));
+        _pLeverPush2SettingsCharacteristic->setCallbacks(new CharacteristicCallbacks(
+            this,
+            _preferences,
+            _scaleManager,
+            _lever1Settings,
+            _leverPush1Settings,
+            _lever2Settings,
+            _leverPush2Settings,
+            _touchSettings,
+            _scaleSettings
+        ));
+
+        _pTouchSettingsCharacteristic = _pService->createCharacteristic(
+            TOUCH_SETTINGS_UUID,
+            BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE
+        );
+        _pTouchSettingsCharacteristic->addDescriptor(new BLE2902());
+        _pTouchSettingsCharacteristic->setValue((uint8_t*)&_touchSettings, sizeof(TouchSettings));
+        _pTouchSettingsCharacteristic->setCallbacks(new CharacteristicCallbacks(
+            this,
+            _preferences,
+            _scaleManager,
+            _lever1Settings,
+            _leverPush1Settings,
+            _lever2Settings,
+            _leverPush2Settings,
+            _touchSettings,
+            _scaleSettings
+        ));
+
+        _pScaleSettingsCharacteristic = _pService->createCharacteristic(
+            SCALE_SETTINGS_UUID,
+            BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE
+        );
+        _pScaleSettingsCharacteristic->addDescriptor(new BLE2902());
+        _pScaleSettingsCharacteristic->setValue((uint8_t*)&_scaleSettings, sizeof(ScaleSettings));
+        _pScaleSettingsCharacteristic->setCallbacks(new CharacteristicCallbacks(
+            this,
+            _preferences,
+            _scaleManager,
+            _lever1Settings,
+            _leverPush1Settings,
+            _lever2Settings,
+            _leverPush2Settings,
+            _touchSettings,
+            _scaleSettings
+        ));
+
+        _pMidiCharacteristic = _pService->createCharacteristic(
+            MIDI_UUID,
             BLECharacteristic::PROPERTY_READ |
             BLECharacteristic::PROPERTY_WRITE |
-            BLECharacteristic::PROPERTY_NOTIFY
+            BLECharacteristic::PROPERTY_NOTIFY |
+            BLECharacteristic::PROPERTY_INDICATE
         );
-        _pSWD1LRCCCharacteristic->addDescriptor(new BLE2902());
-        _pSWD1LRCCCharacteristic->setCallbacks(new CharacteristicCallbacks(this, _preferences, _scaleManager, _ccNumberSWD1LeftRight, _ccNumberSWD1Center, _ccNumberSWD2LeftRight, _ccNumberSWD2Center));
-        _pSWD1LRCCCharacteristic->setValue(&valSWD1LR, 1);
-
-        auto valSWD1Center = static_cast<uint8_t>(_ccNumberSWD1Center);
-        _pSWD1CenterCCCharacteristic = _pService->createCharacteristic(
-            SWD1_CENTER_CC_CHAR_UUID,
-            BLECharacteristic::PROPERTY_READ |
-            BLECharacteristic::PROPERTY_WRITE |
-            BLECharacteristic::PROPERTY_NOTIFY
-        );
-        _pSWD1CenterCCCharacteristic->addDescriptor(new BLE2902());
-        _pSWD1CenterCCCharacteristic->setCallbacks(new CharacteristicCallbacks(this, _preferences, _scaleManager, _ccNumberSWD1LeftRight, _ccNumberSWD1Center, _ccNumberSWD2LeftRight, _ccNumberSWD2Center));
-        _pSWD1CenterCCCharacteristic->setValue(&valSWD1Center, 1);
-
-        auto valSWD2LR = static_cast<uint8_t>(_ccNumberSWD2LeftRight);
-        _pSWD2LRCCCharacteristic = _pService->createCharacteristic(
-            SWD2_LR_CC_CHAR_UUID,
-            BLECharacteristic::PROPERTY_READ |
-            BLECharacteristic::PROPERTY_WRITE |
-            BLECharacteristic::PROPERTY_NOTIFY
-        );
-        _pSWD2LRCCCharacteristic->addDescriptor(new BLE2902());
-        _pSWD2LRCCCharacteristic->setCallbacks(new CharacteristicCallbacks(this, _preferences, _scaleManager, _ccNumberSWD1LeftRight, _ccNumberSWD1Center, _ccNumberSWD2LeftRight, _ccNumberSWD2Center));
-        _pSWD2LRCCCharacteristic->setValue(&valSWD2LR, 1);
-
-        auto valSWD2Center = static_cast<uint8_t>(_ccNumberSWD2Center);
-        _pSWD2CenterCCCharacteristic = _pService->createCharacteristic(
-            SWD2_CENTER_CC_CHAR_UUID,
-            BLECharacteristic::PROPERTY_READ |
-            BLECharacteristic::PROPERTY_WRITE |
-            BLECharacteristic::PROPERTY_NOTIFY
-        );
-        _pSWD2CenterCCCharacteristic->addDescriptor(new BLE2902());
-        _pSWD2CenterCCCharacteristic->setCallbacks(new CharacteristicCallbacks(this, _preferences, _scaleManager, _ccNumberSWD1LeftRight, _ccNumberSWD1Center, _ccNumberSWD2LeftRight, _ccNumberSWD2Center));
-        _pSWD2CenterCCCharacteristic->setValue(&valSWD2Center, 1);
-
-        // Create MIDI CC Characteristic (Write Without Response for efficiency)
-        _pMidiCcCharacteristic = _pService->createCharacteristic(
-            MIDI_CC_CHAR_UUID,
-            BLECharacteristic::PROPERTY_WRITE_NR // WRITE_NR for "Write Without Response"
-        );
-        _pMidiCcCharacteristic->setCallbacks(new CharacteristicCallbacks(this, _preferences, _scaleManager, _ccNumberSWD1LeftRight, _ccNumberSWD1Center, _ccNumberSWD2LeftRight, _ccNumberSWD2Center));
-
-        _pRootNoteCharacteristic = _pService->createCharacteristic(
-            ROOT_NOTE_CHAR_UUID,
-            BLECharacteristic::PROPERTY_READ |
-            BLECharacteristic::PROPERTY_WRITE |
-            BLECharacteristic::PROPERTY_NOTIFY
-        );
-        _pRootNoteCharacteristic->addDescriptor(new BLE2902());
-        _pRootNoteCharacteristic->setCallbacks(new CharacteristicCallbacks(this, _preferences, _scaleManager, _ccNumberSWD1LeftRight, _ccNumberSWD1Center, _ccNumberSWD2LeftRight, _ccNumberSWD2Center));
-        auto initialRootNote = static_cast<uint8_t>(_scaleManager.getRootNote());
-        _pRootNoteCharacteristic->setValue(&initialRootNote, 1);
-
-        _pScaleTypeCharacteristic = _pService->createCharacteristic(
-            SCALE_TYPE_CHAR_UUID,
-            BLECharacteristic::PROPERTY_READ |
-            BLECharacteristic::PROPERTY_WRITE |
-            BLECharacteristic::PROPERTY_NOTIFY
-        );
-        _pScaleTypeCharacteristic->addDescriptor(new BLE2902());
-        _pScaleTypeCharacteristic->setCallbacks(new CharacteristicCallbacks(this, _preferences, _scaleManager, _ccNumberSWD1LeftRight, _ccNumberSWD1Center, _ccNumberSWD2LeftRight, _ccNumberSWD2Center));
-        auto initialScaleType = static_cast<uint8_t>(_scaleManager.getScaleType());
-        _pScaleTypeCharacteristic->setValue(&initialScaleType, 1);
+        _pMidiCharacteristic->addDescriptor(new BLE2902());
+        _pMidiCharacteristic->setCallbacks(new CharacteristicCallbacks(
+            this,
+            _preferences,
+            _scaleManager,
+            _lever1Settings,
+            _leverPush1Settings,
+            _lever2Settings,
+            _leverPush2Settings,
+            _touchSettings,
+            _scaleSettings
+        ));
 
         // Start the service
         _pService->start();

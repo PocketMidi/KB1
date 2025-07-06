@@ -10,9 +10,6 @@
  *
  */
 
-//----------------------------------
-// Includes
-//----------------------------------
 #include <Arduino.h>
 #include <Adafruit_MCP23X17.h>
 #include <Preferences.h>
@@ -20,22 +17,19 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <BLEDevice.h>
-#include <BLEServer.h>
 #include <esp_bt_main.h>
+#include <bt/BluetoothController.h>
 #include <objects/Constants.h>
 #include <objects/Globals.h>
-#include <bt/BluetoothController.h>
+#include <objects/Settings.h>
 #include <led/LEDController.h>
 #include <music/ScaleManager.h>
-#include "controls/KeyboardControl.h"
+#include <controls/KeyboardControl.h>
 #include <controls/LeverControls.h>
 #include <controls/TouchControl.h>
 #include <controls/LeverPushControls.h>
 #include "controls/OctaveControl.h"
 
-//----------------------------------
-// Declarations
-//----------------------------------
 Adafruit_MCP23X17 mcp_U1;
 Adafruit_MCP23X17 mcp_U2;
 
@@ -43,91 +37,135 @@ LEDController ledController;
 
 MIDI_CREATE_INSTANCE(HardwareSerial, Serial0, MIDI);
 
+//----------------------------------
+// Lever 1 Setup
+//----------------------------------
+LeverSettings lever1Settings = {
+    .ccNumber = 3,
+    .minCCValue = 0,
+    .maxCCValue = 127,
+    .stepSize = 1,
+    .functionMode = LeverFunctionMode::INTERPOLATED,
+    .valueMode = ValueMode::BIPOLAR,
+    .onsetTime = 1000,
+    .offsetTime = 1000,
+    .onsetType = InterpolationType::LINEAR,
+    .offsetType = InterpolationType::LINEAR,
+};
 LeverControls<decltype(MIDI)> lever1(
     &mcp_U1,
     &mcp_U2,
     SWD1_LEFT_PIN,
     SWD1_RIGHT_PIN,
-    3,
-    0,
-    127,
-    1,
-    LeverFunctionMode::INTERPOLATED,
-    LeverMode::BIPOLAR,
-    1000,
-    1000,
-    InterpolationType::DECELERATING,
-    InterpolationType::ACCELERATING,
+    lever1Settings,
     MIDI
 );
 
+//----------------------------------
+// LeverPush 1  Setup
+//----------------------------------
+LeverPushSettings leverPush1Settings = {
+    .ccNumber = 24,
+    .minCCValue = 0,
+    .maxCCValue = 127,
+    .functionMode = LeverPushFunctionMode::INTERPOLATED,
+    .onsetTime = 200,
+    .offsetTime = 200,
+    .onsetType = InterpolationType::LINEAR,
+    .offsetType = InterpolationType::LINEAR,
+};
 LeverPushControls<decltype(MIDI)> leverPush1(
     &mcp_U1,
     SWD1_CENTER_PIN,
-    24,
-    0,
-    127,
-    LeverPushFunctionMode::INTERPOLATED,
-    200,
-    200,
-    InterpolationType::LINEAR,
-    InterpolationType::LINEAR,
-    MIDI,
-    lever1
+    leverPush1Settings,
+    lever1,
+    MIDI
 );
 
+//----------------------------------
+// Lever 2 Setup
+//----------------------------------
+LeverSettings lever2Settings = {
+    .ccNumber = 7,
+    .minCCValue = 0,
+    .maxCCValue = 127,
+    .stepSize = 4,
+    .functionMode = LeverFunctionMode::INCREMENTAL,
+    .valueMode = ValueMode::BIPOLAR,
+    .onsetTime = 200,
+    .offsetTime = 200,
+    .onsetType = InterpolationType::LINEAR,
+    .offsetType = InterpolationType::LINEAR,
+};
 LeverControls<decltype(MIDI)> lever2(
     &mcp_U2,
     &mcp_U2,
     SWD2_LEFT_PIN,
     SWD2_RIGHT_PIN,
-    7,
-    0,
-    127,
-    4,
-    LeverFunctionMode::INCREMENTAL,
-    LeverMode::BIPOLAR,
-    200,
-    200,
-    InterpolationType::LINEAR,
-    InterpolationType::LINEAR,
+    lever2Settings,
     MIDI
 );
 
+//----------------------------------
+// LeverPush 2 Setup
+//----------------------------------
+LeverPushSettings leverPush2Settings = {
+    .ccNumber = 7,
+    .minCCValue = 64,
+    .maxCCValue = 127,
+    .functionMode = LeverPushFunctionMode::RESET,
+    .onsetTime = 200,
+    .offsetTime = 200,
+    .onsetType = InterpolationType::LINEAR,
+    .offsetType = InterpolationType::LINEAR,
+};
 LeverPushControls<decltype(MIDI)> leverPush2(
         &mcp_U2,
         SWD2_CENTER_PIN,
-        7,
-        64,
-        127,
-        LeverPushFunctionMode::RESET,
-        200,
-        200,
-        InterpolationType::LINEAR,
-        InterpolationType::LINEAR,
-        MIDI,
-        lever2
+        leverPush2Settings,
+        lever2,
+        MIDI
 );
 
+//----------------------------------
+// Touch Sensor Setup
+//----------------------------------
+TouchSettings touchSettings = {
+    .ccNumber = 51,
+    .minCCValue = 0,
+    .maxCCValue = 127,
+    .functionMode = TouchFunctionMode::HOLD,
+};
 TouchControl<decltype(MIDI)> touch(
-    T1, 
-    51,
-    0,
-    127,
+    T1,
+    touchSettings,
     26000,
     155000, 
     26000,
-    TouchFunctionMode::CONTINUOUS,
     MIDI
 );
 
+//----------------------------------
+// Octave Control Setup
+//----------------------------------
 OctaveControl<Adafruit_MCP23X17, LEDController> octaveControl(
     mcp_U2,
     ledController,
     nullptr
 );
 
-ScaleManager scaleManager;
+//----------------------------------
+// ScaleManager Setup
+//----------------------------------
+ScaleSettings scaleSettings = {
+    .scaleType = ScaleType::CHROMATIC,
+    .rootNote = 60,
+};
+ScaleManager scaleManager(scaleSettings);
+
+//----------------------------------
+// KeyboardControl Setup
+//----------------------------------
 KeyboardControl<decltype(MIDI), decltype(octaveControl), LEDController> keyboardControl(
     MIDI,
     octaveControl,
@@ -139,13 +177,20 @@ Preferences preferences; // Define Preferences object
 
 BluetoothController* bluetoothControllerPtr = nullptr; // Declare as a pointer
 
-// Global state variables and their initial values
-int ccNumberSWD1LeftRight = 3;  // Default for SWD1 Left/Right
-int ccNumberSWD1Center = 24;    // Default for SWD1 Center (Sustain)
-int ccNumberSWD2LeftRight = 7;  // Default for SWD2 Left/Right (e.g., Expression)
-int ccNumberSWD2Center = 1;     // Default for SWD2 Center (e.g., Modulation)
-
 void readInputs(void *pvParameters);
+void loadSettings() {
+    preferences.getBytes("lever1_settings", &lever1Settings, sizeof(LeverSettings));
+    preferences.getBytes("leverpush1_settings", &leverPush1Settings, sizeof(LeverPushSettings));
+    preferences.getBytes("lever2_settings", &lever2Settings, sizeof(LeverSettings));
+    preferences.getBytes("leverpush2_settings", &leverPush2Settings, sizeof(LeverPushSettings));
+    preferences.getBytes("touch_settings", &touchSettings, sizeof(TouchSettings));
+    preferences.getBytes("scale_settings", &scaleSettings, sizeof(ScaleSettings));
+
+    scaleManager.setScale(scaleSettings.scaleType);
+    scaleManager.setRootNote(scaleSettings.rootNote);
+
+    SERIAL_PRINTLN("Settings loaded from Preferences.");
+}
 
 //---------------------------------------------------
 //
@@ -169,20 +214,7 @@ void setup() {
         SERIAL_PRINTLN("Preferences initialized successfully.");
     }
 
-    // NEW: Load configurable CC numbers from NVS
-    ccNumberSWD1LeftRight = preferences.getInt("ccSWD1LR", 3);
-    ccNumberSWD1Center = preferences.getInt("ccSWD1Center", 24);
-    ccNumberSWD2LeftRight = preferences.getInt("ccSWD2LR", 7);
-    ccNumberSWD2Center = preferences.getInt("ccSWD2Center", 1);
-
-    // Set CC numbers for levers
-    lever1.setCCNumber(ccNumberSWD1LeftRight);
-    lever2.setCCNumber(ccNumberSWD2LeftRight);
-
-    SERIAL_PRINT("Loaded SWD1 LR CC: "); SERIAL_PRINTLN(ccNumberSWD1LeftRight);
-    SERIAL_PRINT("Loaded SWD1 Center CC: "); SERIAL_PRINTLN(ccNumberSWD1Center);
-    SERIAL_PRINT("Loaded SWD2 LR CC: "); SERIAL_PRINTLN(ccNumberSWD2LeftRight);
-    SERIAL_PRINT("Loaded SWD2 Center CC: "); SERIAL_PRINTLN(ccNumberSWD2Center);
+    loadSettings(); // Load settings after Preferences are initialized
 
     // Start MCP_U1
     if (!mcp_U1.begin_I2C(0x20)) {
@@ -231,13 +263,15 @@ void setup() {
         preferences,
         scaleManager,
         ledController,
-        ccNumberSWD1LeftRight,
-        ccNumberSWD1Center,
-        ccNumberSWD2LeftRight,
-        ccNumberSWD2Center
+        lever1Settings,
+        leverPush1Settings,
+        lever2Settings,
+        leverPush2Settings,
+        touchSettings,
+        scaleSettings
     );
+
     octaveControl.setBluetoothController(bluetoothControllerPtr);
-    
 }
 
 //---------------------------------------------------

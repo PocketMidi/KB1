@@ -15,12 +15,12 @@
 #define SWD2_RIGHT_PIN 3  // SWD2 Right button pin
 
 #define SERVICE_UUID             "f22b99e8-81ab-4e46-abff-79a74a1f2ff3"
-#define SWD1_LR_CC_CHAR_UUID     "b81da776-547b-4cac-ac98-9df1ff822079"
-#define SWD1_CENTER_CC_CHAR_UUID "5995401f-489d-4efa-88a1-f865df3347cf"
-#define SWD2_LR_CC_CHAR_UUID     "7e7bf97b-384f-4c83-a664-e545b535e918"
-#define SWD2_CENTER_CC_CHAR_UUID "a5941dfe-43b2-4f4f-9be0-4d883117d96e"
-#define MIDI_CC_CHAR_UUID        "62e5a7d2-a443-475f-a40e-ada2229148ce"
-#define SCALE_TYPE_CHAR_UUID     "72c99bbd-a929-4e0c-abed-23d3a8aaf9c0"
-#define ROOT_NOTE_CHAR_UUID      "37b95b6d-45b0-46b6-85ba-ad4a3c33c731"
+#define LEVER1_SETTINGS_UUID     "6bae0d4d-a0a4-4bc6-9802-a5d27fb15680"
+#define LEVERPUSH1_SETTINGS_UUID "1de84ff3-36c0-4cf6-912b-208600cf94f4"
+#define LEVER2_SETTINGS_UUID     "13ffbea4-793f-40f5-82da-ac9eca5f0e09"
+#define LEVERPUSH2_SETTINGS_UUID "52629808-3d14-4ae8-a826-40bcec6467d5"
+#define TOUCH_SETTINGS_UUID      "5612b54d-8bfe-4217-a079-c9c95ab32c41"
+#define SCALE_SETTINGS_UUID      "297bd635-c3e8-4fb4-b5e0-93586da8f14c"
+#define MIDI_UUID                "eb58b31b-d963-4c7d-9a11-e8aabec2fe32"
 
 #endif

@@ -32,60 +32,58 @@ struct key {
     }
 };
 
+enum class LeverFunctionMode {
+    INTERPOLATED,
+    PEAK_AND_DECAY,
+    INCREMENTAL,
+};
+
+enum class LeverPushFunctionMode {
+    INTERPOLATED,
+    PEAK_AND_DECAY,
+    STATIC,
+    RESET,
+};
+
+enum class TouchFunctionMode {
+    HOLD,
+    TOGGLE,
+    CONTINUOUS,
+};
+
 enum class InterpolationType {
     LINEAR,
-    ACCELERATING,
-    DECELERATING
+    EXPONENTIAL,
+    LOGARITHMIC
+};
+
+enum class ValueMode {
+    UNIPOLAR,
+    BIPOLAR
+};
+
+enum class ScaleType {
+    CHROMATIC,
+    MAJOR,
+    MINOR,
+    HARMONIC_MINOR,
+    MELODIC_MINOR_ASC,
+    PENTATONIC_MAJOR,
+    PENTATONIC_MINOR,
+    BLUES,
+    DORIAN,
+    PHRYGIAN,
+    LYDIAN,
+    MIXOLYDIAN,
+    LOCRIAN
 };
 
 extern Preferences preferences;
 
 #define MAX_KEYS 19
-extern key keys[MAX_KEYS];
+
 
 extern MIDI_NAMESPACE::MidiInterface<MIDI_NAMESPACE::SerialMIDI<HardwareSerial>> MIDI;
-
-extern int ccNumberSWD1LeftRight;
-extern int ccNumberSWD1Center;
-extern int ccNumberSWD2LeftRight;
-extern int ccNumberSWD2Center;
-
-extern volatile int currentOctave;
-extern volatile int currentVelocity;
-extern bool sustain;
-extern int minVelocity;
-
-extern volatile bool shiftModeActive;
-extern int threshold;
-extern bool touch1detected;
-
-extern volatile bool prevS3State;
-extern volatile bool prevS4State;
-
-extern bool prevSWD1LeftState;
-extern bool prevSWD1CenterState;
-extern bool prevSWD1RightState;
-
-extern volatile bool prevSWD2LeftState;
-extern volatile bool prevSWD2CenterState;
-extern volatile bool prevSWD2RightState;
-extern bool isSwd2LeftPressed;
-extern bool isSwd2RightPressed;
-extern bool isSwd2CenterPressed;
-extern const int swd2Interval;
-
-extern const int bluePin;
-extern int blueBrightness;
-extern unsigned long previousTime;
-extern const unsigned long ledOffDelay;
-
-extern TimerHandle_t upTimer;
-extern TimerHandle_t downTimer;
-
-extern bool isNoteOn[128];
-
-extern const int pinkPin;
-
 
 // Helper macro for serial printing, depends on SERIAL_PRINT_ENABLED from Constants.h
 #ifdef SERIAL_PRINT_ENABLED

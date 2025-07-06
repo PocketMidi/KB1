@@ -4,6 +4,7 @@
 #include <Preferences.h>
 #include <BLECharacteristic.h>
 #include <music/ScaleManager.h>
+#include <objects/Settings.h>
 
 class BluetoothController;
 
@@ -13,20 +14,24 @@ public:
         BluetoothController* controller,
         Preferences& preferences,
         ScaleManager& scaleManager,
-        int& ccNumberSWD1LeftRight,
-        int& ccNumberSWD1Center,
-        int& ccNumberSWD2LeftRight,
-        int& ccNumberSWD2Center);
+        LeverSettings& lever1Settings,
+        LeverPushSettings& lever1PushSettings,
+        LeverSettings& lever2Settings,
+        LeverPushSettings& lever2PushSettings,
+        TouchSettings& touchSettings,
+        ScaleSettings& scaleSettings);
     void onWrite(BLECharacteristic *pCharacteristic) override;
 
 private:
     BluetoothController* _controller;
     Preferences& _preferences;
     ScaleManager& _scaleManager;
-    int& _ccNumberSWD1LeftRight;
-    int& _ccNumberSWD1Center;
-    int& _ccNumberSWD2LeftRight;
-    int& _ccNumberSWD2Center;
+    LeverSettings& _lever1Settings;
+    LeverPushSettings& _leverPush1Settings;
+    LeverSettings& _lever2Settings;
+    LeverPushSettings& _leverPush2Settings;
+    TouchSettings& _touchSettings;
+    ScaleSettings& _scaleSettings;
 };
 
 #endif

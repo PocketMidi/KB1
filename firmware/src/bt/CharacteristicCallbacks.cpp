@@ -2,86 +2,88 @@
 #include <bt/BluetoothController.h>
 #include <objects/Globals.h>
 #include <music/ScaleManager.h>
+#include <objects/Settings.h>
 
 CharacteristicCallbacks::CharacteristicCallbacks(
     BluetoothController* controller,
     Preferences& preferences,
     ScaleManager& scaleManager,
-    int& ccNumberSWD1LeftRight,
-    int& ccNumberSWD1Center,
-    int& ccNumberSWD2LeftRight,
-    int& ccNumberSWD2Center)
+    LeverSettings& lever1Settings,
+    LeverPushSettings& leverPush1Settings,
+    LeverSettings& lever2Settings,
+    LeverPushSettings& leverPush2Settings,
+    TouchSettings& touchSettings,
+    ScaleSettings& scaleSettings)
     : _controller(controller),
       _preferences(preferences),
       _scaleManager(scaleManager),
-      _ccNumberSWD1LeftRight(ccNumberSWD1LeftRight),
-      _ccNumberSWD1Center(ccNumberSWD1Center),
-      _ccNumberSWD2LeftRight(ccNumberSWD2LeftRight),
-      _ccNumberSWD2Center(ccNumberSWD2Center)
+      _lever1Settings(lever1Settings),
+      _leverPush1Settings(leverPush1Settings),
+      _lever2Settings(lever2Settings),
+      _leverPush2Settings(leverPush2Settings),
+      _touchSettings(touchSettings),
+      _scaleSettings(scaleSettings)
 {
 }
 
 void CharacteristicCallbacks::onWrite(BLECharacteristic *pCharacteristic) {
     const std::string rxValue = pCharacteristic->getValue();
 
-    if (pCharacteristic == _controller->getSWD1LRCCCharacteristic()) {
-        if (!rxValue.empty()) {
-            // Read the raw byte value sent from the web app
-            const int newCC = (int)rxValue[0];
-            if (newCC >= 0 && newCC <= 127) { // Validate MIDI CC range
-                if (_ccNumberSWD1LeftRight != newCC) {
-                    _ccNumberSWD1LeftRight = newCC;
-                    _preferences.putInt("ccSWD1LR", _ccNumberSWD1LeftRight); // Save to NVS
-                    SERIAL_PRINT("SWD1 LR CC set (BLE) and saved: ");
-                    SERIAL_PRINTLN(_ccNumberSWD1LeftRight);
-                }
-            }
+    if (pCharacteristic->getUUID().equals(BLEUUID(LEVER1_SETTINGS_UUID))) {
+        if (rxValue.length() == sizeof(LeverSettings)) {
+            memcpy(&_lever1Settings, rxValue.data(), sizeof(LeverSettings));
+            _preferences.putBytes("lever1_settings", &_lever1Settings, sizeof(LeverSettings));
+            SERIAL_PRINTLN("Lever1Settings updated and saved.");
+        } else {
+            SERIAL_PRINTLN("Invalid data length for Lever1Settings.");
         }
-    } else if (pCharacteristic == _controller->getSWD1CenterCCCharacteristic()) {
-        if (!rxValue.empty()) {
-            // Read the raw byte value sent from the web app
-            const int newCC = (int)rxValue[0];
-            if (newCC >= 0 && newCC <= 127) {
-                if (_ccNumberSWD1Center != newCC) {
-                    _ccNumberSWD1Center = newCC;
-                    _preferences.putInt("ccSWD1Center", _ccNumberSWD1Center); // Save to NVS
-                    SERIAL_PRINT("SWD1 Center CC set (BLE) and saved: ");
-                    SERIAL_PRINTLN(_ccNumberSWD1Center);
-                }
-            }
+    } else if (pCharacteristic->getUUID().equals(BLEUUID(LEVERPUSH1_SETTINGS_UUID))) {
+        if (rxValue.length() == sizeof(LeverPushSettings)) {
+            memcpy(&_leverPush1Settings, rxValue.data(), sizeof(LeverPushSettings));
+            _preferences.putBytes("leverpush1_settings", &_leverPush1Settings, sizeof(LeverPushSettings));
+            SERIAL_PRINTLN("LeverPush1Settings updated and saved.");
+        } else {
+            SERIAL_PRINTLN("Invalid data length for LeverPush1Settings.");
         }
-    } else if (pCharacteristic == _controller->getSWD2LRCCCharacteristic()) {
-        if (!rxValue.empty()) {
-            // Read the raw byte value sent from the web app
-            const int newCC = (int)rxValue[0];
-            if (newCC >= 0 && newCC <= 127) {
-                if (_ccNumberSWD2LeftRight != newCC) {
-                    _ccNumberSWD2LeftRight = newCC;
-                    _preferences.putInt("ccSWD2LR", _ccNumberSWD2LeftRight); // Save to NVS
-                    SERIAL_PRINT("SWD2 LR CC set (BLE) and saved: ");
-                    SERIAL_PRINTLN(_ccNumberSWD2LeftRight);
-                }
-            }
+    } else if (pCharacteristic->getUUID().equals(BLEUUID(LEVER2_SETTINGS_UUID))) {
+        if (rxValue.length() == sizeof(LeverSettings)) {
+            memcpy(&_lever2Settings, rxValue.data(), sizeof(LeverSettings));
+            _preferences.putBytes("lever2_settings", &_lever2Settings, sizeof(LeverSettings));
+            SERIAL_PRINTLN("Lever2Settings updated and saved.");
+        } else {
+            SERIAL_PRINTLN("Invalid data length for Lever2Settings.");
         }
-    } else if (pCharacteristic == _controller->getSWD2CenterCCCharacteristic()) {
-        if (!rxValue.empty()) {
-            // Read the raw byte value sent from the web app
-            const int newCC = (int)rxValue[0];
-            if (newCC >= 0 && newCC <= 127) {
-                if (_ccNumberSWD2Center != newCC) {
-                    _ccNumberSWD2Center = newCC;
-                    _preferences.putInt("ccSWD2Center", _ccNumberSWD2Center); // Save to NVS
-                    SERIAL_PRINT("SWD2 Center CC set (BLE) and saved: ");
-                    SERIAL_PRINTLN(_ccNumberSWD2Center);
-                }
-            }
+    } else if (pCharacteristic->getUUID().equals(BLEUUID(LEVERPUSH2_SETTINGS_UUID))) {
+        if (rxValue.length() == sizeof(LeverPushSettings)) {
+            memcpy(&_leverPush2Settings, rxValue.data(), sizeof(LeverPushSettings));
+            _preferences.putBytes("leverpush2_settings", &_leverPush2Settings, sizeof(LeverPushSettings));
+            SERIAL_PRINTLN("LeverPush2Settings updated and saved.");
+        } else {
+            SERIAL_PRINTLN("Invalid data length for LeverPush2Settings.");
         }
-    } else if (pCharacteristic == _controller->getMidiCcCharacteristic()) { // Handle incoming MIDI CCs from faders
+    } else if (pCharacteristic->getUUID().equals(BLEUUID(TOUCH_SETTINGS_UUID))) {
+        if (rxValue.length() == sizeof(TouchSettings)) {
+            memcpy(&_touchSettings, rxValue.data(), sizeof(TouchSettings));
+            _preferences.putBytes("touch_settings", &_touchSettings, sizeof(TouchSettings));
+            SERIAL_PRINTLN("TouchSettings updated and saved.");
+        } else {
+            SERIAL_PRINTLN("Invalid data length for TouchSettings.");
+        }
+    } else if (pCharacteristic->getUUID().equals(BLEUUID(SCALE_SETTINGS_UUID))) {
+        if (rxValue.length() == sizeof(ScaleSettings)) {
+            memcpy(&_scaleSettings, rxValue.data(), sizeof(ScaleSettings));
+            _preferences.putBytes("scale_settings", &_scaleSettings, sizeof(ScaleSettings));
+            _scaleManager.setScale(_scaleSettings.scaleType);
+            _scaleManager.setRootNote(_scaleSettings.rootNote);
+            SERIAL_PRINTLN("ScaleSettings updated and saved.");
+        } else {
+            SERIAL_PRINTLN("Invalid data length for ScaleSettings.");
+        }
+    } else if (pCharacteristic->getUUID().equals(BLEUUID(MIDI_UUID))) {
         if (!rxValue.empty()) {
             SERIAL_PRINT("Received BLE MIDI CC: ");
             SERIAL_PRINTLN(rxValue.c_str());
 
-            // Parse the incoming string "CC_NUMBER,VALUE"
             const auto rxString = String(rxValue.c_str());
             const int commaIndex = rxString.indexOf(',');
 
@@ -89,39 +91,11 @@ void CharacteristicCallbacks::onWrite(BLECharacteristic *pCharacteristic) {
                 const int ccNumber = rxString.substring(0, commaIndex).toInt();
                 const int ccValue = rxString.substring(commaIndex + 1).toInt();
 
-                // Validate MIDI CC range
                 if (ccNumber >= 0 && ccNumber <= 127 && ccValue >= 0 && ccValue <= 127) {
-                    // Relay the MIDI CC command via HardwareSerial MIDI directly
-                    MIDI.sendControlChange(ccNumber, ccValue, 1); // Channel 1, or make configurable
-                    SERIAL_PRINT("Relayed MIDI CC#");
-                    SERIAL_PRINT(ccNumber);
-                    SERIAL_PRINT(", Value: ");
-                    SERIAL_PRINTLN(ccValue);
-                } else {
-                    SERIAL_PRINTLN("Invalid MIDI CC number or value received.");
+                    MIDI.sendControlChange(ccNumber, ccValue, 1);
                 }
             } else {
                 SERIAL_PRINTLN("Invalid MIDI CC string format. Expected 'CC_NUMBER,VALUE'.");
-            }
-        }
-    } else if (pCharacteristic == _controller->getScaleTypeCharacteristic()) {
-        if (!rxValue.empty()) {
-            const int newScaleType = (int)rxValue[0];
-            if (newScaleType >= 0 && newScaleType <= static_cast<int>(ScaleType::BLUES)) { // Validate against enum range
-                _scaleManager.setScale(static_cast<ScaleType>(newScaleType));
-                _preferences.putUChar("scaleType", newScaleType); // Save to NVS
-                SERIAL_PRINT("Scale Type set (BLE) and saved: ");
-                SERIAL_PRINTLN(newScaleType);
-            }
-        }
-    } else if (pCharacteristic == _controller->getRootNoteCharacteristic()) {
-        if (!rxValue.empty()) {
-            const int newRootNote = (int)rxValue[0];
-            if (newRootNote >= 0 && newRootNote <= 127) { // Validate MIDI note range
-                _scaleManager.setRootNote(newRootNote);
-                _preferences.putUChar("rootNote", newRootNote); // Save to NVS
-                SERIAL_PRINT("Root Note set (BLE) and saved: ");
-                SERIAL_PRINTLN(newRootNote);
             }
         }
     }

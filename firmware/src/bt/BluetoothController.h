@@ -17,10 +17,12 @@ public:
         Preferences& preferences,
         ScaleManager& scaleManager,
         LEDController& ledController,
-        int& ccNumberSWD1LeftRight,
-        int& ccNumberSWD1Center,
-        int& ccNumberSWD2LeftRight,
-        int& ccNumberSWD2Center
+        LeverSettings& lever1Settings,
+        LeverPushSettings& leverPush1Settings,
+        LeverSettings& lever2Settings,
+        LeverPushSettings& leverPush2Settings,
+        TouchSettings& touchSettings,
+        ScaleSettings& scaleSettings
     );
 
     LEDController& _ledController;
@@ -29,13 +31,14 @@ public:
     void disable();
 
     // Getters for characteristics (used by CharacteristicCallbacks)
-    BLECharacteristic* getSWD1LRCCCharacteristic() { return _pSWD1LRCCCharacteristic; }
-    BLECharacteristic* getSWD1CenterCCCharacteristic() { return _pSWD1CenterCCCharacteristic; }
-    BLECharacteristic* getSWD2LRCCCharacteristic() { return _pSWD2LRCCCharacteristic; }
-    BLECharacteristic* getSWD2CenterCCCharacteristic() { return _pSWD2CenterCCCharacteristic; }
-    BLECharacteristic* getMidiCcCharacteristic() { return _pMidiCcCharacteristic; }
-    BLECharacteristic* getRootNoteCharacteristic() { return _pRootNoteCharacteristic; }
-    BLECharacteristic* getScaleTypeCharacteristic() { return _pScaleTypeCharacteristic; }
+    BLECharacteristic* getLever1SettingsCharacteristic() { return _pLever1SettingsCharacteristic; }
+    BLECharacteristic* getLeverPush1SettingsCharacteristic() { return _pLeverPush1SettingsCharacteristic; }
+    BLECharacteristic* getLever2SettingsCharacteristic() { return _pLever2SettingsCharacteristic; }
+    BLECharacteristic* getLeverPush2SettingsCharacteristic() { return _pLeverPush2SettingsCharacteristic; }
+    BLECharacteristic* getTouchSettingsCharacteristic() { return _pTouchSettingsCharacteristic; }
+    BLECharacteristic* getScaleSettingsCharacteristic() { return _pScaleSettingsCharacteristic; }
+    BLECharacteristic* getMidiCharacteristic() { return _pMidiCharacteristic; }
+
 
     // Methods for ServerCallbacks to update connection status and advertising
     void setDeviceConnected(bool connected);
@@ -49,22 +52,24 @@ private:
     bool _deviceConnected;
     bool _isEnabled;
 
-    BLECharacteristic* _pSWD1LRCCCharacteristic;
-    BLECharacteristic* _pSWD1CenterCCCharacteristic;
-    BLECharacteristic* _pSWD2LRCCCharacteristic;
-    BLECharacteristic* _pSWD2CenterCCCharacteristic;
-    BLECharacteristic* _pMidiCcCharacteristic;
-    BLECharacteristic* _pRootNoteCharacteristic;
-    BLECharacteristic* _pScaleTypeCharacteristic;
+    BLECharacteristic* _pLever1SettingsCharacteristic;
+    BLECharacteristic* _pLeverPush1SettingsCharacteristic;
+    BLECharacteristic* _pLever2SettingsCharacteristic;
+    BLECharacteristic* _pLeverPush2SettingsCharacteristic;
+    BLECharacteristic* _pTouchSettingsCharacteristic;
+    BLECharacteristic* _pScaleSettingsCharacteristic;
+    BLECharacteristic* _pMidiCharacteristic;
 
     Preferences& _preferences;
     ScaleManager& _scaleManager;
 
-    // References to global CC number variables
-    int& _ccNumberSWD1LeftRight;
-    int& _ccNumberSWD1Center;
-    int& _ccNumberSWD2LeftRight;
-    int& _ccNumberSWD2Center;
+    // References to settings structs
+    LeverSettings& _lever1Settings;
+    LeverPushSettings& _leverPush1Settings;
+    LeverSettings& _lever2Settings;
+    LeverPushSettings& _leverPush2Settings;
+    TouchSettings& _touchSettings;
+    ScaleSettings& _scaleSettings;
 };
 
 #endif
