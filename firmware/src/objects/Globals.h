@@ -88,9 +88,10 @@ extern MIDI_NAMESPACE::MidiInterface<MIDI_NAMESPACE::SerialMIDI<HardwareSerial>>
 // Helper macro for serial printing, depends on SERIAL_PRINT_ENABLED from Constants.h
 #ifdef SERIAL_PRINT_ENABLED
 #define SERIAL_BEGIN() Serial.begin(115200);
-#define SERIAL_PRINT(msg) Serial.print(msg)
-#define SERIAL_PRINTLN(msg) Serial.println(msg)
+#define SERIAL_PRINT(msg) Serial.print(msg);
+#define SERIAL_PRINTLN(msg) Serial.println(msg);
 #else
+#define SERIAL_BEGIN()
 #define SERIAL_PRINT(msg)
 #define SERIAL_PRINTLN(msg)
 #endif

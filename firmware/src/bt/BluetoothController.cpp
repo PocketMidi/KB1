@@ -58,7 +58,7 @@ void BluetoothController::enable() {
         _pServer = BLEDevice::createServer();
         _pServer->setCallbacks(new ServerCallbacks(this));
 
-        _pService = _pServer->createService(SERVICE_UUID);
+        _pService = _pServer->createService(BLEUUID(SERVICE_UUID), 25, 0);
 
         _pLever1SettingsCharacteristic = _pService->createCharacteristic(
             LEVER1_SETTINGS_UUID,
@@ -217,12 +217,7 @@ void BluetoothController::disable() {
         if (_deviceConnected) {
             _pServer->disconnect(0);
         }
-        #ifdef SERIAL_PRINT_ENABLED
         BLEDevice::deinit(false);
-        #else
-        BLEDevice::deinit(true);
-        #endif
-
         _isEnabled = false;
         SERIAL_PRINTLN("Bluetooth Disabled.");
         // Blink LEDs for Bluetooth disabled
