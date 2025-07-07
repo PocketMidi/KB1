@@ -48,6 +48,7 @@ public:
             key.state = !key.mcp->digitalRead(key.pin);
             key.prevState = key.state;
         }
+        resetAllKeys();
     }
 
     void playMidiNote(const byte note) {
@@ -95,6 +96,15 @@ public:
 
     void setVelocity(const int value) {
         _currentVelocity = value;
+    }
+
+    void resetAllKeys() {
+        for (int i = 0; i < 128; ++i) {
+            _midi.sendNoteOff(i, 0, 1);
+            if (_isNoteOn[i]) {
+                _isNoteOn[i] = false;
+            }
+        }
     }
 
     void updateKeyboardState() {

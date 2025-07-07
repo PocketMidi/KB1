@@ -54,17 +54,17 @@ public:
 
             // Handle individual octave shifts on release
             if (!s3State && isS3Pressed) {
+                isS3Pressed = false; // Reset flag immediately on release
                 shiftOctave(-1);
                 SERIAL_PRINTLN("S3 Released! Octave Down by 1");
-                isS3Pressed = false;
             } else if (s3State) {
                 isS3Pressed = true;
             }
 
             if (!s4State && isS4Pressed) {
+                isS4Pressed = false; // Reset flag immediately on release
                 shiftOctave(1);
                 SERIAL_PRINTLN("S4 Released! Octave Up by 1");
-                isS4Pressed = false;
             } else if (s4State) {
                 isS4Pressed = true;
             }
@@ -78,10 +78,10 @@ public:
 private:
     void shiftOctave(int shift) {
         currentOctave += shift;
-        if (currentOctave < -3) {
-            currentOctave = -3;
-        } else if (currentOctave > 3) {
-            currentOctave = 3;
+        if (currentOctave < -4) {
+            currentOctave = -4;
+        } else if (currentOctave > 4) {
+            currentOctave = 4;
         }
         
         ledController.pulse(LedColor::OCTAVE_UP, 0);
