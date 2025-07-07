@@ -45,12 +45,12 @@ export enum TouchFunctionMode {
 export enum InterpolationType {
   LINEAR,
   EXPONENTIAL,
-  LOGARITHMIC
+  LOGARITHMIC,
 }
 
 export enum ValueMode {
   UNIPOLAR,
-  BIPOLAR
+  BIPOLAR,
 }
 
 export enum ScaleType {
@@ -66,7 +66,7 @@ export enum ScaleType {
   PHRYGIAN,
   LYDIAN,
   MIXOLYDIAN,
-  LOCRIAN
+  LOCRIAN,
 }
 
 export enum SettingsType {
@@ -82,12 +82,12 @@ export enum SettingsType {
 //
 //---------------------------------------------------
 export interface Settings {
-  lever1?: LeverSettings,
-  lever2?: LeverSettings,
-  leverPush1?: LeverPushSettings,
-  leverPush2?: LeverPushSettings,
-  touch?: TouchSettings,
-  scale?: ScaleSettings,
+  lever1?: LeverSettings;
+  lever2?: LeverSettings;
+  leverPush1?: LeverPushSettings;
+  leverPush2?: LeverPushSettings;
+  touch?: TouchSettings;
+  scale?: ScaleSettings;
 }
 
 export interface LeverSettings {

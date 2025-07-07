@@ -69,8 +69,7 @@
 </script>
 
 <template>
-  <div id="index">
-  </div>
+  <div id="index"></div>
 </template>
 
 <style lang="scss">

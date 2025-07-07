@@ -43,12 +43,7 @@
   //---------------------------------------------------
   const hasSettings = computed(() => {
     const setts = settings.value;
-    return setts.lever1 &&
-      setts.lever2 &&
-      setts.leverPush1 &&
-      setts.leverPush2 &&
-      setts.touch &&
-      setts.scale;
+    return setts.lever1 && setts.lever2 && setts.leverPush1 && setts.leverPush2 && setts.touch && setts.scale;
   });
 
   //---------------------------------------------------
@@ -123,34 +118,12 @@
 <template>
   <div id="configurator">
     <div v-if="hasSettings" class="settings">
-      <LeverSettings
-        :title="t('configurator.lever.title')"
-        :lever="1"
-        v-model="settings.lever1"
-      />
-      <LeverPushSettings
-        :title="t('configurator.leverpush.title')"
-        :lever="1"
-        v-model="settings.leverPush1"
-      />
-      <LeverSettings
-        :title="t('configurator.lever.title')"
-        :lever="2"
-        v-model="settings.lever2"
-      />
-      <LeverPushSettings
-        :title="t('configurator.leverpush.title')"
-        :lever="2"
-        v-model="settings.leverPush2"
-      />
-      <TouchSettings
-        :title="t('configurator.touch.title')"
-        v-model="settings.touch"
-      />
-      <ScaleSettings
-        :title="t('configurator.scale.title')"
-        v-model="settings.scale"
-      />
+      <LeverSettings :title="t('configurator.lever.title')" :lever="1" v-model="settings.lever1" />
+      <LeverPushSettings :title="t('configurator.leverpush.title')" :lever="1" v-model="settings.leverPush1" />
+      <LeverSettings :title="t('configurator.lever.title')" :lever="2" v-model="settings.lever2" />
+      <LeverPushSettings :title="t('configurator.leverpush.title')" :lever="2" v-model="settings.leverPush2" />
+      <TouchSettings :title="t('configurator.touch.title')" v-model="settings.touch" />
+      <ScaleSettings :title="t('configurator.scale.title')" v-model="settings.scale" />
     </div>
     <button @click="handleSave">Save</button>
 

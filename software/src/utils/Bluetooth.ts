@@ -8,7 +8,8 @@ import {
   LeverPushSettings,
   LeverSettings,
   ScaleSettings,
-  ScaleType, Settings,
+  ScaleType,
+  Settings,
   SettingsType,
   TouchFunctionMode,
   TouchSettings,
@@ -18,10 +19,9 @@ import {
 let device: any;
 let isConnected: boolean;
 const characteristics = {};
-const settings:Settings = {};
+const settings: Settings = {};
 
 export default class Bluetooth {
-
   static get connected() {
     return isConnected;
   }
@@ -29,7 +29,7 @@ export default class Bluetooth {
   static async connect(): Promise<boolean> {
     try {
       const navigator: any = window.navigator;
-      if(navigator && navigator.bluetooth) {
+      if (navigator && navigator.bluetooth) {
         console.log('Requesting Bluetooth device...');
         device = await navigator?.bluetooth.requestDevice({
           filters: [{ services: [BTECharacteristics.Service] }],
@@ -172,7 +172,10 @@ export default class Bluetooth {
     return true;
   }
 
-  static parseDataView(data: DataView, settingsType: SettingsType): LeverSettings | LeverPushSettings | TouchSettings | ScaleSettings | null {
+  static parseDataView(
+    data: DataView,
+    settingsType: SettingsType,
+  ): LeverSettings | LeverPushSettings | TouchSettings | ScaleSettings | null {
     switch (settingsType) {
       case SettingsType.LEVER:
         return {
@@ -216,7 +219,10 @@ export default class Bluetooth {
     }
   }
 
-  static createDataView(settings: LeverSettings | LeverPushSettings | TouchSettings | ScaleSettings, settingsType: SettingsType): DataView | null {
+  static createDataView(
+    settings: LeverSettings | LeverPushSettings | TouchSettings | ScaleSettings,
+    settingsType: SettingsType,
+  ): DataView | null {
     let buffer: ArrayBuffer;
     let dataView: DataView;
 
@@ -275,4 +281,3 @@ export default class Bluetooth {
     console.log(evt);
   }
 }
-

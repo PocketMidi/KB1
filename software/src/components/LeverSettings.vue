@@ -1,91 +1,89 @@
 <script setup lang="ts">
-//---------------------------------------------------
-//
-//  Imports
-//
-//---------------------------------------------------
-import { LeverSettings } from '@/types/interfaces.ts';
-import { PropType } from 'vue';
-import { useI18n } from 'vue-i18n';
+  //---------------------------------------------------
+  //
+  //  Imports
+  //
+  //---------------------------------------------------
+  import { LeverSettings } from '@/types/interfaces.ts';
+  import { PropType } from 'vue';
+  import { useI18n } from 'vue-i18n';
 
-//---------------------------------------------------
-//
-//  Properties
-//
-//---------------------------------------------------
-const props = defineProps({
-  title: {
-    type: String,
-    default: null,
-  },
-  lever: {
-    type: Number,
-    default: 0,
-  },
-});
+  //---------------------------------------------------
+  //
+  //  Properties
+  //
+  //---------------------------------------------------
+  const props = defineProps({
+    title: {
+      type: String,
+      default: null,
+    },
+    lever: {
+      type: Number,
+      default: 0,
+    },
+  });
 
-//---------------------------------------------------
-//
-//  Emits
-//
-//---------------------------------------------------
-// const emit = defineEmits([]);
+  //---------------------------------------------------
+  //
+  //  Emits
+  //
+  //---------------------------------------------------
+  // const emit = defineEmits([]);
 
-//---------------------------------------------------
-//
-//  Data Model
-//
-//---------------------------------------------------
-const { tm } = useI18n();
-// const value = ref();
+  //---------------------------------------------------
+  //
+  //  Data Model
+  //
+  //---------------------------------------------------
+  const { tm } = useI18n();
+  // const value = ref();
 
-//---------------------------------------------------
-//
-//  Computed Properties
-//
-//---------------------------------------------------
-// const computedProperty = computed(() => { return null; });
+  //---------------------------------------------------
+  //
+  //  Computed Properties
+  //
+  //---------------------------------------------------
+  // const computedProperty = computed(() => { return null; });
 
-//---------------------------------------------------
-//
-//  Watch Properties
-//
-//---------------------------------------------------
-// watch(value, (newval, oldval) => { console.log(newval, oldval); });
-const value = defineModel({type: Object as PropType<LeverSettings>, default: () => {}});
+  //---------------------------------------------------
+  //
+  //  Watch Properties
+  //
+  //---------------------------------------------------
+  // watch(value, (newval, oldval) => { console.log(newval, oldval); });
+  const value = defineModel({ type: Object as PropType<LeverSettings>, default: () => {} });
 
-//---------------------------------------------------
-//
-//  Vue Lifecycle
-//
-//---------------------------------------------------
-// onBeforeMount(() => {});
-// onMounted(() => {});
-// onBeforeUpdate(() => {});
-// onUpdated(() => {});
-// onActivated(() => {});
-// onDeactivated(() => {});
-// onBeforeUnmount(() => {});
-// onUnmounted(() => {});
+  //---------------------------------------------------
+  //
+  //  Vue Lifecycle
+  //
+  //---------------------------------------------------
+  // onBeforeMount(() => {});
+  // onMounted(() => {});
+  // onBeforeUpdate(() => {});
+  // onUpdated(() => {});
+  // onActivated(() => {});
+  // onDeactivated(() => {});
+  // onBeforeUnmount(() => {});
+  // onUnmounted(() => {});
 
-//---------------------------------------------------
-//
-//  Methods
-//
-//---------------------------------------------------
+  //---------------------------------------------------
+  //
+  //  Methods
+  //
+  //---------------------------------------------------
 
-//---------------------------------------------------
-//
-//  Expose
-//
-//---------------------------------------------------
-// defineExpose({});
-
+  //---------------------------------------------------
+  //
+  //  Expose
+  //
+  //---------------------------------------------------
+  // defineExpose({});
 </script>
 
 <template>
   <div :class="`settings-lever lever-${props.lever}`">
-
     <div class="title">
       <h2>{{ props.title }} {{ props.lever }}</h2>
       <div>
@@ -98,11 +96,7 @@ const value = defineModel({type: Object as PropType<LeverSettings>, default: () 
       <div class="group">
         <label :for="`lever-ccNumber-${props.lever}`">Parameter</label>
         <select :id="`lever-ccNumber-${props.lever}`" v-model="value.ccNumber">
-          <option
-            v-for="(param, pdx) in tm('configurator.values.cc')"
-            :key="`ccnumber-${pdx}`"
-            :value="param.value"
-          >
+          <option v-for="(param, pdx) in tm('configurator.values.cc')" :key="`ccnumber-${pdx}`" :value="param.value">
             {{ param.label }}
           </option>
         </select>
@@ -133,27 +127,15 @@ const value = defineModel({type: Object as PropType<LeverSettings>, default: () 
       </div>
       <div class="group">
         <label :for="`lever-stepSize-${props.lever}`">Steps</label>
-        <input
-          type="number"
-          :id="`lever-stepSize-${props.lever}`"
-          v-model="value.stepSize"
-        >
+        <input type="number" :id="`lever-stepSize-${props.lever}`" v-model="value.stepSize" />
       </div>
       <div class="group">
         <label :for="`lever-maxCCValue-${props.lever}`">CC Max</label>
-        <input
-          type="number"
-          :id="`lever-maxCCValue-${props.lever}`"
-          v-model="value.maxCCValue"
-        >
+        <input type="number" :id="`lever-maxCCValue-${props.lever}`" v-model="value.maxCCValue" />
       </div>
       <div class="group">
         <label :for="`lever-minCCValue-${props.lever}`">CC Min</label>
-        <input
-          type="number"
-          :id="`lever-minCCValue-${props.lever}`"
-          v-model="value.minCCValue"
-        >
+        <input type="number" :id="`lever-minCCValue-${props.lever}`" v-model="value.minCCValue" />
       </div>
       <div class="group">
         <label :for="`lever-onsetType-${props.lever}`">Attack Type</label>
@@ -170,11 +152,7 @@ const value = defineModel({type: Object as PropType<LeverSettings>, default: () 
       <div class="group">
         <label :for="`lever-onsetTime-${props.lever}`">Attack Time</label>
         <div class="number-with-unit">
-          <input
-            type="number"
-            :id="`lever-onsetTime-${props.lever}`"
-            v-model="value.onsetTime"
-          >
+          <input type="number" :id="`lever-onsetTime-${props.lever}`" v-model="value.onsetTime" />
           <span>ms</span>
         </div>
       </div>
@@ -193,11 +171,7 @@ const value = defineModel({type: Object as PropType<LeverSettings>, default: () 
       <div class="group">
         <label :for="`lever-offsetTime-${props.lever}`">Decay Time</label>
         <div class="number-with-unit">
-          <input
-            type="number"
-            :id="`lever-offsetTime-${props.lever}`"
-            v-model="value.offsetTime"
-          >
+          <input type="number" :id="`lever-offsetTime-${props.lever}`" v-model="value.offsetTime" />
           <span>ms</span>
         </div>
       </div>
@@ -211,7 +185,7 @@ const value = defineModel({type: Object as PropType<LeverSettings>, default: () 
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
-      padding: var(--baseunit) calc(var(--baseunit) * 1.5) var(--baseunit) ;
+      padding: var(--baseunit) calc(var(--baseunit) * 1.5) var(--baseunit);
 
       h2 {
         text-transform: uppercase;
@@ -244,8 +218,12 @@ const value = defineModel({type: Object as PropType<LeverSettings>, default: () 
         border-top: 1px solid var(--color-borders);
         margin-bottom: 0;
 
-        &:first-child { border-top: none; }
-        &:last-of-type { border-bottom: none; }
+        &:first-child {
+          border-top: none;
+        }
+        &:last-of-type {
+          border-bottom: none;
+        }
 
         & > label {
           letter-spacing: 1px;
@@ -269,13 +247,12 @@ const value = defineModel({type: Object as PropType<LeverSettings>, default: () 
           white-space: nowrap;
           text-overflow: ellipsis;
 
-
           & > option {
             background: var(--color-bg-primary);
           }
         }
 
-        input[type=number] {
+        input[type='number'] {
           appearance: none;
           background: transparent;
           border: 0;
@@ -297,7 +274,7 @@ const value = defineModel({type: Object as PropType<LeverSettings>, default: () 
           justify-content: flex-end;
           align-items: flex-end;
 
-          & > input[type=number] {
+          & > input[type='number'] {
             max-width: 100%;
             padding-right: 20px;
           }
@@ -310,8 +287,12 @@ const value = defineModel({type: Object as PropType<LeverSettings>, default: () 
       }
     }
 
-    &.lever-1 { color: var(--color-lever1); }
-    &.lever-2 { color: var(--color-lever2); }
+    &.lever-1 {
+      color: var(--color-lever1);
+    }
+    &.lever-2 {
+      color: var(--color-lever2);
+    }
   }
 </style>
 

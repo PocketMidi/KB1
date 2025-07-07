@@ -34,14 +34,14 @@ export default {
           { value: 1, label: 'Peak & Decay' },
           { value: 2, label: 'Static' },
           { value: 3, label: 'Reset' },
-        ]
+        ],
       },
       touch: {
         functionModes: [
           { value: 0, label: 'Hold' },
           { value: 1, label: 'Toggle' },
           { value: 2, label: 'Continuous' },
-        ]
+        ],
       },
       interpolations: [
         { value: 0, label: 'Linear' },
@@ -162,6 +162,6 @@ export default {
         { value: 117, label: 'Finetune Sustain' },
         { value: 118, label: 'Finetune Release' },
       ],
-    }
-  }
-}
+    },
+  },
+};

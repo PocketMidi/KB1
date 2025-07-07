@@ -95,7 +95,7 @@
     <button
       v-for="(page, pdx) in availablePages"
       :key="`page-${pdx}`"
-      :class="{'active': activePage === page.id }"
+      :class="{ active: activePage === page.id }"
       @click="handlePage(page)"
     >
       {{ page.label }}
