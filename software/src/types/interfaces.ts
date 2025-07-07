@@ -1,5 +1,27 @@
+//---------------------------------------------------
+//
+//  Enumerators
+//
+//---------------------------------------------------
+
 //----------------------------------
-// Enums
+// UI Related
+//----------------------------------
+export enum Pages {
+  CONFIGURATOR = 'configurator',
+  CC_FADERS = 'cc-faders',
+}
+
+export enum ConfiguratorViewState {
+  DISCONNECTED,
+  CONNECTING,
+  CONNECTED,
+  READING_SETTINGS,
+  WRITING_SETTINGS,
+}
+
+//----------------------------------
+// Config Related
 //----------------------------------
 export enum LeverFunctionMode {
   INTERPOLATED,
@@ -54,9 +76,11 @@ export enum SettingsType {
   SCALE,
 }
 
-//----------------------------------
-// Interfaces
-//----------------------------------
+//---------------------------------------------------
+//
+//  Interfaces
+//
+//---------------------------------------------------
 export interface Settings {
   lever1?: LeverSettings,
   lever2?: LeverSettings,

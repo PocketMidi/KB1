@@ -4,8 +4,10 @@
   //  Imports
   //
   //---------------------------------------------------
-  import { onBeforeUnmount, onMounted } from 'vue';
   import Bluetooth from '@/utils/Bluetooth.ts';
+  import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+  import { Pages } from '@/types/interfaces.ts';
+  import { useRoute, useRouter } from 'vue-router';
 
   //---------------------------------------------------
   //
@@ -26,14 +28,23 @@
   //  Data Model
   //
   //---------------------------------------------------
-  // const value = ref();
+  const route = useRoute();
+  const router = useRouter();
+  const activePage = ref(Pages.CONFIGURATOR);
 
   //---------------------------------------------------
   //
   //  Computed Properties
   //
   //---------------------------------------------------
-  // const computedProperty = computed(() => { return null; });
+  const availablePages = computed(() => {
+    return Object.keys(Pages).map((key) => {
+      return {
+        id: Pages[key],
+        label: Pages[key],
+      };
+    });
+  });
 
   //---------------------------------------------------
   //
@@ -49,6 +60,9 @@
   //---------------------------------------------------
   // onBeforeMount(() => {});
   onMounted(() => {
+    if (route.path === '/') {
+      router.push(`/${Pages.CONFIGURATOR}`);
+    }
   });
   // onBeforeUpdate(() => {});
   // onUpdated(() => {});
@@ -64,16 +78,8 @@
   //  Methods
   //
   //---------------------------------------------------
-  async function connect() {
-    const connected = await Bluetooth.connect();
-    if (connected) {
-      const settings = await Bluetooth.getSettings();
-      console.log(settings);
-    }
-  }
-
-  function disconnect() {
-    Bluetooth.disconnect();
+  function handlePage(page) {
+    router.push(`/${page.id}`);
   }
   //---------------------------------------------------
   //
@@ -84,18 +90,45 @@
 </script>
 
 <template>
-  <button @click="connect">Connect</button>
-  <button @click="disconnect">Discconect</button>
   <RouterView />
+  <div class="pages">
+    <button
+      v-for="(page, pdx) in availablePages"
+      :key="`page-${pdx}`"
+      :class="{'active': activePage === page.id }"
+      @click="handlePage(page)"
+    >
+      {{ page.label }}
+    </button>
+  </div>
 </template>
 
 <style lang="scss">
   @use '/src/assets/scss/app';
 
-  button {
-    font-family: inherit;
-    color: var(--color-text-primary);
-    border: 1px solid var(--color-borders);
-    background: transparent;
+  body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    max-height: 100vh;
+
+    & > div[id] {
+      width: 100%;
+      height: calc(100vh - 66px);
+    }
+
+    & > .pages {
+      display: flex;
+      height: 64px;
+      min-height: 64px;
+      width: 100%;
+      gap: 2px;
+      background: transparent;
+
+      & > button {
+        width: 100%;
+      }
+    }
   }
 </style>
