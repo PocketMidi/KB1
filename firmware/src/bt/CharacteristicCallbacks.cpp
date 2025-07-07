@@ -32,7 +32,7 @@ void CharacteristicCallbacks::onWrite(BLECharacteristic *pCharacteristic) {
     if (pCharacteristic->getUUID().equals(BLEUUID(LEVER1_SETTINGS_UUID))) {
         if (rxValue.length() == sizeof(LeverSettings)) {
             memcpy(&_lever1Settings, rxValue.data(), sizeof(LeverSettings));
-            _preferences.putBytes("lever1_settings", &_lever1Settings, sizeof(LeverSettings));
+            _preferences.putBytes("lever1", &_lever1Settings, sizeof(LeverSettings));
             SERIAL_PRINTLN("Lever1Settings updated and saved.");
         } else {
             SERIAL_PRINTLN("Invalid data length for Lever1Settings.");
@@ -40,7 +40,7 @@ void CharacteristicCallbacks::onWrite(BLECharacteristic *pCharacteristic) {
     } else if (pCharacteristic->getUUID().equals(BLEUUID(LEVERPUSH1_SETTINGS_UUID))) {
         if (rxValue.length() == sizeof(LeverPushSettings)) {
             memcpy(&_leverPush1Settings, rxValue.data(), sizeof(LeverPushSettings));
-            _preferences.putBytes("leverpush1_settings", &_leverPush1Settings, sizeof(LeverPushSettings));
+            _preferences.putBytes("leverpush1", &_leverPush1Settings, sizeof(LeverPushSettings));
             SERIAL_PRINTLN("LeverPush1Settings updated and saved.");
         } else {
             SERIAL_PRINTLN("Invalid data length for LeverPush1Settings.");
@@ -48,7 +48,7 @@ void CharacteristicCallbacks::onWrite(BLECharacteristic *pCharacteristic) {
     } else if (pCharacteristic->getUUID().equals(BLEUUID(LEVER2_SETTINGS_UUID))) {
         if (rxValue.length() == sizeof(LeverSettings)) {
             memcpy(&_lever2Settings, rxValue.data(), sizeof(LeverSettings));
-            _preferences.putBytes("lever2_settings", &_lever2Settings, sizeof(LeverSettings));
+            _preferences.putBytes("lever2", &_lever2Settings, sizeof(LeverSettings));
             SERIAL_PRINTLN("Lever2Settings updated and saved.");
         } else {
             SERIAL_PRINTLN("Invalid data length for Lever2Settings.");
@@ -56,7 +56,7 @@ void CharacteristicCallbacks::onWrite(BLECharacteristic *pCharacteristic) {
     } else if (pCharacteristic->getUUID().equals(BLEUUID(LEVERPUSH2_SETTINGS_UUID))) {
         if (rxValue.length() == sizeof(LeverPushSettings)) {
             memcpy(&_leverPush2Settings, rxValue.data(), sizeof(LeverPushSettings));
-            _preferences.putBytes("leverpush2_settings", &_leverPush2Settings, sizeof(LeverPushSettings));
+            _preferences.putBytes("leverpush2", &_leverPush2Settings, sizeof(LeverPushSettings));
             SERIAL_PRINTLN("LeverPush2Settings updated and saved.");
         } else {
             SERIAL_PRINTLN("Invalid data length for LeverPush2Settings.");
@@ -64,7 +64,7 @@ void CharacteristicCallbacks::onWrite(BLECharacteristic *pCharacteristic) {
     } else if (pCharacteristic->getUUID().equals(BLEUUID(TOUCH_SETTINGS_UUID))) {
         if (rxValue.length() == sizeof(TouchSettings)) {
             memcpy(&_touchSettings, rxValue.data(), sizeof(TouchSettings));
-            _preferences.putBytes("touch_settings", &_touchSettings, sizeof(TouchSettings));
+            _preferences.putBytes("touch", &_touchSettings, sizeof(TouchSettings));
             SERIAL_PRINTLN("TouchSettings updated and saved.");
         } else {
             SERIAL_PRINTLN("Invalid data length for TouchSettings.");
@@ -72,7 +72,7 @@ void CharacteristicCallbacks::onWrite(BLECharacteristic *pCharacteristic) {
     } else if (pCharacteristic->getUUID().equals(BLEUUID(SCALE_SETTINGS_UUID))) {
         if (rxValue.length() == sizeof(ScaleSettings)) {
             memcpy(&_scaleSettings, rxValue.data(), sizeof(ScaleSettings));
-            _preferences.putBytes("scale_settings", &_scaleSettings, sizeof(ScaleSettings));
+            _preferences.putBytes("scale", &_scaleSettings, sizeof(ScaleSettings));
             _scaleManager.setScale(_scaleSettings.scaleType);
             _scaleManager.setRootNote(_scaleSettings.rootNote);
             SERIAL_PRINTLN("ScaleSettings updated and saved.");

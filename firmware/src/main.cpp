@@ -190,12 +190,12 @@ BluetoothController* bluetoothControllerPtr = nullptr; // Declare as a pointer
 
 void readInputs(void *pvParameters);
 void loadSettings() {
-    preferences.getBytes("lever1_settings", &lever1Settings, sizeof(LeverSettings));
-    preferences.getBytes("leverpush1_settings", &leverPush1Settings, sizeof(LeverPushSettings));
-    preferences.getBytes("lever2_settings", &lever2Settings, sizeof(LeverSettings));
-    preferences.getBytes("leverpush2_settings", &leverPush2Settings, sizeof(LeverPushSettings));
-    preferences.getBytes("touch_settings", &touchSettings, sizeof(TouchSettings));
-    preferences.getBytes("scale_settings", &scaleSettings, sizeof(ScaleSettings));
+    preferences.getBytes("lever1", &lever1Settings, sizeof(LeverSettings));
+    preferences.getBytes("leverpush1", &leverPush1Settings, sizeof(LeverPushSettings));
+    preferences.getBytes("lever2", &lever2Settings, sizeof(LeverSettings));
+    preferences.getBytes("leverpush2", &leverPush2Settings, sizeof(LeverPushSettings));
+    preferences.getBytes("touch", &touchSettings, sizeof(TouchSettings));
+    preferences.getBytes("scale", &scaleSettings, sizeof(ScaleSettings));
 
     scaleManager.setScale(scaleSettings.scaleType);
     scaleManager.setRootNote(scaleSettings.rootNote);
