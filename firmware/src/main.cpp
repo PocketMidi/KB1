@@ -184,9 +184,8 @@ TouchControl<decltype(MIDI)> touch(
     MIDI
 );
 
-Preferences preferences; // Define Preferences object
-
-BluetoothController* bluetoothControllerPtr = nullptr; // Declare as a pointer
+Preferences preferences;
+BluetoothController* bluetoothControllerPtr = nullptr;
 
 void readInputs(void *pvParameters);
 void loadSettings() {
@@ -259,10 +258,6 @@ void setup() {
 
     octaveControl.begin();
     keyboardControl.begin();
-
-    scaleManager.setScale(ScaleType::MINOR);
-    scaleManager.enableWhiteKeyQuantization(true);
-
 
     ledController.begin(LedColor::OCTAVE_UP, 7, &mcp_U2);
     ledController.begin(LedColor::OCTAVE_DOWN, 5, &mcp_U2);

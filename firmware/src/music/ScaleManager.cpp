@@ -26,22 +26,13 @@ ScaleManager::ScaleManager(ScaleSettings& settings) :
 void ScaleManager::setScale(ScaleType type) {
     if (_settings.scaleType != type) {
         _settings.scaleType = type;
-        updateScaleIntervals();
-        SERIAL_PRINT("Scale set to: ");
-        for (const auto& scale : _allScales) {
-            if (scale.type == type) {
-                SERIAL_PRINTLN(scale.name);
-                break;
-            }
-        }
     }
+    updateScaleIntervals();
 }
 
 void ScaleManager::setRootNote(int root) {
     if (_settings.rootNote != root) {
         _settings.rootNote = root;
-        SERIAL_PRINT("Root note set to: ");
-        SERIAL_PRINTLN(_settings.rootNote);
     }
 }
 
@@ -51,29 +42,8 @@ int ScaleManager::quantizeNote(int note) const {
     }
 
     if (_whiteKeysQuantize) {
-        static const int whiteKeyOffsets[7] = {0, 2, 4, 5, 7, 9, 11};
-        int noteMod = note % 12;
-
-        // Find the white key index
-        int whiteKeyIndex = -1;
-        for (int i = 0; i < 7; ++i) {
-            if (noteMod == whiteKeyOffsets[i]) {
-                whiteKeyIndex = i;
-                break;
-            }
-        }
-
-        if (whiteKeyIndex == -1) {
-            // Not a white key — shouldn't happen if using white keys only
-            return getClosestNoteInScale(note, _currentScaleIntervals, _settings.rootNote);
-        }
-
-        // Map white key index to scale degree
-        int octaveOffset = (note / 12) - (_settings.rootNote / 12);
-        int scaleDegree = whiteKeyIndex % _currentScaleIntervals.size();
-
-        int targetNote = _settings.rootNote + _currentScaleIntervals[scaleDegree] + (octaveOffset * 12);
-        return targetNote;
+        int closestWhiteKey = getClosestWhiteKey(note);
+        return getClosestNoteInScale(closestWhiteKey, _currentScaleIntervals, _settings.rootNote);
     }
 
     return getClosestNoteInScale(note, _currentScaleIntervals, _settings.rootNote);
@@ -81,6 +51,7 @@ int ScaleManager::quantizeNote(int note) const {
 
 void ScaleManager::updateScaleIntervals() {
     _currentScaleIntervals.clear();
+    SERIAL_PRINTLN(static_cast<int>(_settings.scaleType));
     for (const auto& scale : _allScales) {
         if (scale.type == _settings.scaleType) {
             _currentScaleIntervals = scale.intervals;
@@ -89,7 +60,7 @@ void ScaleManager::updateScaleIntervals() {
     }
 }
 
-int ScaleManager::getClosestNoteInScale(int note, const std::vector<int>& intervals, int rootNote) const {
+int ScaleManager::getClosestNoteInScale(int note, const std::vector<int>& intervals, int rootNote) {
     int bestNote = -1;
     int minDistance = 1000;
 
@@ -101,8 +72,7 @@ int ScaleManager::getClosestNoteInScale(int note, const std::vector<int>& interv
             if (candidate < 0 || candidate > 127)
                 continue;
 
-            if (_whiteKeysQuantize && !isWhiteKey(candidate))
-                continue;
+            
 
             int distance = abs(note - candidate);
             if (distance < minDistance || (distance == minDistance && candidate < bestNote)) {
@@ -115,7 +85,7 @@ int ScaleManager::getClosestNoteInScale(int note, const std::vector<int>& interv
     return bestNote != -1 ? bestNote : note; // fallback
 }
 
-bool ScaleManager::isWhiteKey(int note) const {
+bool ScaleManager::isWhiteKey(int note) {
     const bool whiteKeys[12] = {
         // C, C#, D, D#, E, F, F#, G, G#, A, A#, B
         true, false, true, false, true, true, false, true, false, true, false, true
@@ -136,3 +106,5 @@ int ScaleManager::getClosestWhiteKey(int note) const {
 
     return note; // fallback
 }
+
+

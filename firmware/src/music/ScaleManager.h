@@ -29,8 +29,10 @@ private:
     std::vector<int> _currentScaleIntervals;
 
     void updateScaleIntervals();
-    int getClosestNoteInScale(int note, const std::vector<int>& intervals, int rootNote) const;
-    bool isWhiteKey(int note) const;
+
+    static int getClosestNoteInScale(int note, const std::vector<int>& intervals, int rootNote);
+
+    static bool isWhiteKey(int note);
     int getClosestWhiteKey(int note) const;
 };
 
