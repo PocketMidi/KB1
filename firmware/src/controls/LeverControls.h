@@ -268,7 +268,7 @@ void LeverControls<MidiTransport>::updateValue() {
         SERIAL_PRINT("Sending CC "); SERIAL_PRINT(_settings.ccNumber);
         SERIAL_PRINT(", Value: "); SERIAL_PRINTLN(_currentValue);
         _midi.sendControlChange(_settings.ccNumber, _currentValue, 1);
-        if (_settings.ccNumber == 7) {
+        if (_settings.ccNumber == 128) {
             _keyboardControl.setVelocity(_currentValue);
         }
 

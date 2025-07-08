@@ -82,6 +82,7 @@ export default {
         { value: 71, label: 'B' },
       ],
       cc: [
+        { value: 128, label: 'Velocity' },
         { value: 1, label: 'Cutoff' },
         { value: 3, label: 'Finetune' },
         { value: 5, label: 'Tune' },

@@ -5,7 +5,7 @@
   //
   //---------------------------------------------------
   import { LeverSettings } from '@/types/interfaces.ts';
-  import { PropType } from 'vue';
+  import { computed, PropType } from 'vue';
   import { useI18n } from 'vue-i18n';
 
   //---------------------------------------------------
@@ -44,7 +44,10 @@
   //  Computed Properties
   //
   //---------------------------------------------------
-  // const computedProperty = computed(() => { return null; });
+  const isValidMidiCC = computed(() => {
+    const cc = value.value.ccNumber || 0;
+    return cc >= 0 && cc <= 127;
+  });
 
   //---------------------------------------------------
   //
@@ -86,7 +89,7 @@
   <div :class="`settings-lever lever-${props.lever}`">
     <div class="title">
       <h2>{{ props.title }} {{ props.lever }}</h2>
-      <div>
+      <div v-if="isValidMidiCC">
         <span>MIDI CC</span>
         <span>{{ value.ccNumber }}</span>
       </div>

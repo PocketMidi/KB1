@@ -5,7 +5,7 @@
   //
   //---------------------------------------------------
   import { LeverPushSettings } from '@/types/interfaces.ts';
-  import { PropType } from 'vue';
+  import { computed, PropType } from 'vue';
   import { useI18n } from 'vue-i18n';
 
   //---------------------------------------------------
@@ -36,15 +36,17 @@
   //  Data Model
   //
   //---------------------------------------------------
-  // const value = ref();
+  const { tm } = useI18n();
 
   //---------------------------------------------------
   //
   //  Computed Properties
   //
   //---------------------------------------------------
-  // const computedProperty = computed(() => { return null; });
-  const { tm } = useI18n();
+  const isValidMidiCC = computed(() => {
+    const cc = value.value.ccNumber || 0;
+    return cc >= 0 && cc <= 127;
+  });
 
   //---------------------------------------------------
   //
@@ -86,7 +88,7 @@
   <div :class="`settings-leverpush lever-${props.lever}`">
     <div class="title">
       <h2>{{ props.title }} {{ props.lever }}</h2>
-      <div>
+      <div v-if="isValidMidiCC">
         <span>MIDI CC</span>
         <span>{{ value.ccNumber }}</span>
       </div>

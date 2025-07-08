@@ -135,7 +135,7 @@ void LeverPushControls<MidiTransport>::handleInput() {
     if (_settings.functionMode == LeverPushFunctionMode::RESET) {
         if (state) {
             _currentValue = _settings.minCCValue;
-            if (_settings.ccNumber == 7) {
+            if (_settings.ccNumber == 128) {
                 _keyboardControl.setVelocity(_currentValue);
                 if (_leverControls.getCCNumber() == 7) {
                     _leverControls.setValue(_currentValue);
@@ -226,7 +226,7 @@ void LeverPushControls<MidiTransport>::updateValue() {
         SERIAL_PRINT("Sending CC "); SERIAL_PRINT(_settings.ccNumber);
         SERIAL_PRINT(", Value: "); SERIAL_PRINTLN(_currentValue);
         _midi.sendControlChange(_settings.ccNumber, _currentValue, 1);
-        if (_settings.ccNumber == 7) {
+        if (_settings.ccNumber == 128) {
             _keyboardControl.setVelocity(_currentValue);
         }
         // _ledController.set(_ledColor, _currentValue);
