@@ -172,6 +172,22 @@ export default class Bluetooth {
     return true;
   }
 
+  static async sendMidiCC(ccNumber: number, ccValue: number) {
+    const characteristic = characteristics['Midi'];
+    if (!characteristic) {
+      return;
+    }
+
+    const midiMessage = new TextEncoder().encode(`${ccNumber},${ccValue}`);
+    /**
+     * NOTE:
+     * The next line will cause errors in the dev console but can be safely ignored.
+     * We want to spam the cc message as fast as possible.
+     * So sometimes that means a previous call has not fully finished yet
+     */
+    characteristic.writeValue(midiMessage);
+  }
+
   static parseDataView(
     data: DataView,
     settingsType: SettingsType,
