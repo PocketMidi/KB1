@@ -137,7 +137,7 @@ void LeverPushControls<MidiTransport>::handleInput() {
             _currentValue = _settings.minCCValue;
             if (_settings.ccNumber == 128) {
                 _keyboardControl.setVelocity(_currentValue);
-                if (_leverControls.getCCNumber() == 7) {
+                if (_leverControls.getCCNumber() == 128) {
                     _leverControls.setValue(_currentValue);
                 }
             } else {
