@@ -35,6 +35,37 @@ Adafruit_MCP23X17 mcp_U2;
 
 LEDController ledController;
 
+// Pink LED PWM control variables
+const int PINK_LED_PWM_PIN = 8; // Update if different
+unsigned long pinkLedPressStart = 0;
+unsigned long pinkLedReleaseStart = 0;
+float pinkLedBrightness = 0.0f;
+bool pinkLedWasPressed = false;
+const int PWM_MAX = 255;
+const int PWM_MIN = 0;
+const int PINK_PWM_MAX = 83; // Pink LED max brightness
+const float BRIGHTNESS_STEP_UP = 0.6f; // 2x faster ramp up for pink LED
+const float BRIGHTNESS_STEP_DOWN = 0.5f; // smaller step for smooth ramp down
+const float BLUE_LEFT_STEP_UP = 5.2f; // 2x faster ramp up for blue LED
+const float BLUE_LEFT_STEP_DOWN = 5.1f; // ramp down in ~0.5 second
+
+// Blue LED PWM control variables
+const int BLUE_LED_PWM_PIN = 7; // Update if different
+unsigned long blueLedPressStart = 0;
+unsigned long blueLedReleaseStart = 0;
+float blueLedBrightness = 0.0f;
+bool blueLedWasPressed = false;
+
+// Lever push state tracking for blue and pink LED effects
+bool leverPushWasPressed = false;
+bool leverPushIsPressed = false;
+unsigned long pinkPulseStart = 0;
+bool pinkPulseActive = false;
+const int PINK_PULSE_MAX = PINK_PWM_MAX;
+const float PINK_PULSE_STEP_UP = 2.0f;
+const float PINK_PULSE_STEP_DOWN = 2.0f;
+const int PINK_PULSE_DURATION = 80; // ms at peak
+
 MIDI_CREATE_INSTANCE(HardwareSerial, Serial0, MIDI);
 
 //----------------------------------
@@ -203,6 +234,85 @@ void loadSettings() {
 }
 
 //---------------------------------------------------
+// Startup LED wave bounce (fast & sharp)
+// Sequence: Pink → Blue → Down → Up → Down → Blue
+// Bounce back & forth 2×
+// Then fast double-blink all LEDs
+// Finally, steady ON (500 ms) as confirmation
+//---------------------------------------------------
+void startupPulseSequence() {
+    const int onTime = 80;      // LED ON duration (fast flash)
+    const int gapTime = 5;      // quick gap between LEDs
+    const int cyclePause = 100; // short pause after full bounce
+
+    // Wave bounce 2×
+    for (int i = 0; i < 2; i++) {
+        // Forward wave
+        ledController.set(LedColor::PINK, true);
+        delay(onTime);
+        ledController.set(LedColor::PINK, false);
+        delay(gapTime);
+
+        ledController.set(LedColor::BLUE, true);
+        delay(onTime);
+        ledController.set(LedColor::BLUE, false);
+        delay(gapTime);
+
+        ledController.set(LedColor::OCTAVE_DOWN, true);
+        delay(onTime);
+        ledController.set(LedColor::OCTAVE_DOWN, false);
+        delay(gapTime);
+
+        ledController.set(LedColor::OCTAVE_UP, true);
+        delay(onTime);
+        ledController.set(LedColor::OCTAVE_UP, false);
+        delay(gapTime);
+
+        // Backward wave (stop at Blue, don’t repeat Pink here)
+        ledController.set(LedColor::OCTAVE_DOWN, true);
+        delay(onTime);
+        ledController.set(LedColor::OCTAVE_DOWN, false);
+        delay(gapTime);
+
+        ledController.set(LedColor::BLUE, true);
+        delay(onTime);
+        ledController.set(LedColor::BLUE, false);
+
+        delay(cyclePause);
+    }
+
+    // <-- Added longer pause before final blinks
+    delay(300);
+
+    // Final fast double-blink all LEDs together
+    for (int j = 0; j < 2; j++) {
+        ledController.set(LedColor::PINK, true);
+        ledController.set(LedColor::BLUE, true);
+        ledController.set(LedColor::OCTAVE_DOWN, true);
+        ledController.set(LedColor::OCTAVE_UP, true);
+        delay(100);  // fast ON
+
+        ledController.set(LedColor::PINK, false);
+        ledController.set(LedColor::BLUE, false);
+        ledController.set(LedColor::OCTAVE_DOWN, false);
+        ledController.set(LedColor::OCTAVE_UP, false);
+        delay(100);  // fast OFF
+    }
+
+    // Final steady ON confirmation
+    ledController.set(LedColor::PINK, true);
+    ledController.set(LedColor::BLUE, true);
+    ledController.set(LedColor::OCTAVE_DOWN, true);
+    ledController.set(LedColor::OCTAVE_UP, true);
+    delay(500);  // longer confirmation ON
+    ledController.set(LedColor::PINK, false);
+    ledController.set(LedColor::BLUE, false);
+    ledController.set(LedColor::OCTAVE_DOWN, false);
+    ledController.set(LedColor::OCTAVE_UP, false);
+}
+
+
+//---------------------------------------------------
 //
 //  Setup
 //
@@ -211,12 +321,9 @@ void setup() {
     SERIAL_BEGIN();
     SERIAL_PRINTLN("Serial monitor started.");
 
-    // initialize digital pin LED_BUILTIN as an output.
     pinMode(LED_BUILTIN, OUTPUT);
-    // Keep built-in LED on continuously (active low for some boards)
-    digitalWrite(LED_BUILTIN, LOW);
+    digitalWrite(LED_BUILTIN, LOW); // Keep LED on
 
-    // Initialize Preferences
     if (!preferences.begin("kb1-settings", false)) {
         SERIAL_PRINTLN("Error initializing Preferences. Rebooting...");
         ESP.restart();
@@ -224,29 +331,22 @@ void setup() {
         SERIAL_PRINTLN("Preferences initialized successfully.");
     }
 
-    loadSettings(); // Load settings after Preferences are initialized
+    loadSettings();
 
-    // Start MCP_U1
     if (!mcp_U1.begin_I2C(0x20)) {
         SERIAL_PRINTLN("Error initializing U1.");
-        // ReSharper disable once CppDFAEndlessLoop
         while (true) {}
     }
-    // Start MCP_U2
     if (!mcp_U2.begin_I2C(0x21)) {
         SERIAL_PRINTLN("Error initializing U2.");
-        // ReSharper disable once CppDFAEndlessLoop
         while (true) {}
     }
 
-    // Add a small delay to allow MCP2 to fully initialize
-    delay(100);
+    delay(100); // Allow MCP to settle
 
-    // Configure SWD buttons on U1 as inputs with pull-up
     mcp_U1.pinMode(SWD1_LEFT_PIN, INPUT_PULLUP);
     mcp_U1.pinMode(SWD1_CENTER_PIN, INPUT_PULLUP);
 
-    // Configure SWD buttons on U2 as inputs with pull-up
     mcp_U2.pinMode(SWD1_RIGHT_PIN, INPUT_PULLUP);
     mcp_U2.pinMode(SWD2_LEFT_PIN, INPUT_PULLUP);
     mcp_U2.pinMode(SWD2_CENTER_PIN, INPUT_PULLUP);
@@ -262,8 +362,13 @@ void setup() {
     ledController.begin(LedColor::OCTAVE_UP, 7, &mcp_U2);
     ledController.begin(LedColor::OCTAVE_DOWN, 5, &mcp_U2);
 
-    ledController.begin(LedColor::BLUE, 7);
-    ledController.begin(LedColor::PINK, 8);
+    ledController.begin(LedColor::BLUE, BLUE_LED_PWM_PIN);
+    ledController.begin(LedColor::PINK, PINK_LED_PWM_PIN);
+    pinMode(PINK_LED_PWM_PIN, OUTPUT); // Ensure PWM pin is set
+    pinMode(BLUE_LED_PWM_PIN, OUTPUT); // Ensure PWM pin is set
+
+    // Run LED startup sequence
+    startupPulseSequence();
 
     bluetoothControllerPtr = new BluetoothController(
         preferences,
@@ -282,12 +387,11 @@ void setup() {
 
 //---------------------------------------------------
 //
-//  Loops
+//  Loop
 //
 //---------------------------------------------------
 void loop() {
     ledController.update();
-    // Small delay to avoid watchdog timer issues
     vTaskDelay(1 / portTICK_PERIOD_MS);
 }
 
@@ -300,6 +404,86 @@ void loop() {
         leverPush2.update();
         octaveControl.update();
         keyboardControl.updateKeyboardState();
+
+        // Smooth PWM brightness logic for pink LED (right)
+        bool lever1Right = mcp_U2.digitalRead(SWD1_RIGHT_PIN) == LOW;
+        bool lever2Right = mcp_U2.digitalRead(SWD2_RIGHT_PIN) == LOW;
+        bool pinkLedPressed = lever1Right || lever2Right;
+
+        if (pinkLedPressed) {
+            if (pinkLedBrightness < PINK_PWM_MAX) {
+                pinkLedBrightness += BRIGHTNESS_STEP_UP;
+                if (pinkLedBrightness > PINK_PWM_MAX) pinkLedBrightness = PINK_PWM_MAX;
+            }
+        } else {
+            if (pinkLedBrightness > PWM_MIN) {
+                pinkLedBrightness -= BRIGHTNESS_STEP_DOWN;
+                if (pinkLedBrightness < PWM_MIN) pinkLedBrightness = PWM_MIN;
+            }
+        }
+        analogWrite(PINK_LED_PWM_PIN, (int)pinkLedBrightness);
+
+        // Smooth PWM brightness logic for blue LED (left)
+        bool lever1Left = mcp_U1.digitalRead(SWD1_LEFT_PIN) == LOW;
+        bool lever2Left = mcp_U2.digitalRead(SWD2_LEFT_PIN) == LOW;
+        bool blueLedPressed = lever1Left || lever2Left;
+
+        static bool blueLedAtMax = false;
+        static float blueLeftBrightness = 0.0f;
+        if (blueLedPressed) {
+            if (blueLeftBrightness < PWM_MAX) {
+                blueLeftBrightness += BLUE_LEFT_STEP_UP;
+                if (blueLeftBrightness > PWM_MAX) blueLeftBrightness = (float)PWM_MAX;
+            }
+            analogWrite(BLUE_LED_PWM_PIN, (int)(blueLeftBrightness + 0.5f));
+        } else {
+            if (blueLeftBrightness > PWM_MIN) {
+                blueLeftBrightness -= BLUE_LEFT_STEP_DOWN;
+                if (blueLeftBrightness < PWM_MIN) blueLeftBrightness = (float)PWM_MIN;
+            }
+            analogWrite(BLUE_LED_PWM_PIN, (int)(blueLeftBrightness + 0.5f));
+        }
+
+        // Lever push logic for blue LED
+        bool leverPush1Pressed = mcp_U1.digitalRead(SWD1_CENTER_PIN) == LOW;
+        bool leverPush2Pressed = mcp_U2.digitalRead(SWD2_CENTER_PIN) == LOW;
+        leverPushIsPressed = leverPush1Pressed || leverPush2Pressed;
+        unsigned long now = millis();
+
+        static float bluePushBrightness = 0.0f;
+        static unsigned long pinkBlinkStart = 0;
+        static bool pinkBlinkActive = false;
+        static bool pinkBlinkPending = false;
+
+        if (leverPushIsPressed) {
+            bluePushBrightness = PWM_MAX; // Immediate full brightness
+        } else {
+            bluePushBrightness = PWM_MIN; // Immediate off after release
+        }
+
+        // Combine blue LED brightness from lever left and push
+        float blueLedFinalBrightness = max(blueLeftBrightness, bluePushBrightness);
+        analogWrite(BLUE_LED_PWM_PIN, (int)blueLedFinalBrightness);
+
+        // Pink LED blink at 31 brightness, 100ms after push release
+        if (!leverPushIsPressed && leverPushWasPressed) {
+            pinkBlinkPending = true;
+            pinkBlinkStart = now;
+        }
+        if (pinkBlinkPending && (now - pinkBlinkStart >= 100)) {
+            pinkBlinkActive = true;
+            pinkBlinkPending = false;
+            pinkLedBrightness = 31.0f;
+        }
+        if (pinkBlinkActive) {
+            pinkLedBrightness -= PINK_PULSE_STEP_DOWN;
+            if (pinkLedBrightness <= PWM_MIN) {
+                pinkLedBrightness = PWM_MIN;
+                pinkBlinkActive = false;
+            }
+            analogWrite(PINK_LED_PWM_PIN, (int)pinkLedBrightness);
+        }
+        leverPushWasPressed = leverPushIsPressed;
 
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
