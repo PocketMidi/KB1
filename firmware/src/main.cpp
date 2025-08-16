@@ -43,11 +43,11 @@ float pinkLedBrightness = 0.0f;
 bool pinkLedWasPressed = false;
 const int PWM_MAX = 255;
 const int PWM_MIN = 0;
-const int PINK_PWM_MAX = 83; // Pink LED max brightness
-const float BRIGHTNESS_STEP_UP = 0.6f; // 2x faster ramp up for pink LED
-const float BRIGHTNESS_STEP_DOWN = 0.5f; // smaller step for smooth ramp down
-const float BLUE_LEFT_STEP_UP = 5.2f; // 2x faster ramp up for blue LED
-const float BLUE_LEFT_STEP_DOWN = 5.1f; // ramp down in ~0.5 second
+const int PINK_PWM_MAX = PWM_MAX / 4; // Pink LED max brightness at 25%
+const float BRIGHTNESS_STEP_UP = PINK_PWM_MAX / (50.0f / 10.0f); // ramp up in 50ms (10ms loop)
+const float BRIGHTNESS_STEP_DOWN = PINK_PWM_MAX / (150.0f / 10.0f); // ramp down in 150ms (10ms loop)
+const float BLUE_LEFT_STEP_UP = PWM_MAX / (50.0f / 10.0f); // ramp up in 50ms (10ms loop)
+const float BLUE_LEFT_STEP_DOWN = PWM_MAX / (150.0f / 10.0f); // ramp down in 150ms (10ms loop)
 
 // Blue LED PWM control variables
 const int BLUE_LED_PWM_PIN = 7; // Update if different
@@ -435,14 +435,13 @@ void loop() {
                 blueLeftBrightness += BLUE_LEFT_STEP_UP;
                 if (blueLeftBrightness > PWM_MAX) blueLeftBrightness = (float)PWM_MAX;
             }
-            analogWrite(BLUE_LED_PWM_PIN, (int)(blueLeftBrightness + 0.5f));
         } else {
             if (blueLeftBrightness > PWM_MIN) {
                 blueLeftBrightness -= BLUE_LEFT_STEP_DOWN;
                 if (blueLeftBrightness < PWM_MIN) blueLeftBrightness = (float)PWM_MIN;
             }
-            analogWrite(BLUE_LED_PWM_PIN, (int)(blueLeftBrightness + 0.5f));
         }
+        analogWrite(BLUE_LED_PWM_PIN, (int)(blueLeftBrightness + 0.5f));
 
         // Lever push logic for blue LED
         bool leverPush1Pressed = mcp_U1.digitalRead(SWD1_CENTER_PIN) == LOW;
@@ -456,7 +455,7 @@ void loop() {
         static bool pinkBlinkPending = false;
 
         if (leverPushIsPressed) {
-            bluePushBrightness = PWM_MAX; // Immediate full brightness
+            bluePushBrightness = PWM_MAX / 2; // Dim blue LED by half on push
         } else {
             bluePushBrightness = PWM_MIN; // Immediate off after release
         }
@@ -473,7 +472,7 @@ void loop() {
         if (pinkBlinkPending && (now - pinkBlinkStart >= 100)) {
             pinkBlinkActive = true;
             pinkBlinkPending = false;
-            pinkLedBrightness = 31.0f;
+            pinkLedBrightness = 31.0f / 2.0f; // Dim pink LED by half on release blink
         }
         if (pinkBlinkActive) {
             pinkLedBrightness -= PINK_PULSE_STEP_DOWN;
