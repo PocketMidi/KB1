@@ -237,8 +237,6 @@ void loadSettings() {
 // Startup LED wave bounce (fast & sharp)
 // Sequence: Pink → Blue → Down → Up → Down → Blue
 // Bounce back & forth 2×
-// Then fast double-blink all LEDs
-// Finally, steady ON (500 ms) as confirmation
 //---------------------------------------------------
 void startupPulseSequence() {
     const int onTime = 80;      // LED ON duration (fast flash)
@@ -281,34 +279,9 @@ void startupPulseSequence() {
         delay(cyclePause);
     }
 
-    // <-- Added longer pause before final blinks
-    delay(300);
-
-    // Final fast double-blink all LEDs together
-    for (int j = 0; j < 2; j++) {
-        ledController.set(LedColor::PINK, true);
-        ledController.set(LedColor::BLUE, true);
-        ledController.set(LedColor::OCTAVE_DOWN, true);
-        ledController.set(LedColor::OCTAVE_UP, true);
-        delay(100);  // fast ON
-
-        ledController.set(LedColor::PINK, false);
-        ledController.set(LedColor::BLUE, false);
-        ledController.set(LedColor::OCTAVE_DOWN, false);
-        ledController.set(LedColor::OCTAVE_UP, false);
-        delay(100);  // fast OFF
-    }
-
-    // Final steady ON confirmation
-    ledController.set(LedColor::PINK, true);
-    ledController.set(LedColor::BLUE, true);
-    ledController.set(LedColor::OCTAVE_DOWN, true);
-    ledController.set(LedColor::OCTAVE_UP, true);
-    delay(500);  // longer confirmation ON
-    ledController.set(LedColor::PINK, false);
-    ledController.set(LedColor::BLUE, false);
-    ledController.set(LedColor::OCTAVE_DOWN, false);
-    ledController.set(LedColor::OCTAVE_UP, false);
+    // End of startup sequence — keep the wave/chase only.
+    // Short pause so the last wave step is perceptible before normal operation.
+    delay(100);
 }
 
 
