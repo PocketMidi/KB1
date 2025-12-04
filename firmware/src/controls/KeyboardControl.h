@@ -15,8 +15,8 @@ public:
         : _midi(midi),
           _octaveControl(octaveCtrl),
           _scaleManager(scaleManager),
-          _currentVelocity(81),
-          _minVelocity(2)
+          _currentVelocity(87),
+          _minVelocity(15)
     {
         memset(_isNoteOn, false, sizeof(_isNoteOn));
 
@@ -102,7 +102,13 @@ public:
 
     void setVelocity(const int value) {
         _currentVelocity = value;
+        if (_velocityChangeHook) _velocityChangeHook(_currentVelocity);
     }
+
+    int getVelocity() const { return _currentVelocity; }
+
+    // Register a callback to be notified when velocity changes via setVelocity()
+    void registerVelocityChangeHook(void (*hook)(int)) { _velocityChangeHook = hook; }
 
     void resetAllKeys() {
         for (int i = 0; i < 128; ++i) {
@@ -149,6 +155,7 @@ private:
     int _minVelocity;
     bool _isNoteOn[128]{};
     key _keys[MAX_KEYS];
+    void (*_velocityChangeHook)(int) = nullptr;
 };
 
 #endif

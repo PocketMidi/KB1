@@ -100,6 +100,22 @@ public:
         }
     }
 
+    // Returns whether the touch sensor is currently considered "active".
+    // Call this after `update()` so `_smoothedValue` and state are up-to-date.
+    bool isActive() {
+        int touchValue = (int)(_smoothedValue + 0.5f);
+        int onThreshold = _threshold;
+        int offThreshold = max(_sensorMin, (int)(_threshold * 0.75f));
+        switch (_settings.functionMode) {
+            case TouchFunctionMode::CONTINUOUS:
+                return touchValue > offThreshold;
+            case TouchFunctionMode::HOLD:
+            case TouchFunctionMode::TOGGLE:
+            default:
+                return _toggleState || _wasPressed;
+        }
+    }
+
 private:
     int _touchPin;
     TouchSettings& _settings;

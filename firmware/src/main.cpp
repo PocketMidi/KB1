@@ -37,36 +37,24 @@ LEDController ledController;
 
 // Pink LED PWM control variables
 const int PINK_LED_PWM_PIN = 8; // Update if different
-unsigned long pinkLedPressStart = 0;
-unsigned long pinkLedReleaseStart = 0;
-float pinkLedBrightness = 0.0f;
-bool pinkLedWasPressed = false;
+// Ramping handled by LEDController via set(color, target, duration)
 const int PWM_MAX = 255;
 const int PWM_MIN = 0;
 const int PINK_PWM_MAX = PWM_MAX / 4; // Pink LED max brightness at 25%
-// Ramp step sizes: doubled to make transitions twice as fast
-const float BRIGHTNESS_STEP_UP = (PINK_PWM_MAX / (50.0f / 10.0f)) * 2.0f; // ramp up in 50ms (10ms loop)
-const float BRIGHTNESS_STEP_DOWN = (PINK_PWM_MAX / (150.0f / 10.0f)) * 2.0f; // ramp down in 150ms (10ms loop)
-const float BLUE_LEFT_STEP_UP = (PWM_MAX / (50.0f / 10.0f)) * 2.0f; // ramp up in 50ms (10ms loop)
-const float BLUE_LEFT_STEP_DOWN = (PWM_MAX / (150.0f / 10.0f)) * 2.0f; // ramp down in 150ms (10ms loop)
 
 // Blue LED PWM control variables
 const int BLUE_LED_PWM_PIN = 7; // Update if different
-unsigned long blueLedPressStart = 0;
-unsigned long blueLedReleaseStart = 0;
-float blueLedBrightness = 0.0f;
+// (state tracking moved to read loop)
 bool blueLedWasPressed = false;
 
 // Lever push state tracking for blue and pink LED effects
 bool leverPushWasPressed = false;
 bool leverPushIsPressed = false;
-unsigned long pinkPulseStart = 0;
-bool pinkPulseActive = false;
-const int PINK_PULSE_MAX = PINK_PWM_MAX;
-// Make the pink pulse fade twice as fast as well
-const float PINK_PULSE_STEP_UP = 4.0f;
-const float PINK_PULSE_STEP_DOWN = 4.0f;
-const int PINK_PULSE_DURATION = 80; // ms at peak
+// Ramping durations (ms)
+const unsigned long PINK_RAMP_UP_MS = 50;
+const unsigned long PINK_RAMP_DOWN_MS = 150;
+const unsigned long BLUE_RAMP_UP_MS = 50;
+const unsigned long BLUE_RAMP_DOWN_MS = 150;
 
 MIDI_CREATE_INSTANCE(HardwareSerial, Serial0, MIDI);
 
@@ -129,7 +117,7 @@ LeverControls<decltype(MIDI)> lever1(
 //----------------------------------
 LeverPushSettings leverPush1Settings = {
     .ccNumber = 24,
-    .minCCValue = 32,
+    .minCCValue = 31,
     .maxCCValue = 127,
     .functionMode = LeverPushFunctionMode::INTERPOLATED,
     .onsetTime = 100,
@@ -153,7 +141,7 @@ LeverPushControls<decltype(MIDI)> leverPush1(
 //----------------------------------
 LeverSettings lever2Settings = {
     .ccNumber = 128,
-    .minCCValue = 0,
+    .minCCValue = 15,
     .maxCCValue = 127,
     .stepSize = 8,
     .functionMode = LeverFunctionMode::INCREMENTAL,
@@ -180,8 +168,8 @@ LeverControls<decltype(MIDI)> lever2(
 //----------------------------------
 LeverPushSettings leverPush2Settings = {
     .ccNumber = 128,
-    .minCCValue = 81,
-    .maxCCValue = 127,
+    .minCCValue = 87,
+    .maxCCValue = 87,
     .functionMode = LeverPushFunctionMode::RESET,
     .onsetTime = 100,
     .offsetTime = 100,
@@ -248,35 +236,35 @@ void startupPulseSequence() {
     // Wave bounce 2×
     for (int i = 0; i < 2; i++) {
         // Forward wave
-        ledController.set(LedColor::PINK, true);
+        ledController.set(LedColor::PINK, PINK_PWM_MAX);
         delay(onTime);
-        ledController.set(LedColor::PINK, false);
+        ledController.set(LedColor::PINK, 0);
         delay(gapTime);
 
-        ledController.set(LedColor::BLUE, true);
+        ledController.set(LedColor::BLUE, PWM_MAX);
         delay(onTime);
-        ledController.set(LedColor::BLUE, false);
+        ledController.set(LedColor::BLUE, 0);
         delay(gapTime);
 
-        ledController.set(LedColor::OCTAVE_DOWN, true);
+        ledController.set(LedColor::OCTAVE_DOWN, 1);
         delay(onTime);
-        ledController.set(LedColor::OCTAVE_DOWN, false);
+        ledController.set(LedColor::OCTAVE_DOWN, 0);
         delay(gapTime);
 
-        ledController.set(LedColor::OCTAVE_UP, true);
+        ledController.set(LedColor::OCTAVE_UP, 1);
         delay(onTime);
-        ledController.set(LedColor::OCTAVE_UP, false);
+        ledController.set(LedColor::OCTAVE_UP, 0);
         delay(gapTime);
 
         // Backward wave (stop at Blue, don’t repeat Pink here)
-        ledController.set(LedColor::OCTAVE_DOWN, true);
+        ledController.set(LedColor::OCTAVE_DOWN, 1);
         delay(onTime);
-        ledController.set(LedColor::OCTAVE_DOWN, false);
+        ledController.set(LedColor::OCTAVE_DOWN, 0);
         delay(gapTime);
 
-        ledController.set(LedColor::BLUE, true);
+        ledController.set(LedColor::BLUE, PWM_MAX);
         delay(onTime);
-        ledController.set(LedColor::BLUE, false);
+        ledController.set(LedColor::BLUE, 0);
 
         delay(cyclePause);
     }
@@ -334,6 +322,12 @@ void setup() {
     octaveControl.begin();
     keyboardControl.begin();
 
+    // Register velocity hook to keep lever2 in sync when velocity changes
+    auto velocityHook = [](int v) {
+        lever2.setValue(v);
+    };
+    keyboardControl.registerVelocityChangeHook(velocityHook);
+
     ledController.begin(LedColor::OCTAVE_UP, 7, &mcp_U2);
     ledController.begin(LedColor::OCTAVE_DOWN, 5, &mcp_U2);
 
@@ -380,83 +374,47 @@ void loop() {
         octaveControl.update();
         keyboardControl.updateKeyboardState();
 
-        // Smooth PWM brightness logic for pink LED (right)
+        // Query touch sensor active state (affects LED behavior)
+        bool touchActive = touch.isActive();
+
+        // Pink LED: compute target and use LEDController ramping
         bool lever1Right = mcp_U2.digitalRead(SWD1_RIGHT_PIN) == LOW;
         bool lever2Right = mcp_U2.digitalRead(SWD2_RIGHT_PIN) == LOW;
         bool pinkLedPressed = lever1Right || lever2Right;
-
-        if (pinkLedPressed) {
-            if (pinkLedBrightness < PINK_PWM_MAX) {
-                pinkLedBrightness += BRIGHTNESS_STEP_UP;
-                if (pinkLedBrightness > PINK_PWM_MAX) pinkLedBrightness = PINK_PWM_MAX;
-            }
-        } else {
-            if (pinkLedBrightness > PWM_MIN) {
-                pinkLedBrightness -= BRIGHTNESS_STEP_DOWN;
-                if (pinkLedBrightness < PWM_MIN) pinkLedBrightness = PWM_MIN;
-            }
+        static int _lastPinkTarget = -1;
+        int _pinkTarget = pinkLedPressed ? PINK_PWM_MAX : 0;
+        if (touchActive) {
+            _pinkTarget = PINK_PWM_MAX;
         }
-        analogWrite(PINK_LED_PWM_PIN, (int)pinkLedBrightness);
+        if (_pinkTarget != _lastPinkTarget) {
+            unsigned long dur = (_pinkTarget > _lastPinkTarget) ? PINK_RAMP_UP_MS : PINK_RAMP_DOWN_MS;
+            ledController.set(LedColor::PINK, _pinkTarget, dur);
+            _lastPinkTarget = _pinkTarget;
+        }
 
-        // Smooth PWM brightness logic for blue LED (left)
+        // Blue LED: compute left/push targets and use LEDController ramping
         bool lever1Left = mcp_U1.digitalRead(SWD1_LEFT_PIN) == LOW;
         bool lever2Left = mcp_U2.digitalRead(SWD2_LEFT_PIN) == LOW;
-        bool blueLedPressed = lever1Left || lever2Left;
-
-        static bool blueLedAtMax = false;
-        static float blueLeftBrightness = 0.0f;
-        if (blueLedPressed) {
-            if (blueLeftBrightness < PWM_MAX) {
-                blueLeftBrightness += BLUE_LEFT_STEP_UP;
-                if (blueLeftBrightness > PWM_MAX) blueLeftBrightness = (float)PWM_MAX;
-            }
-        } else {
-            if (blueLeftBrightness > PWM_MIN) {
-                blueLeftBrightness -= BLUE_LEFT_STEP_DOWN;
-                if (blueLeftBrightness < PWM_MIN) blueLeftBrightness = (float)PWM_MIN;
-            }
-        }
-        analogWrite(BLUE_LED_PWM_PIN, (int)(blueLeftBrightness + 0.5f));
+        bool blueLeftPressed = lever1Left || lever2Left;
 
         // Lever push logic for blue LED
         bool leverPush1Pressed = mcp_U1.digitalRead(SWD1_CENTER_PIN) == LOW;
         bool leverPush2Pressed = mcp_U2.digitalRead(SWD2_CENTER_PIN) == LOW;
         leverPushIsPressed = leverPush1Pressed || leverPush2Pressed;
-        unsigned long now = millis();
 
-        static float bluePushBrightness = 0.0f;
-        static unsigned long pinkBlinkStart = 0;
-        static bool pinkBlinkActive = false;
-        static bool pinkBlinkPending = false;
-
-        if (leverPushIsPressed) {
-            bluePushBrightness = PWM_MAX / 2; // Dim blue LED by half on push
-        } else {
-            bluePushBrightness = PWM_MIN; // Immediate off after release
+        static int _lastBlueTarget = -1;
+        int leftTarget = blueLeftPressed ? PWM_MAX : 0;
+        int pushTarget = leverPushIsPressed ? (PWM_MAX / 2) : 0;
+        int _blueTarget = max(leftTarget, pushTarget);
+        if (touchActive) {
+            _blueTarget = PWM_MAX;
+        }
+        if (_blueTarget != _lastBlueTarget) {
+            unsigned long dur = (_blueTarget > _lastBlueTarget) ? BLUE_RAMP_UP_MS : BLUE_RAMP_DOWN_MS;
+            ledController.set(LedColor::BLUE, _blueTarget, dur);
+            _lastBlueTarget = _blueTarget;
         }
 
-        // Combine blue LED brightness from lever left and push
-        float blueLedFinalBrightness = max(blueLeftBrightness, bluePushBrightness);
-        analogWrite(BLUE_LED_PWM_PIN, (int)blueLedFinalBrightness);
-
-        // Pink LED blink at 31 brightness, 100ms after push release
-        if (!leverPushIsPressed && leverPushWasPressed) {
-            pinkBlinkPending = true;
-            pinkBlinkStart = now;
-        }
-        if (pinkBlinkPending && (now - pinkBlinkStart >= 100)) {
-            pinkBlinkActive = true;
-            pinkBlinkPending = false;
-            pinkLedBrightness = 31.0f / 2.0f; // Dim pink LED by half on release blink
-        }
-        if (pinkBlinkActive) {
-            pinkLedBrightness -= PINK_PULSE_STEP_DOWN;
-            if (pinkLedBrightness <= PWM_MIN) {
-                pinkLedBrightness = PWM_MIN;
-                pinkBlinkActive = false;
-            }
-            analogWrite(PINK_LED_PWM_PIN, (int)pinkLedBrightness);
-        }
         leverPushWasPressed = leverPushIsPressed;
 
         vTaskDelay(10 / portTICK_PERIOD_MS);

@@ -93,6 +93,17 @@ LeverControls<MidiTransport>::LeverControls(
             _targetValue = _settings.minCCValue;
             _rampStartValue = _settings.minCCValue;
         }
+        // If this lever is configured to control velocity (internal marker ccNumber==128),
+        // initialize its current/target/ramp values from the keyboard's current velocity
+        // so it starts in sync instead of defaulting to 64.
+        if (_settings.ccNumber == 128) {
+            int vel = _keyboardControl.getVelocity();
+            _currentValue = vel;
+            _targetValue = vel;
+            _rampStartValue = vel;
+            SERIAL_PRINT("Lever CC 128 initialized to: "); SERIAL_PRINTLN(vel);
+        }
+
         _lastSentValue = _currentValue;
     }
 

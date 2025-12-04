@@ -27,11 +27,11 @@ public:
         const bool s4State = !mcp.digitalRead(S4_PIN);
 
         // If Bluetooth was recently toggled, ignore octave button activity
-        // for 2000 ms to avoid accidental octave changes immediately after
+        // for 4000 ms to avoid accidental octave changes immediately after
         // enabling/disabling Bluetooth.
         if (_bluetoothController) {
             unsigned long lastToggle = _bluetoothController->getLastToggleTime();
-            if (lastToggle != 0 && (now - lastToggle) < 2000) {
+            if (lastToggle != 0 && (now - lastToggle) < 4000) {
                 // During cooldown, sync internal pressed state to current readings
                 // so we ignore both presses and releases for the cooldown period.
                 isS3Pressed = s3State;
