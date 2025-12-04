@@ -44,10 +44,11 @@ bool pinkLedWasPressed = false;
 const int PWM_MAX = 255;
 const int PWM_MIN = 0;
 const int PINK_PWM_MAX = PWM_MAX / 4; // Pink LED max brightness at 25%
-const float BRIGHTNESS_STEP_UP = PINK_PWM_MAX / (50.0f / 10.0f); // ramp up in 50ms (10ms loop)
-const float BRIGHTNESS_STEP_DOWN = PINK_PWM_MAX / (150.0f / 10.0f); // ramp down in 150ms (10ms loop)
-const float BLUE_LEFT_STEP_UP = PWM_MAX / (50.0f / 10.0f); // ramp up in 50ms (10ms loop)
-const float BLUE_LEFT_STEP_DOWN = PWM_MAX / (150.0f / 10.0f); // ramp down in 150ms (10ms loop)
+// Ramp step sizes: doubled to make transitions twice as fast
+const float BRIGHTNESS_STEP_UP = (PINK_PWM_MAX / (50.0f / 10.0f)) * 2.0f; // ramp up in 50ms (10ms loop)
+const float BRIGHTNESS_STEP_DOWN = (PINK_PWM_MAX / (150.0f / 10.0f)) * 2.0f; // ramp down in 150ms (10ms loop)
+const float BLUE_LEFT_STEP_UP = (PWM_MAX / (50.0f / 10.0f)) * 2.0f; // ramp up in 50ms (10ms loop)
+const float BLUE_LEFT_STEP_DOWN = (PWM_MAX / (150.0f / 10.0f)) * 2.0f; // ramp down in 150ms (10ms loop)
 
 // Blue LED PWM control variables
 const int BLUE_LED_PWM_PIN = 7; // Update if different
@@ -62,8 +63,9 @@ bool leverPushIsPressed = false;
 unsigned long pinkPulseStart = 0;
 bool pinkPulseActive = false;
 const int PINK_PULSE_MAX = PINK_PWM_MAX;
-const float PINK_PULSE_STEP_UP = 2.0f;
-const float PINK_PULSE_STEP_DOWN = 2.0f;
+// Make the pink pulse fade twice as fast as well
+const float PINK_PULSE_STEP_UP = 4.0f;
+const float PINK_PULSE_STEP_DOWN = 4.0f;
 const int PINK_PULSE_DURATION = 80; // ms at peak
 
 MIDI_CREATE_INSTANCE(HardwareSerial, Serial0, MIDI);
@@ -105,8 +107,8 @@ LeverSettings lever1Settings = {
     .stepSize = 1,
     .functionMode = LeverFunctionMode::INTERPOLATED,
     .valueMode = ValueMode::BIPOLAR,
-    .onsetTime = 1000,
-    .offsetTime = 1000,
+    .onsetTime = 100,
+    .offsetTime = 100,
     .onsetType = InterpolationType::LINEAR,
     .offsetType = InterpolationType::LINEAR,
 };
@@ -127,11 +129,11 @@ LeverControls<decltype(MIDI)> lever1(
 //----------------------------------
 LeverPushSettings leverPush1Settings = {
     .ccNumber = 24,
-    .minCCValue = 0,
+    .minCCValue = 32,
     .maxCCValue = 127,
     .functionMode = LeverPushFunctionMode::INTERPOLATED,
-    .onsetTime = 200,
-    .offsetTime = 200,
+    .onsetTime = 100,
+    .offsetTime = 100,
     .onsetType = InterpolationType::LINEAR,
     .offsetType = InterpolationType::LINEAR,
 };
@@ -150,14 +152,14 @@ LeverPushControls<decltype(MIDI)> leverPush1(
 // Lever 2 Setup
 //----------------------------------
 LeverSettings lever2Settings = {
-    .ccNumber = 7,
+    .ccNumber = 128,
     .minCCValue = 0,
     .maxCCValue = 127,
-    .stepSize = 2,
+    .stepSize = 8,
     .functionMode = LeverFunctionMode::INCREMENTAL,
     .valueMode = ValueMode::BIPOLAR,
-    .onsetTime = 200,
-    .offsetTime = 200,
+    .onsetTime = 100,
+    .offsetTime = 100,
     .onsetType = InterpolationType::LINEAR,
     .offsetType = InterpolationType::LINEAR,
 };
@@ -177,12 +179,12 @@ LeverControls<decltype(MIDI)> lever2(
 // LeverPush 2 Setup
 //----------------------------------
 LeverPushSettings leverPush2Settings = {
-    .ccNumber = 7,
+    .ccNumber = 128,
     .minCCValue = 81,
     .maxCCValue = 127,
     .functionMode = LeverPushFunctionMode::RESET,
-    .onsetTime = 200,
-    .offsetTime = 200,
+    .onsetTime = 100,
+    .offsetTime = 100,
     .onsetType = InterpolationType::LINEAR,
     .offsetType = InterpolationType::LINEAR,
 };
@@ -201,10 +203,10 @@ LeverPushControls<decltype(MIDI)> leverPush2(
 // Touch Sensor Setup
 //----------------------------------
 TouchSettings touchSettings = {
-    .ccNumber = 51,
-    .minCCValue = 0,
+    .ccNumber = 1,
+    .minCCValue = 64,
     .maxCCValue = 127,
-    .functionMode = TouchFunctionMode::HOLD,
+    .functionMode = TouchFunctionMode::CONTINUOUS,
 };
 TouchControl<decltype(MIDI)> touch(
     T1,

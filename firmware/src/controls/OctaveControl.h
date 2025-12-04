@@ -22,8 +22,28 @@ public:
     }
 
     void update() {
+        const unsigned long now = millis();
         const bool s3State = !mcp.digitalRead(S3_PIN);
         const bool s4State = !mcp.digitalRead(S4_PIN);
+
+        // If Bluetooth was recently toggled, ignore octave button activity
+        // for 2000 ms to avoid accidental octave changes immediately after
+        // enabling/disabling Bluetooth.
+        if (_bluetoothController) {
+            unsigned long lastToggle = _bluetoothController->getLastToggleTime();
+            if (lastToggle != 0 && (now - lastToggle) < 2000) {
+                // During cooldown, sync internal pressed state to current readings
+                // so we ignore both presses and releases for the cooldown period.
+                isS3Pressed = s3State;
+                isS4Pressed = s4State;
+                areS3S4Pressed = s3State && s4State;
+                if (!areS3S4Pressed) {
+                    _s3s4PressStartTime = 0;
+                    _bluetoothToggleTriggered = false;
+                }
+                return; // still in cooldown
+            }
+        }
 
         if (s3State && s4State) {
             if (!areS3S4Pressed) {

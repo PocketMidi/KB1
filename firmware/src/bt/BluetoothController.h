@@ -39,6 +39,9 @@ public:
     BLECharacteristic* getScaleSettingsCharacteristic() { return _pScaleSettingsCharacteristic; }
     BLECharacteristic* getMidiCharacteristic() { return _pMidiCharacteristic; }
 
+    // Access the last enable/disable timestamp for cooldown checks
+    unsigned long getLastToggleTime() const { return _lastToggleTime; }
+
 
     // Methods for ServerCallbacks to update connection status and advertising
     void setDeviceConnected(bool connected);
@@ -51,6 +54,7 @@ private:
     BLEAdvertising* _pAdvertising;
     bool _deviceConnected;
     bool _isEnabled;
+    unsigned long _lastToggleTime;
 
     BLECharacteristic* _pLever1SettingsCharacteristic;
     BLECharacteristic* _pLeverPush1SettingsCharacteristic;

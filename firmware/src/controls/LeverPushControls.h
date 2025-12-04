@@ -136,9 +136,10 @@ void LeverPushControls<MidiTransport>::handleInput() {
         if (state) {
             _currentValue = _settings.minCCValue;
             if (_settings.ccNumber == 128) {
-                _keyboardControl.setVelocity(_currentValue);
+                int vel = constrain(_currentValue, 0, 127);
+                _keyboardControl.setVelocity(vel);
                 if (_leverControls.getCCNumber() == 128) {
-                    _leverControls.setValue(_currentValue);
+                    _leverControls.setValue(vel);
                 }
             } else {
                 _leverControls.setValue(_currentValue);
@@ -223,11 +224,14 @@ void LeverPushControls<MidiTransport>::updateValue() {
     }
 
     if (_currentValue != _lastSentValue) {
-        SERIAL_PRINT("Sending CC "); SERIAL_PRINT(_settings.ccNumber);
-        SERIAL_PRINT(", Value: "); SERIAL_PRINTLN(_currentValue);
-        _midi.sendControlChange(_settings.ccNumber, _currentValue, 1);
+        int sendVal = constrain(_currentValue, 0, 127);
         if (_settings.ccNumber == 128) {
-            _keyboardControl.setVelocity(_currentValue);
+            SERIAL_PRINT("Velocity set: "); SERIAL_PRINTLN(sendVal);
+            _keyboardControl.setVelocity(sendVal);
+        } else {
+            SERIAL_PRINT("Sending CC "); SERIAL_PRINT(_settings.ccNumber);
+            SERIAL_PRINT(", Value: "); SERIAL_PRINTLN(sendVal);
+            _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
         }
         // _ledController.set(_ledColor, _currentValue);
         _lastSentValue = _currentValue;

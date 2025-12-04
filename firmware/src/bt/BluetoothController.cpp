@@ -38,7 +38,8 @@ BluetoothController::BluetoothController(
     _pScaleSettingsCharacteristic(nullptr),
     _pMidiCharacteristic(nullptr),
     _pService(nullptr),
-    _isEnabled(false)
+    _isEnabled(false),
+    _lastToggleTime(0)
 {
 }
 
@@ -205,6 +206,7 @@ void BluetoothController::enable() {
         BLEDevice::startAdvertising();
         SERIAL_PRINTLN("Waiting for a BLE client connection...");
         _isEnabled = true;
+        _lastToggleTime = millis();
         // Blink LEDs for Bluetooth enabled
         _ledController.pulse(LedColor::BLUE, 333, 2000);
         _ledController.pulse(LedColor::PINK, 333, 2000);
@@ -219,6 +221,7 @@ void BluetoothController::disable() {
         }
         BLEDevice::deinit(false);
         _isEnabled = false;
+        _lastToggleTime = millis();
         SERIAL_PRINTLN("Bluetooth Disabled.");
         // Blink LEDs for Bluetooth disabled
         _ledController.pulse(LedColor::BLUE, 1000, 2000);
