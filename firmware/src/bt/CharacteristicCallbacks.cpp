@@ -29,6 +29,11 @@ CharacteristicCallbacks::CharacteristicCallbacks(
 void CharacteristicCallbacks::onWrite(BLECharacteristic *pCharacteristic) {
     const std::string rxValue = pCharacteristic->getValue();
 
+    // Notify controller of activity
+    if (_controller) {
+        _controller->updateLastActivity();
+    }
+
     if (pCharacteristic->getUUID().equals(BLEUUID(LEVER1_SETTINGS_UUID))) {
         if (rxValue.length() == sizeof(LeverSettings)) {
             memcpy(&_lever1Settings, rxValue.data(), sizeof(LeverSettings));

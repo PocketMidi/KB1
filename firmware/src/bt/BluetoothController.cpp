@@ -5,6 +5,7 @@
 #include <objects/Constants.h>
 #include <objects/Globals.h>
 #include <objects/Settings.h>
+#include <esp_wifi.h>
 
 BluetoothController::BluetoothController(
     Preferences& preferences,
@@ -39,7 +40,9 @@ BluetoothController::BluetoothController(
     _pMidiCharacteristic(nullptr),
     _pService(nullptr),
     _isEnabled(false),
-    _lastToggleTime(0)
+    _lastToggleTime(0),
+    _lastActivity(0),
+    _modemSleeping(false)
 {
 }
 
@@ -207,6 +210,8 @@ void BluetoothController::enable() {
         SERIAL_PRINTLN("Waiting for a BLE client connection...");
         _isEnabled = true;
         _lastToggleTime = millis();
+        _lastActivity = millis();
+        _modemSleeping = false;
         // Blink LEDs for Bluetooth enabled
         _ledController.pulse(LedColor::BLUE, 333, 2000);
         _ledController.pulse(LedColor::PINK, 333, 2000);
@@ -222,6 +227,8 @@ void BluetoothController::disable() {
         BLEDevice::deinit(false);
         _isEnabled = false;
         _lastToggleTime = millis();
+        _lastActivity = millis();
+        _modemSleeping = false;
         SERIAL_PRINTLN("Bluetooth Disabled.");
         // Blink LEDs for Bluetooth disabled
         _ledController.pulse(LedColor::BLUE, 1000, 2000);
@@ -231,4 +238,34 @@ void BluetoothController::disable() {
 
 void BluetoothController::setDeviceConnected(bool connected) {
     _deviceConnected = connected;
+    if (connected) {
+        SERIAL_PRINTLN("BLE client connected.");
+    } else {
+        SERIAL_PRINTLN("BLE client disconnected.");
+    }
+    // Treat connection event as activity (will still allow sleep after idleThreshold)
+    updateLastActivity();
+}
+
+void BluetoothController::updateLastActivity() {
+    _lastActivity = millis();
+    SERIAL_PRINT("BLE activity at ms: "); SERIAL_PRINTLN(_lastActivity);
+    if (_modemSleeping) {
+        esp_wifi_set_ps(WIFI_PS_NONE);
+        _modemSleeping = false;
+        SERIAL_PRINTLN("Exiting modem sleep due to BLE activity.");
+    }
+}
+
+void BluetoothController::checkIdleAndSleep(unsigned long idleThresholdMs) {
+    if (!_isEnabled) return;
+    // Idle is determined strictly by last characteristic activity timestamp,
+    // even if a BLE client is connected.
+    unsigned long now = millis();
+    if (!_modemSleeping && (now - _lastActivity >= idleThresholdMs)) {
+        // Enter modem sleep
+        esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+        _modemSleeping = true;
+        SERIAL_PRINTLN("Entering modem sleep due to BLE idle.");
+    }
 }

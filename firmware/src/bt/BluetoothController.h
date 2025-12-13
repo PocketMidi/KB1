@@ -48,6 +48,11 @@ public:
     bool isEnabled() { return _isEnabled; }
     BLEAdvertising* getAdvertising() { return _pAdvertising; }
 
+    // Activity/sleep control (public API)
+    void updateLastActivity();
+    unsigned long getLastActivity() const { return _lastActivity; }
+    void checkIdleAndSleep(unsigned long idleThresholdMs);
+
 private:
     BLEServer* _pServer;
     BLEService* _pService;
@@ -55,6 +60,8 @@ private:
     bool _deviceConnected;
     bool _isEnabled;
     unsigned long _lastToggleTime;
+    unsigned long _lastActivity;
+    bool _modemSleeping;
 
     BLECharacteristic* _pLever1SettingsCharacteristic;
     BLECharacteristic* _pLeverPush1SettingsCharacteristic;
@@ -66,6 +73,7 @@ private:
 
     Preferences& _preferences;
     ScaleManager& _scaleManager;
+
 
     // References to settings structs
     LeverSettings& _lever1Settings;

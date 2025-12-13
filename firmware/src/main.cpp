@@ -361,6 +361,10 @@ void setup() {
 //---------------------------------------------------
 void loop() {
     ledController.update();
+    // Check BLE idle and enter modem sleep if needed (90 seconds = 90000 ms)
+    if (bluetoothControllerPtr) {
+        bluetoothControllerPtr->checkIdleAndSleep(90000);
+    }
     vTaskDelay(1 / portTICK_PERIOD_MS);
 }
 
