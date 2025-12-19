@@ -10,10 +10,9 @@ class OctaveControl {
 public:
     OctaveControl(
         GpioExpander& mcp, LedManager& ledController, BluetoothController* bluetoothController)
-                : mcp(mcp), ledController(ledController), _bluetoothController(bluetoothController), currentOctave(0),
-                    isS3Pressed(false), isS4Pressed(false), areS3S4Pressed(false),
-                    _s3s4PressStartTime(0), _bluetoothToggleTriggered(false),
-                    _s3PotentialStart(0), _s4PotentialStart(0) {}
+        : mcp(mcp), ledController(ledController), _bluetoothController(bluetoothController), currentOctave(0),
+          isS3Pressed(false), isS4Pressed(false), areS3S4Pressed(false),
+          _s3s4PressStartTime(0), _bluetoothToggleTriggered(false) {}
 
     void setBluetoothController(BluetoothController* controller) { _bluetoothController = controller; }
 
@@ -65,38 +64,6 @@ public:
                 _bluetoothToggleTriggered = true;
             }
         } else {
-            // Clear simultaneous potential starts when not both pressed
-            _s3PotentialStart = (_s3PotentialStart && !s3State) ? 0 : _s3PotentialStart;
-            _s4PotentialStart = (_s4PotentialStart && !s4State) ? 0 : _s4PotentialStart;
-
-            // Handle single-button press confirmation (50ms) to avoid false activation
-            const unsigned long CONFIRM_MS = 50;
-
-            if (s3State && !s4State) {
-                // Start potential timer if not already pressed
-                if (!isS3Pressed && _s3PotentialStart == 0) {
-                    _s3PotentialStart = now;
-                }
-                // Confirm after CONFIRM_MS
-                if (!isS3Pressed && _s3PotentialStart != 0 && (now - _s3PotentialStart >= CONFIRM_MS)) {
-                    // Ensure s4 still not pressed
-                    if (!s4State) {
-                        isS3Pressed = true;
-                    }
-                    _s3PotentialStart = 0;
-                }
-            } else if (s4State && !s3State) {
-                if (!isS4Pressed && _s4PotentialStart == 0) {
-                    _s4PotentialStart = now;
-                }
-                if (!isS4Pressed && _s4PotentialStart != 0 && (now - _s4PotentialStart >= CONFIRM_MS)) {
-                    if (!s3State) {
-                        isS4Pressed = true;
-                    }
-                    _s4PotentialStart = 0;
-                }
-            }
-
             if (!s3State && !s4State) {
                 if (areS3S4Pressed) {
                     areS3S4Pressed = false;
@@ -110,12 +77,16 @@ public:
                 isS3Pressed = false; // Reset flag immediately on release
                 shiftOctave(-1);
                 SERIAL_PRINTLN("S3 Released! Octave Down by 1");
+            } else if (s3State) {
+                isS3Pressed = true;
             }
 
             if (!s4State && isS4Pressed) {
                 isS4Pressed = false; // Reset flag immediately on release
                 shiftOctave(1);
                 SERIAL_PRINTLN("S4 Released! Octave Up by 1");
+            } else if (s4State) {
+                isS4Pressed = true;
             }
         }
     }
@@ -165,10 +136,6 @@ private:
 
     unsigned long _s3s4PressStartTime;
     bool _bluetoothToggleTriggered;
-
-    // Potential press timers for debouncing simultaneous press detection
-    unsigned long _s3PotentialStart;
-    unsigned long _s4PotentialStart;
 
     static const int S3_PIN = 4;
     static const int S4_PIN = 6;

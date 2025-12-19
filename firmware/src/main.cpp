@@ -339,6 +339,8 @@ void setup() {
     // Run LED startup sequence
     startupPulseSequence();
 
+    // Initialize Bluetooth controller
+
     bluetoothControllerPtr = new BluetoothController(
         preferences,
         scaleManager,
@@ -367,7 +369,6 @@ void loop() {
     }
     vTaskDelay(1 / portTICK_PERIOD_MS);
 }
-
 [[noreturn]] void readInputs(void *pvParameters) {
     while (true) {
         touch.update();
@@ -419,7 +420,7 @@ void loop() {
             _lastBlueTarget = _blueTarget;
         }
 
-        leverPushWasPressed = leverPushIsPressed;
+        leverPushWasPressed = leverPushIsPressed;        
 
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
