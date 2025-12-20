@@ -146,6 +146,14 @@ public:
         }
     }
 
+    // Return true if any key is currently pressed (debounced state)
+    bool anyKeyActive() const {
+        for (const auto & key : _keys) {
+            if (key.debouncedState) return true;
+        }
+        return false;
+    }
+
 private:
     MidiTransport& _midi;
     OctaveControlType& _octaveControl;

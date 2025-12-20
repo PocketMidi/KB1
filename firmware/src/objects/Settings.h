@@ -35,6 +35,7 @@ struct TouchSettings {
     int minCCValue;
     int maxCCValue;
     TouchFunctionMode functionMode;
+    int threshold; // touch sensor threshold (higher = less sensitive)
 };
 
 // Struct for Scale settings

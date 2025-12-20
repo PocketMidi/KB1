@@ -18,6 +18,7 @@
 #include <freertos/task.h>
 #include <BLEDevice.h>
 #include <esp_bt_main.h>
+#include <esp_sleep.h>
 #include <bt/BluetoothController.h>
 #include <objects/Constants.h>
 #include <objects/Globals.h>
@@ -195,18 +196,37 @@ TouchSettings touchSettings = {
     .minCCValue = 64,
     .maxCCValue = 127,
     .functionMode = TouchFunctionMode::CONTINUOUS,
+    .threshold = 24000,
 };
 TouchControl<decltype(MIDI)> touch(
     T1,
     touchSettings,
-    26000,
-    155000, 
-    26000,
+    24000,
+    48000,
     MIDI
 );
 
 Preferences preferences;
 BluetoothController* bluetoothControllerPtr = nullptr;
+
+// Deep sleep / inactivity tracking
+unsigned long lastActivityMillis = 0;
+const unsigned long DEEP_SLEEP_IDLE_MS = 300000; // 5 minutes (300000 ms)
+bool deepSleepTriggered = false;
+
+// Require a short, confirmed quiet window before starting the deep-sleep countdown
+const unsigned long IDLE_CONFIRM_MS = 2000; // require 2s of no activity to confirm idle
+unsigned long idleStartMillis = 0;
+bool idleConfirmed = false;
+unsigned long idleConfirmTime = 0;
+
+// Forward declaration
+void enterDeepSleep();
+
+// Touch wake callback (called when touch interrupt fires)
+void IRAM_ATTR touchWakeCallback() {
+    // empty: waking is handled by hardware wake source
+}
 
 void readInputs(void *pvParameters);
 void loadSettings() {
@@ -272,6 +292,36 @@ void startupPulseSequence() {
     // End of startup sequence — keep the wave/chase only.
     // Short pause so the last wave step is perceptible before normal operation.
     delay(100);
+}
+
+// Single blink sequence used just before entering deep sleep
+void sleepBlinkOnce() {
+    const int onTime = 80; // LED ON duration
+    const int gapTime = 5; // small gap
+
+    // Pink
+    ledController.set(LedColor::PINK, PINK_PWM_MAX);
+    delay(onTime);
+    ledController.set(LedColor::PINK, 0);
+    delay(gapTime);
+
+    // Blue
+    ledController.set(LedColor::BLUE, PWM_MAX);
+    delay(onTime);
+    ledController.set(LedColor::BLUE, 0);
+    delay(gapTime);
+
+    // Octave down
+    ledController.set(LedColor::OCTAVE_DOWN, 1);
+    delay(onTime);
+    ledController.set(LedColor::OCTAVE_DOWN, 0);
+    delay(gapTime);
+
+    // Octave up
+    ledController.set(LedColor::OCTAVE_UP, 1);
+    delay(onTime);
+    ledController.set(LedColor::OCTAVE_UP, 0);
+    delay(gapTime);
 }
 
 
@@ -354,6 +404,9 @@ void setup() {
     );
 
     octaveControl.setBluetoothController(bluetoothControllerPtr);
+
+    // Initialize activity timer
+    lastActivityMillis = millis();
 }
 
 //---------------------------------------------------
@@ -381,6 +434,9 @@ void loop() {
 
         // Query touch sensor active state (affects LED behavior)
         bool touchActive = touch.isActive();
+
+        // Activity detection: any active input counts as activity
+        bool activityDetected = false;
 
         // Pink LED: compute target and use LEDController ramping
         bool lever1Right = mcp_U2.digitalRead(SWD1_RIGHT_PIN) == LOW;
@@ -422,6 +478,65 @@ void loop() {
 
         leverPushWasPressed = leverPushIsPressed;        
 
+        // Determine activity: touch active, any keyboard key, or any pressed switch
+        bool keyboardActive = keyboardControl.anyKeyActive();
+        activityDetected = touchActive || keyboardActive || pinkLedPressed || blueLeftPressed || leverPushIsPressed;
+
+        if (activityDetected) {
+            // Reset idle confirmation and mark last activity time
+            idleStartMillis = 0;
+            idleConfirmed = false;
+            lastActivityMillis = millis();
+            deepSleepTriggered = false;
+        } else {
+            // No activity detected currently — start/continue idle confirmation
+            if (!idleConfirmed) {
+                if (idleStartMillis == 0) {
+                    idleStartMillis = millis();
+                } else if (millis() - idleStartMillis >= IDLE_CONFIRM_MS) {
+                    // We've had a confirmed quiet window — start deep-sleep countdown
+                    idleConfirmed = true;
+                    idleConfirmTime = millis();
+                }
+            } else {
+                // idleConfirmed true => count towards deep sleep timeout
+                if (!deepSleepTriggered && (millis() - idleConfirmTime >= DEEP_SLEEP_IDLE_MS)) {
+                    deepSleepTriggered = true;
+                    enterDeepSleep();
+                }
+            }
+        }
+
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
+}
+
+void enterDeepSleep() {
+    const uint32_t uptimeMs = millis();
+    const uint32_t idleMs = (uptimeMs > lastActivityMillis) ? (uptimeMs - lastActivityMillis) : 0;
+    const uint8_t wakePin = T1;
+    const uint16_t wakeThreshold = 40; // may need tuning
+    const uint32_t freeHeap = ESP.getFreeHeap();
+
+    SERIAL_PRINTLN("--- Deep Sleep Report ---");
+    SERIAL_PRINT("Uptime (ms): "); SERIAL_PRINTLN(uptimeMs);
+    SERIAL_PRINT("Idle before sleep (ms): "); SERIAL_PRINTLN(idleMs);
+    SERIAL_PRINT("Touch wake pin: "); SERIAL_PRINTLN(wakePin);
+    SERIAL_PRINT("Touch wake threshold: "); SERIAL_PRINTLN(wakeThreshold);
+    SERIAL_PRINT("Free heap (bytes): "); SERIAL_PRINTLN(freeHeap);
+    SERIAL_PRINTLN("-------------------------");
+
+    // Configure touch interrupt for wake
+    touchAttachInterrupt(wakePin, touchWakeCallback, wakeThreshold);
+
+    // Enable touch pad wakeup from sleep (pin and threshold required)
+    touchSleepWakeUpEnable(wakePin, wakeThreshold);
+
+    // Single blink to indicate we're about to sleep
+    sleepBlinkOnce();
+
+    SERIAL_PRINTLN("Entering deep sleep now.");
+    delay(50);
+
+    esp_deep_sleep_start();
 }

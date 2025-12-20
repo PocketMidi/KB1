@@ -2,6 +2,7 @@
 #define TOUCH_CONTROLS_H
 
 #include <Arduino.h>
+#include <objects/Settings.h>
 
 template<typename MidiTransport>
 class TouchControl {
@@ -11,14 +12,12 @@ public:
         TouchSettings& settings,
         int sensorMin,
         int sensorMax,
-        int threshold,
         MidiTransport& midi
     ) :
         _touchPin(touchPin),
         _settings(settings),
         _sensorMin(sensorMin),
         _sensorMax(sensorMax),
-        _threshold(threshold),
         _midi(midi),
         _lastCCTouchValue(-1),
         _lastTouchToggle(0),
@@ -26,7 +25,7 @@ public:
         _toggleState(false),
         _wasPressed(false),
         _smoothedValue(0.0f),
-        _smoothingAlpha(0.15f)
+        _smoothingAlpha(.075f)
     {}
 
     void update() {
@@ -41,9 +40,9 @@ public:
         _smoothedValue = (_smoothingAlpha * (float)raw) + ((1.0f - _smoothingAlpha) * _smoothedValue);
         int touchValue = (int)(_smoothedValue + 0.5f);
 
-        // Hysteresis thresholds: on = _threshold, off = 75% of threshold (but not below sensor min)
-        int onThreshold = _threshold;
-        int offThreshold = max(_sensorMin, (int)(_threshold * 0.75f));
+        // Hysteresis thresholds: on = settings.threshold, off = 75% of threshold (but not below sensor min)
+        int onThreshold = _settings.threshold;
+        int offThreshold = max(_sensorMin, (int)(_settings.threshold * 0.75f));
 
         switch (_settings.functionMode) {
             case TouchFunctionMode::HOLD: {
@@ -104,8 +103,8 @@ public:
     // Call this after `update()` so `_smoothedValue` and state are up-to-date.
     bool isActive() {
         int touchValue = (int)(_smoothedValue + 0.5f);
-        int onThreshold = _threshold;
-        int offThreshold = max(_sensorMin, (int)(_threshold * 0.75f));
+        int onThreshold = _settings.threshold;
+        int offThreshold = max(_sensorMin, (int)(_settings.threshold * 0.75f));
         switch (_settings.functionMode) {
             case TouchFunctionMode::CONTINUOUS:
                 return touchValue > offThreshold;
@@ -121,7 +120,7 @@ private:
     TouchSettings& _settings;
     int _sensorMin;
     int _sensorMax;
-    int _threshold;
+    // threshold now comes from `_settings.threshold` so no local copy needed
     MidiTransport& _midi;
 
     int _lastCCTouchValue;
