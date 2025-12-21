@@ -1,5 +1,5 @@
-#ifndef TOUCH_CONTROLS_H
-#define TOUCH_CONTROLS_H
+#ifndef TOUCH_CONTROL_H
+#define TOUCH_CONTROL_H
 
 #include <Arduino.h>
 #include <objects/Settings.h>

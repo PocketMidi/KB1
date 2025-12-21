@@ -202,7 +202,7 @@ TouchControl<decltype(MIDI)> touch(
     T1,
     touchSettings,
     24000,
-    48000,
+    64000,
     MIDI
 );
 

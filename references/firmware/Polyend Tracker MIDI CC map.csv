@@ -1,0 +1,55 @@
+CC Number,Parameter,Polyend Range
+GLOBAL,,
+1,Cutoff,0 to 100
+3,Finetune,-100 to +100
+5,Tune,-24 to +24
+7,Volume,-24 to +24
+9,Filter Type,1 to 4
+11,Resonance,0 to 100
+12,Overdrive,0 to 100
+13,Bit Depth,4 to 16
+14,Reverb Send,-40 to 0
+15,Delay Send,-40 to 0
+VOLUME,,
+20,Automation Type,
+21,Attack - Shape LFO,
+22,Decay - Speed LFO,
+23,Sustain,
+24,Release,
+25,Amount,
+PANNING,,
+26,Automation Type,
+27,Attack - Shape LFO,
+28,Decay - Speed LFO,
+28,Sustain ,
+30,Release,
+31,Amount,-50 to +50
+CUTOFF,,
+83,Automation Type ,
+84,Attack - Shape LFO,
+85,Decay - Speed LFO ,
+86,Sustain ,
+87,Release,
+88,Amount ,
+"WAVETABLE
+Position",,
+102,Automation Type ,
+103, Attack - Shape LFO ,
+104,Decay - Speed LFO ,
+105,Sustain ,
+106,Release ,
+107,Amount,
+"GRANULAR
+Position",,
+108,Automation Type ,
+109, Attack - Shape LFO ,
+110,Decay - Speed LFO ,
+111,Sustain ,
+112,Release ,
+113,Amount,
+FINETUNE,,
+114,Automation Type ,
+115,Attack - Shape LFO,
+116,Decay - Speed LFO ,
+117,Sustain,
+118,Release ,
