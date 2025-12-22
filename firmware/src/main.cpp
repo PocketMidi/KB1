@@ -19,6 +19,7 @@
 #include <BLEDevice.h>
 #include <esp_bt_main.h>
 #include <esp_sleep.h>
+#include <driver/gpio.h>
 #include <bt/BluetoothController.h>
 #include <objects/Constants.h>
 #include <objects/Globals.h>
@@ -211,7 +212,7 @@ BluetoothController* bluetoothControllerPtr = nullptr;
 
 // Deep sleep / inactivity tracking
 unsigned long lastActivityMillis = 0;
-const unsigned long DEEP_SLEEP_IDLE_MS = 300000; // 5 minutes (300000 ms)
+const unsigned long DEEP_SLEEP_IDLE_MS = 330000; // 5.5 minutes (330000 ms)
 bool deepSleepTriggered = false;
 
 // Require a short, confirmed quiet window before starting the deep-sleep countdown
@@ -222,6 +223,140 @@ unsigned long idleConfirmTime = 0;
 
 // Forward declaration
 void enterDeepSleep();
+void enterLightSleep();
+// Forward declare touch wake callback so it can be referenced by sleep routines
+void IRAM_ATTR touchWakeCallback();
+
+// Enter a light-sleep mode with a simple LED heartbeat sequence.
+// The sequence runs while the MCU repeatedly enters short light-sleep intervals
+// (3s) to conserve power. If touch wake is sensed, return to normal operation.
+// If no input for the configured light-sleep window (5 minutes), fall back
+// to the deep-sleep path.
+void enterLightSleep() {
+    SERIAL_PRINTLN("Preparing to enter light sleep mode...");
+
+    const uint32_t LIGHT_SLEEP_MAX_MS = 90000UL; // 90 seconds
+    uint32_t lightSleepMaxMs = LIGHT_SLEEP_MAX_MS;
+    const uint32_t cycleSleepMs = 2000UL; // 2 seconds between sequences
+    const uint32_t pinkOnMs = 150UL;
+    const uint32_t gapMs = 5UL;
+    const uint32_t blueOnMs = 150UL;
+
+    const uint8_t wakePin = T1;
+    // Use configured touch threshold from settings to keep wake sensitivity consistent
+    const uint32_t cfgThresh = touchSettings.threshold;
+    // Use half the normal touch threshold for wake sensitivity (less sensitive)
+    uint32_t wakeCalc = cfgThresh / 2;
+    const uint16_t wakeThreshold = (wakeCalc > 0x7FFF) ? 0x7FFF : (uint16_t)wakeCalc;
+
+    uint32_t startMs = millis();
+
+    // Configure touch wake behavior (attach callback and enable sleep wake)
+    touchAttachInterrupt(wakePin, touchWakeCallback, wakeThreshold);
+    touchSleepWakeUpEnable(wakePin, wakeThreshold);
+
+    // Disable other peripherals and LEDs except pink/blue
+    // Turn off octave LEDs (they use MCP pins and should be off during sleep)
+    ledController.set(LedColor::OCTAVE_UP, 0);
+    ledController.set(LedColor::OCTAVE_DOWN, 0);
+    // Push immediate update so MCP outputs are driven low before sleep
+    ledController.update();
+
+    // Disable Bluetooth modem if enabled to save power during light sleep
+    bool btWasEnabled = false;
+    if (bluetoothControllerPtr) {
+        btWasEnabled = bluetoothControllerPtr->isEnabled();
+        if (btWasEnabled) {
+            bluetoothControllerPtr->disable();
+        }
+    }
+
+    // Keep PWM for pink/blue active so their duty continues through light sleep.
+    // Do not detach PWM here; LEDController will keep PWM configured.
+
+    // Use LEDController (PWM) to perform the blink sequence so duty persists.
+
+    SERIAL_PRINTLN("Entering light-sleep loop (will fallback to deep-sleep after timeout)...");
+
+    while ((millis() - startMs) < lightSleepMaxMs) {
+        // If any activity has occurred since we began waiting, abort sleep
+        if (touch.isActive() || keyboardControl.anyKeyActive() || (millis() - lastActivityMillis < 1000)) {
+            SERIAL_PRINTLN("Activity detected before light sleep; aborting.");
+            break;
+        }
+
+        // LED sequence using PWM via LEDController so duty remains after wake
+        ledController.set(LedColor::PINK, PINK_PWM_MAX);
+        delay(pinkOnMs);
+        ledController.set(LedColor::PINK, 0);
+        delay(gapMs);
+
+        ledController.set(LedColor::BLUE, PWM_MAX);
+        delay(blueOnMs);
+        ledController.set(LedColor::BLUE, 0);
+        // Force-update and ensure the GPIO is actually driven low before sleep
+        ledController.update();
+        delay(5);
+        if (digitalRead(BLUE_LED_PWM_PIN) == HIGH) {
+            digitalWrite(BLUE_LED_PWM_PIN, LOW);
+        }
+
+        // Prepare a short light-sleep interval (3s). Touch wake remains enabled.
+        esp_sleep_enable_timer_wakeup(cycleSleepMs * 1000ULL);
+        touchSleepWakeUpEnable(wakePin, wakeThreshold);
+
+        SERIAL_PRINTLN("Light sleeping for 3s...");
+        // Ensure touchpad wake is enabled at the esp-sleep level as well
+        esp_sleep_enable_touchpad_wakeup();
+        esp_light_sleep_start();
+
+        // Determine wake reason
+        esp_sleep_wakeup_cause_t wakeReason = esp_sleep_get_wakeup_cause();
+        if (wakeReason == ESP_SLEEP_WAKEUP_TOUCHPAD) {
+            SERIAL_PRINTLN("Woke from light sleep: touchpad");
+            // Update last activity so main loop knows we're active
+            lastActivityMillis = millis();
+            break;
+        } else if (wakeReason == ESP_SLEEP_WAKEUP_TIMER) {
+            SERIAL_PRINTLN("Woke from light sleep: timer");
+        } else if (wakeReason != ESP_SLEEP_WAKEUP_UNDEFINED) {
+            SERIAL_PRINT("Woke from light sleep, reason: ");
+            SERIAL_PRINTLN((int)wakeReason);
+        }
+
+        // Clear timer wakeup source so future iterations set it fresh
+        esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+
+        // small delay to allow peripheral housekeeping after wake
+        delay(10);
+    }
+
+    // Re-enable PWM control via LEDController for normal operation
+    ledController.begin(LedColor::BLUE, BLUE_LED_PWM_PIN);
+    ledController.begin(LedColor::PINK, PINK_LED_PWM_PIN);
+
+    // Restore Bluetooth state if it was enabled before sleeping
+    if (bluetoothControllerPtr && btWasEnabled) {
+        bluetoothControllerPtr->enable();
+    }
+
+    // Release gpio hold so PWM / LEDController can reconfigure pins
+    gpio_hold_dis((gpio_num_t)PINK_LED_PWM_PIN);
+    gpio_hold_dis((gpio_num_t)BLUE_LED_PWM_PIN);
+
+    // If we've exhausted the light sleep window and still no activity, enter deep sleep
+    if ((millis() - startMs) >= lightSleepMaxMs) {
+        SERIAL_PRINTLN("No activity during light sleep window — entering deep sleep.");
+        // Verify again quickly for any last-second activity
+        if (!touch.isActive() && !keyboardControl.anyKeyActive()) {
+            enterDeepSleep();
+        } else {
+            SERIAL_PRINTLN("Activity detected after light sleep window; not entering deep sleep.");
+        }
+    } else {
+        SERIAL_PRINTLN("Exiting light sleep and resuming operation.");
+    }
+}
 
 // Touch wake callback (called when touch interrupt fires)
 void IRAM_ATTR touchWakeCallback() {
@@ -502,7 +637,7 @@ void loop() {
                 // idleConfirmed true => count towards deep sleep timeout
                 if (!deepSleepTriggered && (millis() - idleConfirmTime >= DEEP_SLEEP_IDLE_MS)) {
                     deepSleepTriggered = true;
-                    enterDeepSleep();
+                    enterLightSleep();
                 }
             }
         }
@@ -515,7 +650,10 @@ void enterDeepSleep() {
     const uint32_t uptimeMs = millis();
     const uint32_t idleMs = (uptimeMs > lastActivityMillis) ? (uptimeMs - lastActivityMillis) : 0;
     const uint8_t wakePin = T1;
-    const uint16_t wakeThreshold = 40; // may need tuning
+    const uint32_t cfgThresh = touchSettings.threshold;
+    // Use half the normal touch threshold for wake sensitivity (less sensitive)
+    uint32_t wakeCalc = cfgThresh / 2;
+    const uint16_t wakeThreshold = (wakeCalc > 0x7FFF) ? 0x7FFF : (uint16_t)wakeCalc; // may need tuning
     const uint32_t freeHeap = ESP.getFreeHeap();
 
     SERIAL_PRINTLN("--- Deep Sleep Report ---");
