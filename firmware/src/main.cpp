@@ -31,6 +31,7 @@
 #include <controls/TouchControl.h>
 #include <controls/LeverPushControls.h>
 #include "controls/OctaveControl.h"
+#include <controls/SleepControl.h>
 
 Adafruit_MCP23X17 mcp_U1;
 Adafruit_MCP23X17 mcp_U2;
@@ -210,7 +211,9 @@ TouchControl<decltype(MIDI)> touch(
 Preferences preferences;
 BluetoothController* bluetoothControllerPtr = nullptr;
 
-// Deep sleep / inactivity tracking
+//----------------------------------
+// Sleep / Deep Sleep Management
+//----------------------------------
 unsigned long lastActivityMillis = 0;
 const unsigned long DEEP_SLEEP_IDLE_MS = 330000; // 5.5 minutes (330000 ms)
 bool deepSleepTriggered = false;
@@ -221,9 +224,6 @@ unsigned long idleStartMillis = 0;
 bool idleConfirmed = false;
 unsigned long idleConfirmTime = 0;
 
-// Forward declaration
-void enterDeepSleep();
-void enterLightSleep();
 // Forward declare touch wake callback so it can be referenced by sleep routines
 void IRAM_ATTR touchWakeCallback();
 
@@ -232,131 +232,7 @@ void IRAM_ATTR touchWakeCallback();
 // (3s) to conserve power. If touch wake is sensed, return to normal operation.
 // If no input for the configured light-sleep window (5 minutes), fall back
 // to the deep-sleep path.
-void enterLightSleep() {
-    SERIAL_PRINTLN("Preparing to enter light sleep mode...");
-
-    const uint32_t LIGHT_SLEEP_MAX_MS = 90000UL; // 90 seconds
-    uint32_t lightSleepMaxMs = LIGHT_SLEEP_MAX_MS;
-    const uint32_t cycleSleepMs = 2000UL; // 2 seconds between sequences
-    const uint32_t pinkOnMs = 150UL;
-    const uint32_t gapMs = 5UL;
-    const uint32_t blueOnMs = 150UL;
-
-    const uint8_t wakePin = T1;
-    // Use configured touch threshold from settings to keep wake sensitivity consistent
-    const uint32_t cfgThresh = touchSettings.threshold;
-    // Use half the normal touch threshold for wake sensitivity (less sensitive)
-    uint32_t wakeCalc = cfgThresh / 2;
-    const uint16_t wakeThreshold = (wakeCalc > 0x7FFF) ? 0x7FFF : (uint16_t)wakeCalc;
-
-    uint32_t startMs = millis();
-
-    // Configure touch wake behavior (attach callback and enable sleep wake)
-    touchAttachInterrupt(wakePin, touchWakeCallback, wakeThreshold);
-    touchSleepWakeUpEnable(wakePin, wakeThreshold);
-
-    // Disable other peripherals and LEDs except pink/blue
-    // Turn off octave LEDs (they use MCP pins and should be off during sleep)
-    ledController.set(LedColor::OCTAVE_UP, 0);
-    ledController.set(LedColor::OCTAVE_DOWN, 0);
-    // Push immediate update so MCP outputs are driven low before sleep
-    ledController.update();
-
-    // Disable Bluetooth modem if enabled to save power during light sleep
-    bool btWasEnabled = false;
-    if (bluetoothControllerPtr) {
-        btWasEnabled = bluetoothControllerPtr->isEnabled();
-        if (btWasEnabled) {
-            bluetoothControllerPtr->disable();
-        }
-    }
-
-    // Keep PWM for pink/blue active so their duty continues through light sleep.
-    // Do not detach PWM here; LEDController will keep PWM configured.
-
-    // Use LEDController (PWM) to perform the blink sequence so duty persists.
-
-    SERIAL_PRINTLN("Entering light-sleep loop (will fallback to deep-sleep after timeout)...");
-
-    while ((millis() - startMs) < lightSleepMaxMs) {
-        // If any activity has occurred since we began waiting, abort sleep
-        if (touch.isActive() || keyboardControl.anyKeyActive() || (millis() - lastActivityMillis < 1000)) {
-            SERIAL_PRINTLN("Activity detected before light sleep; aborting.");
-            break;
-        }
-
-        // LED sequence using PWM via LEDController so duty remains after wake
-        ledController.set(LedColor::PINK, PINK_PWM_MAX);
-        delay(pinkOnMs);
-        ledController.set(LedColor::PINK, 0);
-        delay(gapMs);
-
-        ledController.set(LedColor::BLUE, PWM_MAX);
-        delay(blueOnMs);
-        ledController.set(LedColor::BLUE, 0);
-        // Force-update and ensure the GPIO is actually driven low before sleep
-        ledController.update();
-        delay(5);
-        if (digitalRead(BLUE_LED_PWM_PIN) == HIGH) {
-            digitalWrite(BLUE_LED_PWM_PIN, LOW);
-        }
-
-        // Prepare a short light-sleep interval (3s). Touch wake remains enabled.
-        esp_sleep_enable_timer_wakeup(cycleSleepMs * 1000ULL);
-        touchSleepWakeUpEnable(wakePin, wakeThreshold);
-
-        SERIAL_PRINTLN("Light sleeping for 3s...");
-        // Ensure touchpad wake is enabled at the esp-sleep level as well
-        esp_sleep_enable_touchpad_wakeup();
-        esp_light_sleep_start();
-
-        // Determine wake reason
-        esp_sleep_wakeup_cause_t wakeReason = esp_sleep_get_wakeup_cause();
-        if (wakeReason == ESP_SLEEP_WAKEUP_TOUCHPAD) {
-            SERIAL_PRINTLN("Woke from light sleep: touchpad");
-            // Update last activity so main loop knows we're active
-            lastActivityMillis = millis();
-            break;
-        } else if (wakeReason == ESP_SLEEP_WAKEUP_TIMER) {
-            SERIAL_PRINTLN("Woke from light sleep: timer");
-        } else if (wakeReason != ESP_SLEEP_WAKEUP_UNDEFINED) {
-            SERIAL_PRINT("Woke from light sleep, reason: ");
-            SERIAL_PRINTLN((int)wakeReason);
-        }
-
-        // Clear timer wakeup source so future iterations set it fresh
-        esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
-
-        // small delay to allow peripheral housekeeping after wake
-        delay(10);
-    }
-
-    // Re-enable PWM control via LEDController for normal operation
-    ledController.begin(LedColor::BLUE, BLUE_LED_PWM_PIN);
-    ledController.begin(LedColor::PINK, PINK_LED_PWM_PIN);
-
-    // Restore Bluetooth state if it was enabled before sleeping
-    if (bluetoothControllerPtr && btWasEnabled) {
-        bluetoothControllerPtr->enable();
-    }
-
-    // Release gpio hold so PWM / LEDController can reconfigure pins
-    gpio_hold_dis((gpio_num_t)PINK_LED_PWM_PIN);
-    gpio_hold_dis((gpio_num_t)BLUE_LED_PWM_PIN);
-
-    // If we've exhausted the light sleep window and still no activity, enter deep sleep
-    if ((millis() - startMs) >= lightSleepMaxMs) {
-        SERIAL_PRINTLN("No activity during light sleep window — entering deep sleep.");
-        // Verify again quickly for any last-second activity
-        if (!touch.isActive() && !keyboardControl.anyKeyActive()) {
-            enterDeepSleep();
-        } else {
-            SERIAL_PRINTLN("Activity detected after light sleep window; not entering deep sleep.");
-        }
-    } else {
-        SERIAL_PRINTLN("Exiting light sleep and resuming operation.");
-    }
-}
+// Light / deep-sleep implementations moved to controls/SleepControl.h
 
 // Touch wake callback (called when touch interrupt fires)
 void IRAM_ATTR touchWakeCallback() {
@@ -429,35 +305,7 @@ void startupPulseSequence() {
     delay(100);
 }
 
-// Single blink sequence used just before entering deep sleep
-void sleepBlinkOnce() {
-    const int onTime = 80; // LED ON duration
-    const int gapTime = 5; // small gap
-
-    // Pink
-    ledController.set(LedColor::PINK, PINK_PWM_MAX);
-    delay(onTime);
-    ledController.set(LedColor::PINK, 0);
-    delay(gapTime);
-
-    // Blue
-    ledController.set(LedColor::BLUE, PWM_MAX);
-    delay(onTime);
-    ledController.set(LedColor::BLUE, 0);
-    delay(gapTime);
-
-    // Octave down
-    ledController.set(LedColor::OCTAVE_DOWN, 1);
-    delay(onTime);
-    ledController.set(LedColor::OCTAVE_DOWN, 0);
-    delay(gapTime);
-
-    // Octave up
-    ledController.set(LedColor::OCTAVE_UP, 1);
-    delay(onTime);
-    ledController.set(LedColor::OCTAVE_UP, 0);
-    delay(gapTime);
-}
+// sleep helpers implemented in controls/SleepControl.h
 
 
 //---------------------------------------------------
@@ -573,22 +421,11 @@ void loop() {
         // Activity detection: any active input counts as activity
         bool activityDetected = false;
 
-        // Pink LED: compute target and use LEDController ramping
+        // Pink/Blue LED: compute targets and use LEDController ramping or touch-driven pulse
         bool lever1Right = mcp_U2.digitalRead(SWD1_RIGHT_PIN) == LOW;
         bool lever2Right = mcp_U2.digitalRead(SWD2_RIGHT_PIN) == LOW;
         bool pinkLedPressed = lever1Right || lever2Right;
-        static int _lastPinkTarget = -1;
-        int _pinkTarget = pinkLedPressed ? PINK_PWM_MAX : 0;
-        if (touchActive) {
-            _pinkTarget = PINK_PWM_MAX;
-        }
-        if (_pinkTarget != _lastPinkTarget) {
-            unsigned long dur = (_pinkTarget > _lastPinkTarget) ? PINK_RAMP_UP_MS : PINK_RAMP_DOWN_MS;
-            ledController.set(LedColor::PINK, _pinkTarget, dur);
-            _lastPinkTarget = _pinkTarget;
-        }
 
-        // Blue LED: compute left/push targets and use LEDController ramping
         bool lever1Left = mcp_U1.digitalRead(SWD1_LEFT_PIN) == LOW;
         bool lever2Left = mcp_U2.digitalRead(SWD2_LEFT_PIN) == LOW;
         bool blueLeftPressed = lever1Left || lever2Left;
@@ -598,17 +435,77 @@ void loop() {
         bool leverPush2Pressed = mcp_U2.digitalRead(SWD2_CENTER_PIN) == LOW;
         leverPushIsPressed = leverPush1Pressed || leverPush2Pressed;
 
+        static int _lastPinkTarget = -1;
         static int _lastBlueTarget = -1;
-        int leftTarget = blueLeftPressed ? PWM_MAX : 0;
-        int pushTarget = leverPushIsPressed ? (PWM_MAX / 2) : 0;
-        int _blueTarget = max(leftTarget, pushTarget);
+
+        // Touch-driven alternating pulse parameters
+        static bool _touchPulseMode = false;
+        static unsigned long _pulseStart = 0;
+        const unsigned long blueOnMs = 150UL;
+        const unsigned long gapMs1 = 5UL;
+        const unsigned long pinkOnMs = 150UL;
+        const unsigned long gapMs2 = 250UL; // increased for smoother pacing
+        const unsigned long totalCycle = blueOnMs + gapMs1 + pinkOnMs + gapMs2;
+        const unsigned long pulseRampMs = 60UL; // ramp time for smoother chase
+
+        int computedPinkTarget = pinkLedPressed ? PINK_PWM_MAX : 0;
+        int baseLeftTarget = blueLeftPressed ? PWM_MAX : 0;
+        int basePushTarget = leverPushIsPressed ? (PWM_MAX / 2) : 0;
+        int computedBlueTarget = max(baseLeftTarget, basePushTarget);
+
         if (touchActive) {
-            _blueTarget = PWM_MAX;
+            if (!_touchPulseMode) {
+                _touchPulseMode = true;
+                _pulseStart = millis();
+            }
+            unsigned long elapsed = (millis() - _pulseStart) % totalCycle;
+            if (elapsed < blueOnMs) {
+                // Blue on, pink off
+                computedBlueTarget = PWM_MAX;
+                computedPinkTarget = 0;
+            } else if (elapsed < (blueOnMs + gapMs1)) {
+                // Gap after blue
+                computedBlueTarget = 0;
+                computedPinkTarget = 0;
+            } else if (elapsed < (blueOnMs + gapMs1 + pinkOnMs)) {
+                // Pink on, blue off
+                computedBlueTarget = 0;
+                computedPinkTarget = PINK_PWM_MAX;
+            } else {
+                // Gap after pink
+                computedBlueTarget = 0;
+                computedPinkTarget = 0;
+            }
+        } else {
+            // Restore normal behavior when not in touch pulse mode
+            if (_touchPulseMode) {
+                _touchPulseMode = false;
+            }
+            // computedPinkTarget and computedBlueTarget already set from base inputs
         }
-        if (_blueTarget != _lastBlueTarget) {
-            unsigned long dur = (_blueTarget > _lastBlueTarget) ? BLUE_RAMP_UP_MS : BLUE_RAMP_DOWN_MS;
-            ledController.set(LedColor::BLUE, _blueTarget, dur);
-            _lastBlueTarget = _blueTarget;
+
+        // Apply pink LED change (use short ramps for pulse mode to create a smooth chase)
+        if (computedPinkTarget != _lastPinkTarget) {
+            unsigned long dur;
+            if (_touchPulseMode) {
+                dur = pulseRampMs;
+            } else {
+                dur = (_lastPinkTarget < 0 || computedPinkTarget > _lastPinkTarget) ? PINK_RAMP_UP_MS : PINK_RAMP_DOWN_MS;
+            }
+            ledController.set(LedColor::PINK, computedPinkTarget, dur);
+            _lastPinkTarget = computedPinkTarget;
+        }
+
+        // Apply blue LED change (use short ramps for pulse mode to create a smooth chase)
+        if (computedBlueTarget != _lastBlueTarget) {
+            unsigned long dur;
+            if (_touchPulseMode) {
+                dur = pulseRampMs;
+            } else {
+                dur = (_lastBlueTarget < 0 || computedBlueTarget > _lastBlueTarget) ? BLUE_RAMP_UP_MS : BLUE_RAMP_DOWN_MS;
+            }
+            ledController.set(LedColor::BLUE, computedBlueTarget, dur);
+            _lastBlueTarget = computedBlueTarget;
         }
 
         leverPushWasPressed = leverPushIsPressed;        
@@ -637,7 +534,7 @@ void loop() {
                 // idleConfirmed true => count towards deep sleep timeout
                 if (!deepSleepTriggered && (millis() - idleConfirmTime >= DEEP_SLEEP_IDLE_MS)) {
                     deepSleepTriggered = true;
-                    enterLightSleep();
+                    enterLightSleep(touch, keyboardControl, ledController, bluetoothControllerPtr, touchSettings, lastActivityMillis, PINK_LED_PWM_PIN, BLUE_LED_PWM_PIN, PINK_PWM_MAX, PWM_MAX, PINK_RAMP_UP_MS, PINK_RAMP_DOWN_MS, BLUE_RAMP_UP_MS, BLUE_RAMP_DOWN_MS);
                 }
             }
         }
@@ -646,35 +543,4 @@ void loop() {
     }
 }
 
-void enterDeepSleep() {
-    const uint32_t uptimeMs = millis();
-    const uint32_t idleMs = (uptimeMs > lastActivityMillis) ? (uptimeMs - lastActivityMillis) : 0;
-    const uint8_t wakePin = T1;
-    const uint32_t cfgThresh = touchSettings.threshold;
-    // Use half the normal touch threshold for wake sensitivity (less sensitive)
-    uint32_t wakeCalc = cfgThresh / 2;
-    const uint16_t wakeThreshold = (wakeCalc > 0x7FFF) ? 0x7FFF : (uint16_t)wakeCalc; // may need tuning
-    const uint32_t freeHeap = ESP.getFreeHeap();
-
-    SERIAL_PRINTLN("--- Deep Sleep Report ---");
-    SERIAL_PRINT("Uptime (ms): "); SERIAL_PRINTLN(uptimeMs);
-    SERIAL_PRINT("Idle before sleep (ms): "); SERIAL_PRINTLN(idleMs);
-    SERIAL_PRINT("Touch wake pin: "); SERIAL_PRINTLN(wakePin);
-    SERIAL_PRINT("Touch wake threshold: "); SERIAL_PRINTLN(wakeThreshold);
-    SERIAL_PRINT("Free heap (bytes): "); SERIAL_PRINTLN(freeHeap);
-    SERIAL_PRINTLN("-------------------------");
-
-    // Configure touch interrupt for wake
-    touchAttachInterrupt(wakePin, touchWakeCallback, wakeThreshold);
-
-    // Enable touch pad wakeup from sleep (pin and threshold required)
-    touchSleepWakeUpEnable(wakePin, wakeThreshold);
-
-    // Single blink to indicate we're about to sleep
-    sleepBlinkOnce();
-
-    SERIAL_PRINTLN("Entering deep sleep now.");
-    delay(50);
-
-    esp_deep_sleep_start();
-}
+// enterDeepSleep() implemented in controls/SleepControl.h
