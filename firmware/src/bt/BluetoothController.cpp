@@ -71,16 +71,13 @@ void BluetoothController::enable() {
         );
         _pLever1SettingsCharacteristic->addDescriptor(new BLE2902());
         _pLever1SettingsCharacteristic->setValue((uint8_t*)&_lever1Settings, sizeof(LeverSettings));
-        _pLever1SettingsCharacteristic->setCallbacks(new CharacteristicCallbacks(
+        _pLever1SettingsCharacteristic->setCallbacks(new GenericSettingsCallback(
             this,
             _preferences,
-            _scaleManager,
-            _lever1Settings,
-            _leverPush1Settings,
-            _lever2Settings,
-            _leverPush2Settings,
-            _touchSettings,
-            _scaleSettings
+            &_lever1Settings,
+            sizeof(LeverSettings),
+            "lever1",
+            nullptr
         ));
 
         _pLeverPush1SettingsCharacteristic = _pService->createCharacteristic(
@@ -90,16 +87,13 @@ void BluetoothController::enable() {
         );
         _pLeverPush1SettingsCharacteristic->addDescriptor(new BLE2902());
         _pLeverPush1SettingsCharacteristic->setValue((uint8_t*)&_leverPush1Settings, sizeof(LeverPushSettings));
-        _pLeverPush1SettingsCharacteristic->setCallbacks(new CharacteristicCallbacks(
+        _pLeverPush1SettingsCharacteristic->setCallbacks(new GenericSettingsCallback(
             this,
             _preferences,
-            _scaleManager,
-            _lever1Settings,
-            _leverPush1Settings,
-            _lever2Settings,
-            _leverPush2Settings,
-            _touchSettings,
-            _scaleSettings
+            &_leverPush1Settings,
+            sizeof(LeverPushSettings),
+            "leverpush1",
+            nullptr
         ));
 
         _pLever2SettingsCharacteristic = _pService->createCharacteristic(
@@ -109,16 +103,13 @@ void BluetoothController::enable() {
         );
         _pLever2SettingsCharacteristic->addDescriptor(new BLE2902());
         _pLever2SettingsCharacteristic->setValue((uint8_t*)&_lever2Settings, sizeof(LeverSettings));
-        _pLever2SettingsCharacteristic->setCallbacks(new CharacteristicCallbacks(
+        _pLever2SettingsCharacteristic->setCallbacks(new GenericSettingsCallback(
             this,
             _preferences,
-            _scaleManager,
-            _lever1Settings,
-            _leverPush1Settings,
-            _lever2Settings,
-            _leverPush2Settings,
-            _touchSettings,
-            _scaleSettings
+            &_lever2Settings,
+            sizeof(LeverSettings),
+            "lever2",
+            nullptr
         ));
 
         _pLeverPush2SettingsCharacteristic = _pService->createCharacteristic(
@@ -128,16 +119,13 @@ void BluetoothController::enable() {
         );
         _pLeverPush2SettingsCharacteristic->addDescriptor(new BLE2902());
         _pLeverPush2SettingsCharacteristic->setValue((uint8_t*)&_leverPush2Settings, sizeof(LeverPushSettings));
-        _pLeverPush2SettingsCharacteristic->setCallbacks(new CharacteristicCallbacks(
+        _pLeverPush2SettingsCharacteristic->setCallbacks(new GenericSettingsCallback(
             this,
             _preferences,
-            _scaleManager,
-            _lever1Settings,
-            _leverPush1Settings,
-            _lever2Settings,
-            _leverPush2Settings,
-            _touchSettings,
-            _scaleSettings
+            &_leverPush2Settings,
+            sizeof(LeverPushSettings),
+            "leverpush2",
+            nullptr
         ));
 
         _pTouchSettingsCharacteristic = _pService->createCharacteristic(
@@ -147,16 +135,13 @@ void BluetoothController::enable() {
         );
         _pTouchSettingsCharacteristic->addDescriptor(new BLE2902());
         _pTouchSettingsCharacteristic->setValue((uint8_t*)&_touchSettings, sizeof(TouchSettings));
-        _pTouchSettingsCharacteristic->setCallbacks(new CharacteristicCallbacks(
+        _pTouchSettingsCharacteristic->setCallbacks(new GenericSettingsCallback(
             this,
             _preferences,
-            _scaleManager,
-            _lever1Settings,
-            _leverPush1Settings,
-            _lever2Settings,
-            _leverPush2Settings,
-            _touchSettings,
-            _scaleSettings
+            &_touchSettings,
+            sizeof(TouchSettings),
+            "touch",
+            nullptr
         ));
 
         _pScaleSettingsCharacteristic = _pService->createCharacteristic(
@@ -166,16 +151,13 @@ void BluetoothController::enable() {
         );
         _pScaleSettingsCharacteristic->addDescriptor(new BLE2902());
         _pScaleSettingsCharacteristic->setValue((uint8_t*)&_scaleSettings, sizeof(ScaleSettings));
-        _pScaleSettingsCharacteristic->setCallbacks(new CharacteristicCallbacks(
+        _pScaleSettingsCharacteristic->setCallbacks(new GenericSettingsCallback(
             this,
             _preferences,
-            _scaleManager,
-            _lever1Settings,
-            _leverPush1Settings,
-            _lever2Settings,
-            _leverPush2Settings,
-            _touchSettings,
-            _scaleSettings
+            &_scaleSettings,
+            sizeof(ScaleSettings),
+            "scale",
+            &_scaleManager
         ));
 
         _pMidiCharacteristic = _pService->createCharacteristic(
@@ -186,17 +168,7 @@ void BluetoothController::enable() {
             BLECharacteristic::PROPERTY_INDICATE
         );
         _pMidiCharacteristic->addDescriptor(new BLE2902());
-        _pMidiCharacteristic->setCallbacks(new CharacteristicCallbacks(
-            this,
-            _preferences,
-            _scaleManager,
-            _lever1Settings,
-            _leverPush1Settings,
-            _lever2Settings,
-            _leverPush2Settings,
-            _touchSettings,
-            _scaleSettings
-        ));
+        _pMidiCharacteristic->setCallbacks(new MidiSettingsCallback(this));
 
         // Start the service
         _pService->start();
