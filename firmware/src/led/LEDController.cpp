@@ -1,4 +1,5 @@
 #include "LEDController.h"
+#include <freertos/semphr.h>
 
 // Helper function for linear interpolation
 float lerp(float a, float b, float f) {
@@ -46,9 +47,21 @@ LEDController::LEDController() {
     octaveDownLed.startTime = 0;
     octaveDownLed.duration = 0;
     octaveDownLed.pulseDuration = 0;
+
+    // Create a recursive mutex to protect LEDController when accessed from multiple tasks
+    _mutex = xSemaphoreCreateRecursiveMutex();
 }
 
+LEDController::~LEDController() {
+    if (_mutex) {
+        vSemaphoreDelete(_mutex);
+        _mutex = NULL;
+    }
+}
+
+
 void LEDController::begin(LedColor color, int pin, Adafruit_MCP23X17* mcp) {
+    if (_mutex) xSemaphoreTakeRecursive(_mutex, portMAX_DELAY);
     LedState* led = nullptr;
     switch (color) {
         case LedColor::PINK:
@@ -76,9 +89,11 @@ void LEDController::begin(LedColor color, int pin, Adafruit_MCP23X17* mcp) {
             analogWrite(led->pin, led->currentBrightness);
         }
     }
+    if (_mutex) xSemaphoreGiveRecursive(_mutex);
 }
 
 void LEDController::set(LedColor color, int targetBrightness, unsigned long duration) {
+    if (_mutex) xSemaphoreTakeRecursive(_mutex, portMAX_DELAY);
     LedState* led = nullptr;
     switch (color) {
         case LedColor::PINK:
@@ -110,9 +125,11 @@ void LEDController::set(LedColor color, int targetBrightness, unsigned long dura
             }
         }
     }
+    if (_mutex) xSemaphoreGiveRecursive(_mutex);
 }
 
 void LEDController::pulse(LedColor color, unsigned long pulseSpeed, unsigned long totalPulsationDuration) {
+    if (_mutex) xSemaphoreTakeRecursive(_mutex, portMAX_DELAY);
     LedState* led = nullptr;
     switch (color) {
         case LedColor::PINK:
@@ -135,13 +152,16 @@ void LEDController::pulse(LedColor color, unsigned long pulseSpeed, unsigned lon
         led->duration = totalPulsationDuration;
         led->startTime = millis();
     }
+    if (_mutex) xSemaphoreGiveRecursive(_mutex);
 }
 
 void LEDController::update() {
+    if (_mutex) xSemaphoreTakeRecursive(_mutex, portMAX_DELAY);
     updateLed(pinkLed);
     updateLed(blueLed);
     updateLed(octaveUpLed);
     updateLed(octaveDownLed);
+    if (_mutex) xSemaphoreGiveRecursive(_mutex);
 }
 
 void LEDController::updateLed(LedState& led) {

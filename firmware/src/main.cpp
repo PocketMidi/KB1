@@ -16,6 +16,8 @@
 #include <MIDI.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <freertos/semphr.h>
+#include <freertos/queue.h>
 #include <BLEDevice.h>
 #include <esp_bt_main.h>
 #include <esp_sleep.h>
@@ -37,6 +39,55 @@ Adafruit_MCP23X17 mcp_U1;
 Adafruit_MCP23X17 mcp_U2;
 
 LEDController ledController;
+
+// LED command queue to serialize all access to ledController from one task
+typedef struct {
+    uint8_t type; // 0 = set immediate, 1 = set with ramp
+    uint8_t color;
+    int value;
+    unsigned long dur;
+} LedCommand;
+
+static QueueHandle_t ledQueue = NULL;
+
+// Enqueue LED set (immediate)
+static inline void ledSet(LedColor color, int value) {
+    if (!ledQueue) {
+        ledController.set(color, value);
+        return;
+    }
+    LedCommand cmd = {0, (uint8_t)color, value, 0};
+    xQueueSendToBack(ledQueue, &cmd, 0);
+}
+
+// Enqueue LED set with ramp/duration
+static inline void ledSetRamp(LedColor color, int value, unsigned long dur) {
+    if (!ledQueue) {
+        ledController.set(color, value, dur);
+        return;
+    }
+    LedCommand cmd = {1, (uint8_t)color, value, dur};
+    xQueueSendToBack(ledQueue, &cmd, 0);
+}
+
+// LED update task (runs on a separate core) — sole owner of ledController
+void ledTask(void *pvParameters) {
+    (void)pvParameters;
+    LedCommand cmd;
+    while (true) {
+        // Process any queued commands first
+        while (ledQueue && xQueueReceive(ledQueue, &cmd, 0) == pdTRUE) {
+            if (cmd.type == 0) {
+                ledController.set((LedColor)cmd.color, cmd.value);
+            } else {
+                ledController.set((LedColor)cmd.color, cmd.value, cmd.dur);
+            }
+        }
+        // Always call update from this task
+        ledController.update();
+        vTaskDelay(1 / portTICK_PERIOD_MS);
+    }
+}
 
 // Pink LED PWM control variables
 const int PINK_LED_PWM_PIN = 8; // Update if different
@@ -267,35 +318,35 @@ void startupPulseSequence() {
     // Wave bounce 2×
     for (int i = 0; i < 2; i++) {
         // Forward wave
-        ledController.set(LedColor::PINK, PINK_PWM_MAX);
+        ledSet(LedColor::PINK, PINK_PWM_MAX);
         delay(onTime);
-        ledController.set(LedColor::PINK, 0);
+        ledSet(LedColor::PINK, 0);
         delay(gapTime);
 
-        ledController.set(LedColor::BLUE, PWM_MAX);
+        ledSet(LedColor::BLUE, PWM_MAX);
         delay(onTime);
-        ledController.set(LedColor::BLUE, 0);
+        ledSet(LedColor::BLUE, 0);
         delay(gapTime);
 
-        ledController.set(LedColor::OCTAVE_DOWN, 1);
+        ledSet(LedColor::OCTAVE_DOWN, 1);
         delay(onTime);
-        ledController.set(LedColor::OCTAVE_DOWN, 0);
+        ledSet(LedColor::OCTAVE_DOWN, 0);
         delay(gapTime);
 
-        ledController.set(LedColor::OCTAVE_UP, 1);
+        ledSet(LedColor::OCTAVE_UP, 1);
         delay(onTime);
-        ledController.set(LedColor::OCTAVE_UP, 0);
+        ledSet(LedColor::OCTAVE_UP, 0);
         delay(gapTime);
 
         // Backward wave (stop at Blue, don’t repeat Pink here)
-        ledController.set(LedColor::OCTAVE_DOWN, 1);
+        ledSet(LedColor::OCTAVE_DOWN, 1);
         delay(onTime);
-        ledController.set(LedColor::OCTAVE_DOWN, 0);
+        ledSet(LedColor::OCTAVE_DOWN, 0);
         delay(gapTime);
 
-        ledController.set(LedColor::BLUE, PWM_MAX);
+        ledSet(LedColor::BLUE, PWM_MAX);
         delay(onTime);
-        ledController.set(LedColor::BLUE, 0);
+        ledSet(LedColor::BLUE, 0);
 
         delay(cyclePause);
     }
@@ -369,6 +420,14 @@ void setup() {
     pinMode(PINK_LED_PWM_PIN, OUTPUT); // Ensure PWM pin is set
     pinMode(BLUE_LED_PWM_PIN, OUTPUT); // Ensure PWM pin is set
 
+    // Create LED command queue and start LED task on core 0
+    ledQueue = xQueueCreate(16, sizeof(LedCommand));
+    if (ledQueue == NULL) {
+        SERIAL_PRINTLN("Warning: failed to create LED queue");
+    }
+    // Run ledTask on the same core as readInputs to avoid cross-core I2C access
+    xTaskCreatePinnedToCore(ledTask, "ledTask", 4096, nullptr, 1, nullptr, 1);
+
     // Run LED startup sequence
     startupPulseSequence();
 
@@ -398,7 +457,6 @@ void setup() {
 //
 //---------------------------------------------------
 void loop() {
-    ledController.update();
     // Check BLE idle and enter modem sleep if needed (90 seconds = 90000 ms)
     if (bluetoothControllerPtr) {
         bluetoothControllerPtr->checkIdleAndSleep(90000);
@@ -492,7 +550,7 @@ void loop() {
             } else {
                 dur = (_lastPinkTarget < 0 || computedPinkTarget > _lastPinkTarget) ? PINK_RAMP_UP_MS : PINK_RAMP_DOWN_MS;
             }
-            ledController.set(LedColor::PINK, computedPinkTarget, dur);
+            ledSetRamp(LedColor::PINK, computedPinkTarget, dur);
             _lastPinkTarget = computedPinkTarget;
         }
 
@@ -504,7 +562,7 @@ void loop() {
             } else {
                 dur = (_lastBlueTarget < 0 || computedBlueTarget > _lastBlueTarget) ? BLUE_RAMP_UP_MS : BLUE_RAMP_DOWN_MS;
             }
-            ledController.set(LedColor::BLUE, computedBlueTarget, dur);
+            ledSetRamp(LedColor::BLUE, computedBlueTarget, dur);
             _lastBlueTarget = computedBlueTarget;
         }
 
