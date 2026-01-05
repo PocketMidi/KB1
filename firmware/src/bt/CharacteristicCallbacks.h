@@ -5,33 +5,37 @@
 #include <BLECharacteristic.h>
 #include <music/ScaleManager.h>
 #include <objects/Settings.h>
+#include <string>
 
 class BluetoothController;
 
-class CharacteristicCallbacks final : public BLECharacteristicCallbacks {
+// Generic callback that writes incoming bytes directly into a provided destination
+class GenericSettingsCallback final : public BLECharacteristicCallbacks {
 public:
-    CharacteristicCallbacks(
-        BluetoothController* controller,
-        Preferences& preferences,
-        ScaleManager& scaleManager,
-        LeverSettings& lever1Settings,
-        LeverPushSettings& lever1PushSettings,
-        LeverSettings& lever2Settings,
-        LeverPushSettings& lever2PushSettings,
-        TouchSettings& touchSettings,
-        ScaleSettings& scaleSettings);
+    GenericSettingsCallback(BluetoothController* controller,
+                            Preferences& preferences,
+                            void* dest,
+                            size_t destSize,
+                            const char* prefKey,
+                            ScaleManager* scaleManager = nullptr);
     void onWrite(BLECharacteristic *pCharacteristic) override;
 
 private:
     BluetoothController* _controller;
     Preferences& _preferences;
-    ScaleManager& _scaleManager;
-    LeverSettings& _lever1Settings;
-    LeverPushSettings& _leverPush1Settings;
-    LeverSettings& _lever2Settings;
-    LeverPushSettings& _leverPush2Settings;
-    TouchSettings& _touchSettings;
-    ScaleSettings& _scaleSettings;
+    void* _dest;
+    size_t _destSize;
+    std::string _prefKey;
+    ScaleManager* _scaleManager;
+};
+
+// MIDI callback keeps original behavior for parsing CC strings
+class MidiSettingsCallback final : public BLECharacteristicCallbacks {
+public:
+    MidiSettingsCallback(BluetoothController* controller);
+    void onWrite(BLECharacteristic *pCharacteristic) override;
+private:
+    BluetoothController* _controller;
 };
 
 #endif

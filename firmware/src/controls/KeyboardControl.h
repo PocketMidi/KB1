@@ -15,8 +15,8 @@ public:
         : _midi(midi),
           _octaveControl(octaveCtrl),
           _scaleManager(scaleManager),
-          _currentVelocity(81),
-          _minVelocity(2)
+          _currentVelocity(87),
+          _minVelocity(15)
     {
         memset(_isNoteOn, false, sizeof(_isNoteOn));
 
@@ -42,11 +42,17 @@ public:
         _keys[18] = {77, 8, true, true, &mcp_U2, "SW12 (F)"};
     }
 
+    static constexpr unsigned long KEY_DEBOUNCE_MS = 10; // ms
+
     void begin() {
         for (auto & key : _keys) {
             key.mcp->pinMode(key.pin, INPUT_PULLUP);
-            key.state = !key.mcp->digitalRead(key.pin);
-            key.prevState = key.state;
+            bool raw = !key.mcp->digitalRead(key.pin);
+            key.lastReading = raw;
+            key.debouncedState = raw;
+            key.state = raw;
+            key.prevState = raw;
+            key.lastDebounceTime = millis();
         }
         resetAllKeys();
     }
@@ -96,7 +102,13 @@ public:
 
     void setVelocity(const int value) {
         _currentVelocity = value;
+        if (_velocityChangeHook) _velocityChangeHook(_currentVelocity);
     }
+
+    int getVelocity() const { return _currentVelocity; }
+
+    // Register a callback to be notified when velocity changes via setVelocity()
+    void registerVelocityChangeHook(void (*hook)(int)) { _velocityChangeHook = hook; }
 
     void resetAllKeys() {
         for (int i = 0; i < 128; ++i) {
@@ -108,23 +120,38 @@ public:
     }
 
     void updateKeyboardState() {
-        // Read key states & button states on U2
+        // Debounced key scanning
         for (auto & key : _keys) {
-            key.state = !key.mcp->digitalRead(key.pin);
-        }
+            bool raw = !key.mcp->digitalRead(key.pin);
+            if (raw != key.lastReading) {
+                key.lastDebounceTime = millis();
+                key.lastReading = raw;
+            }
 
-        for (auto & key : _keys) {
-            if (key.state != key.prevState) {
-                if (key.state) {
-                    playMidiNote(key.midi);
-                    SERIAL_PRINT(key.name);
-                    SERIAL_PRINTLN(" Pressed!");
-                } else {
-                    stopMidiNote(key.midi);
+            if ((millis() - key.lastDebounceTime) >= KEY_DEBOUNCE_MS) {
+                if (raw != key.debouncedState) {
+                    key.debouncedState = raw;
+                    if (key.debouncedState) {
+                        playMidiNote(key.midi);
+                        SERIAL_PRINT(key.name);
+                        SERIAL_PRINTLN(" Pressed!");
+                    } else {
+                        stopMidiNote(key.midi);
+                    }
                 }
             }
+
             key.prevState = key.state;
+            key.state = key.debouncedState;
         }
+    }
+
+    // Return true if any key is currently pressed (debounced state)
+    bool anyKeyActive() const {
+        for (const auto & key : _keys) {
+            if (key.debouncedState) return true;
+        }
+        return false;
     }
 
 private:
@@ -136,6 +163,7 @@ private:
     int _minVelocity;
     bool _isNoteOn[128]{};
     key _keys[MAX_KEYS];
+    void (*_velocityChangeHook)(int) = nullptr;
 };
 
 #endif

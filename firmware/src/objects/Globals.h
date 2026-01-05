@@ -24,12 +24,23 @@ struct key {
     {
         strncpy(name, n, sizeof(name) - 1);
         name[sizeof(name) - 1] = '\0'; // Ensure null-termination
+        lastReading = s;
+        debouncedState = s;
+        lastDebounceTime = 0;
     }
 
     // Default constructor needed for array initialization
     key() : midi(0), pin(0), state(false), prevState(false), mcp(nullptr) {
         name[0] = '\0';
+        lastReading = false;
+        debouncedState = false;
+        lastDebounceTime = 0;
     }
+    
+    // Debounce/state tracking
+    bool lastReading;
+    bool debouncedState;
+    unsigned long lastDebounceTime;
 };
 
 enum class LeverFunctionMode {

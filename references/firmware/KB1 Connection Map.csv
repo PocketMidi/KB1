@@ -1,0 +1,154 @@
+BUS,ESP32s3 - MCU,MCP23017 - U1,MCP23017 - U2,SWitch,LED,I/O,NOTES
+,PIN/Address,I2C addr = 0x20,I2C addr = 0x21,,,,
+,,,,,,,
+D in,"D0
+GPIO1
+TOUCH1",,,Touch Sensor 1,,,Configurable MIDI CC 
+--,"D1
+GPIO2
+TOUCH2",,,,,,
+--,"D2
+GPIO3
+TOUCH3",,,,,,
+I2C,"D3
+GPIO4
+TOUCH4","INTA-B
+pins 19-20","INTA-B
+pins 19-20",,,,
+I2C,"D4
+SDA
+GPIO5
+","SDA
+pin 13","SDA
+pin 13",,,,
+I2C,"D5
+SDA
+GPIO6
+","SCK
+pin12","SCK
+pin12",,,,
+Serial out,"D6
+TX
+GPIO43",,,,,MIDI OUT Ring,
+Serial In,"D7
+RX
+GPIO44",,,,,,
+D Out,"D8
+GPIO7",,,,Blue LED,,Lever Left(Down) Indicator
+D Out,"D9
+GPIO8",,,,Pink LED,,Lever Right(Up) Indicator
+--,"D10
+GPIO9",,,,,,
+PWR,"D11
+3V3",,,,,,
+GND,"D12
+GND",,,,,,
+PWR,"D13
+5V",,,,,,
+,,MCP23017 - U1,,SW,,,Notes
+D in,,"GPA0 - pin 21
+pin ID 0",,"SB3 - MIDI 66
+F4#/Gb - 369.99",,,
+D in,,"GPA1 - pin 22
+pin ID 1",,"SB1 - MIDI 61
+C4#/Db 277.18hz",,,
+D in,,"GPA2 - pin 23
+pin ID 2",,"SB2 - MIDI 63
+D4#/Eb - 311.13hz",,,
+D in,,"GPA3 - pin 24
+pin ID 3",,"SB4 - MIDI 68
+G4#/Ab - 415.3hz",,,
+D in,,"GPA4 - pin 25
+pin ID 4",,"SW1 - MIDI 59
+B3 246.94hz",,,
+D in,,"GPA5 - pin 26
+pin ID 5",,"SWD1
+Lever 1
+LEFT",,,Configurable MIDI CC 
+D in,,"GPA6 - pin 27
+pin ID 6",,"SWD1
+Lever 1
+CENTER Push",,,Configurable MIDI CC 
+D Out ONLY,,"GPA7 - pin 28
+pin ID 7",,---,---,,
+,,MCP23017 - U1,,SW,LED,,Notes
+D in,,"GPB0 - pin 1
+pin ID 8",,"SW8 - MIDI 71
+B4 - 493.88hz",,,
+D in,,"GPB1 - pin 2
+pin ID 9",,"SW7 - MIDI 69
+A4 - 440hz",,,
+D in,,"GPB2 - pin 3
+pin ID 10",,"SW6 - MIDI 67
+G4 - 392hz",,,
+D in,,"GPB3 - pin 4
+pin ID 11",,"SW5 - MIDI 65
+F4 - 349.23hz",,,
+D in,,"GPB4 - pin 5
+pin ID 12",,"SW4 - MIDI 64
+E4 - 329.63hz",,,
+D in,,"GPB5 - pin 6
+pin ID 13",,"SW3 - MIDI 62
+D4 293.67hz",,,
+D in,,"GPB6 - pin 7
+pin ID 14",,"SW2 - MIDI 60
+C4 261.53hz",,,
+D Out ONLY,,"GPB7 - pin 8
+pin ID 15",,---,---,,
+,,,MCP23017 - U2,SW,LED,,Notes
+D in,,,"GPA0 - pin 21
+pin ID 0","SWD1
+Lever 1
+RIGHT",,,Configurable MIDI CC 
+D in,,,"GPA1 - pin 22
+pin ID 1","SWD2
+Lever 2
+LEFT",,,Configurable MIDI CC 
+D in,,,"GPA2 - pin 23
+pin ID 2","SWD2
+Lever 2 
+CENTER Push",,,Configurable MIDI CC 
+D in,,,"GPA3 - pin 24
+pin ID 3","SWD2
+Lever 2
+RIGHT",,,Configurable MIDI CC 
+D in,,,"GPA4 - pin 25
+pin ID 4","S3
+OCT Down",,,Down 1 octave from current
+D Out,,,"GPA5 - pin 26
+pin ID 5",,"S3 
+DN LED",,"Active LOW
+pulses faster with each click 
+of S3 OCT DOWN"
+D in,,,"GPA6 - pin 27
+pin ID 6","S4
+OCT Up",,,Up 1 octave from current
+D Out ONLY,,,"GPA7 - pin 28
+pin ID 7",,"S4
+UP LED",,"Active LOW
+pulses faster with each click 
+of S4 OCT UP"
+,,,MCP23017 - U2,SW,LED,,Notes
+D in,,,"GPB0 - pin 1
+pin ID 8","SW12 - MIDI 77
+F5 - 689.46hz",,,
+D in,,,"GPB1 - pin 2
+pin ID 9","SW11 - MIDI 76
+E5 - 659.26hz",,,
+D in,,,"GPB2 - pin 3
+pin ID 10","SW10 - MIDI 74
+D5 - 587.33hz",,,
+D in,,,"GPB3 - pin 4
+pin ID 11","SW9 - MIDI 72
+C5 - 523.25hz",,,
+D in,,,"GPB4 - pin 5
+pin ID 12","SB7 - MIDI 75
+D5#/Eb - 622.25hz",,,
+D in,,,"GPB5 - pin 6
+pin ID 13","SB6 - MIDI 73
+C5#/Db - 554.37hz",,,
+D in,,,"GPB6 - pin 7
+pin ID 14","SB5 - MIDI 70
+A4#/Bb - 466.16hz",,,
+D Out ONLY,,,"GPB7 - pin 8
+pin ID 15",--,--,,

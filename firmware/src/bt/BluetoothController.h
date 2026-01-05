@@ -39,11 +39,19 @@ public:
     BLECharacteristic* getScaleSettingsCharacteristic() { return _pScaleSettingsCharacteristic; }
     BLECharacteristic* getMidiCharacteristic() { return _pMidiCharacteristic; }
 
+    // Access the last enable/disable timestamp for cooldown checks
+    unsigned long getLastToggleTime() const { return _lastToggleTime; }
+
 
     // Methods for ServerCallbacks to update connection status and advertising
     void setDeviceConnected(bool connected);
     bool isEnabled() { return _isEnabled; }
     BLEAdvertising* getAdvertising() { return _pAdvertising; }
+
+    // Activity/sleep control (public API)
+    void updateLastActivity();
+    unsigned long getLastActivity() const { return _lastActivity; }
+    void checkIdleAndSleep(unsigned long idleThresholdMs);
 
 private:
     BLEServer* _pServer;
@@ -51,6 +59,9 @@ private:
     BLEAdvertising* _pAdvertising;
     bool _deviceConnected;
     bool _isEnabled;
+    unsigned long _lastToggleTime;
+    unsigned long _lastActivity;
+    bool _modemSleeping;
 
     BLECharacteristic* _pLever1SettingsCharacteristic;
     BLECharacteristic* _pLeverPush1SettingsCharacteristic;
@@ -62,6 +73,7 @@ private:
 
     Preferences& _preferences;
     ScaleManager& _scaleManager;
+
 
     // References to settings structs
     LeverSettings& _lever1Settings;

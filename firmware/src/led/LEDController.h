@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <Adafruit_MCP23X17.h>
+#include <freertos/semphr.h>
 
 enum class LedColor {
     PINK,
@@ -19,6 +20,7 @@ enum class LedMode {
 class LEDController {
 public:
     LEDController();
+    ~LEDController();
     void begin(LedColor color, int pin, Adafruit_MCP23X17* mcp = nullptr);
     void set(LedColor color, int targetBrightness, unsigned long duration = 0);
     void pulse(LedColor color, unsigned long pulseSpeed, unsigned long totalPulsationDuration = 0);
@@ -41,6 +43,8 @@ private:
     LedState blueLed{};
     LedState octaveUpLed{};
     LedState octaveDownLed{};
+
+    SemaphoreHandle_t _mutex = NULL;
 
     static void updateLed(LedState& led);
 };

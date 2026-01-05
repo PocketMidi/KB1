@@ -5,6 +5,7 @@
 #include <objects/Constants.h>
 #include <objects/Globals.h>
 #include <objects/Settings.h>
+#include <esp_wifi.h>
 
 BluetoothController::BluetoothController(
     Preferences& preferences,
@@ -38,7 +39,10 @@ BluetoothController::BluetoothController(
     _pScaleSettingsCharacteristic(nullptr),
     _pMidiCharacteristic(nullptr),
     _pService(nullptr),
-    _isEnabled(false)
+    _isEnabled(false),
+    _lastToggleTime(0),
+    _lastActivity(0),
+    _modemSleeping(false)
 {
 }
 
@@ -67,16 +71,13 @@ void BluetoothController::enable() {
         );
         _pLever1SettingsCharacteristic->addDescriptor(new BLE2902());
         _pLever1SettingsCharacteristic->setValue((uint8_t*)&_lever1Settings, sizeof(LeverSettings));
-        _pLever1SettingsCharacteristic->setCallbacks(new CharacteristicCallbacks(
+        _pLever1SettingsCharacteristic->setCallbacks(new GenericSettingsCallback(
             this,
             _preferences,
-            _scaleManager,
-            _lever1Settings,
-            _leverPush1Settings,
-            _lever2Settings,
-            _leverPush2Settings,
-            _touchSettings,
-            _scaleSettings
+            &_lever1Settings,
+            sizeof(LeverSettings),
+            "lever1",
+            nullptr
         ));
 
         _pLeverPush1SettingsCharacteristic = _pService->createCharacteristic(
@@ -86,16 +87,13 @@ void BluetoothController::enable() {
         );
         _pLeverPush1SettingsCharacteristic->addDescriptor(new BLE2902());
         _pLeverPush1SettingsCharacteristic->setValue((uint8_t*)&_leverPush1Settings, sizeof(LeverPushSettings));
-        _pLeverPush1SettingsCharacteristic->setCallbacks(new CharacteristicCallbacks(
+        _pLeverPush1SettingsCharacteristic->setCallbacks(new GenericSettingsCallback(
             this,
             _preferences,
-            _scaleManager,
-            _lever1Settings,
-            _leverPush1Settings,
-            _lever2Settings,
-            _leverPush2Settings,
-            _touchSettings,
-            _scaleSettings
+            &_leverPush1Settings,
+            sizeof(LeverPushSettings),
+            "leverpush1",
+            nullptr
         ));
 
         _pLever2SettingsCharacteristic = _pService->createCharacteristic(
@@ -105,16 +103,13 @@ void BluetoothController::enable() {
         );
         _pLever2SettingsCharacteristic->addDescriptor(new BLE2902());
         _pLever2SettingsCharacteristic->setValue((uint8_t*)&_lever2Settings, sizeof(LeverSettings));
-        _pLever2SettingsCharacteristic->setCallbacks(new CharacteristicCallbacks(
+        _pLever2SettingsCharacteristic->setCallbacks(new GenericSettingsCallback(
             this,
             _preferences,
-            _scaleManager,
-            _lever1Settings,
-            _leverPush1Settings,
-            _lever2Settings,
-            _leverPush2Settings,
-            _touchSettings,
-            _scaleSettings
+            &_lever2Settings,
+            sizeof(LeverSettings),
+            "lever2",
+            nullptr
         ));
 
         _pLeverPush2SettingsCharacteristic = _pService->createCharacteristic(
@@ -124,16 +119,13 @@ void BluetoothController::enable() {
         );
         _pLeverPush2SettingsCharacteristic->addDescriptor(new BLE2902());
         _pLeverPush2SettingsCharacteristic->setValue((uint8_t*)&_leverPush2Settings, sizeof(LeverPushSettings));
-        _pLeverPush2SettingsCharacteristic->setCallbacks(new CharacteristicCallbacks(
+        _pLeverPush2SettingsCharacteristic->setCallbacks(new GenericSettingsCallback(
             this,
             _preferences,
-            _scaleManager,
-            _lever1Settings,
-            _leverPush1Settings,
-            _lever2Settings,
-            _leverPush2Settings,
-            _touchSettings,
-            _scaleSettings
+            &_leverPush2Settings,
+            sizeof(LeverPushSettings),
+            "leverpush2",
+            nullptr
         ));
 
         _pTouchSettingsCharacteristic = _pService->createCharacteristic(
@@ -143,16 +135,13 @@ void BluetoothController::enable() {
         );
         _pTouchSettingsCharacteristic->addDescriptor(new BLE2902());
         _pTouchSettingsCharacteristic->setValue((uint8_t*)&_touchSettings, sizeof(TouchSettings));
-        _pTouchSettingsCharacteristic->setCallbacks(new CharacteristicCallbacks(
+        _pTouchSettingsCharacteristic->setCallbacks(new GenericSettingsCallback(
             this,
             _preferences,
-            _scaleManager,
-            _lever1Settings,
-            _leverPush1Settings,
-            _lever2Settings,
-            _leverPush2Settings,
-            _touchSettings,
-            _scaleSettings
+            &_touchSettings,
+            sizeof(TouchSettings),
+            "touch",
+            nullptr
         ));
 
         _pScaleSettingsCharacteristic = _pService->createCharacteristic(
@@ -162,16 +151,13 @@ void BluetoothController::enable() {
         );
         _pScaleSettingsCharacteristic->addDescriptor(new BLE2902());
         _pScaleSettingsCharacteristic->setValue((uint8_t*)&_scaleSettings, sizeof(ScaleSettings));
-        _pScaleSettingsCharacteristic->setCallbacks(new CharacteristicCallbacks(
+        _pScaleSettingsCharacteristic->setCallbacks(new GenericSettingsCallback(
             this,
             _preferences,
-            _scaleManager,
-            _lever1Settings,
-            _leverPush1Settings,
-            _lever2Settings,
-            _leverPush2Settings,
-            _touchSettings,
-            _scaleSettings
+            &_scaleSettings,
+            sizeof(ScaleSettings),
+            "scale",
+            &_scaleManager
         ));
 
         _pMidiCharacteristic = _pService->createCharacteristic(
@@ -182,17 +168,7 @@ void BluetoothController::enable() {
             BLECharacteristic::PROPERTY_INDICATE
         );
         _pMidiCharacteristic->addDescriptor(new BLE2902());
-        _pMidiCharacteristic->setCallbacks(new CharacteristicCallbacks(
-            this,
-            _preferences,
-            _scaleManager,
-            _lever1Settings,
-            _leverPush1Settings,
-            _lever2Settings,
-            _leverPush2Settings,
-            _touchSettings,
-            _scaleSettings
-        ));
+        _pMidiCharacteristic->setCallbacks(new MidiSettingsCallback(this));
 
         // Start the service
         _pService->start();
@@ -205,6 +181,10 @@ void BluetoothController::enable() {
         BLEDevice::startAdvertising();
         SERIAL_PRINTLN("Waiting for a BLE client connection...");
         _isEnabled = true;
+        _lastToggleTime = millis();
+        _lastActivity = millis();
+        _modemSleeping = false;
+        SERIAL_PRINTLN("Exiting modem sleep due to Bluetooth enable.");
         // Blink LEDs for Bluetooth enabled
         _ledController.pulse(LedColor::BLUE, 333, 2000);
         _ledController.pulse(LedColor::PINK, 333, 2000);
@@ -219,7 +199,11 @@ void BluetoothController::disable() {
         }
         BLEDevice::deinit(false);
         _isEnabled = false;
+        _lastToggleTime = millis();
+        _lastActivity = millis();
+        _modemSleeping = false;
         SERIAL_PRINTLN("Bluetooth Disabled.");
+        SERIAL_PRINTLN("Exiting modem sleep due to Bluetooth disable.");
         // Blink LEDs for Bluetooth disabled
         _ledController.pulse(LedColor::BLUE, 1000, 2000);
         _ledController.pulse(LedColor::PINK, 1000, 2000);
@@ -228,4 +212,34 @@ void BluetoothController::disable() {
 
 void BluetoothController::setDeviceConnected(bool connected) {
     _deviceConnected = connected;
+    if (connected) {
+        SERIAL_PRINTLN("BLE client connected.");
+    } else {
+        SERIAL_PRINTLN("BLE client disconnected.");
+    }
+    // Treat connection event as activity (will still allow sleep after idleThreshold)
+    updateLastActivity();
+}
+
+void BluetoothController::updateLastActivity() {
+    _lastActivity = millis();
+    SERIAL_PRINT("BLE activity at ms: "); SERIAL_PRINTLN(_lastActivity);
+    if (_modemSleeping) {
+        esp_wifi_set_ps(WIFI_PS_NONE);
+        _modemSleeping = false;
+        SERIAL_PRINTLN("Exiting modem sleep due to BLE activity.");
+    }
+}
+
+void BluetoothController::checkIdleAndSleep(unsigned long idleThresholdMs) {
+    if (!_isEnabled) return;
+    // Idle is determined strictly by last characteristic activity timestamp,
+    // even if a BLE client is connected.
+    unsigned long now = millis();
+    if (!_modemSleeping && (now - _lastActivity >= idleThresholdMs)) {
+        // Enter modem sleep
+        esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+        _modemSleeping = true;
+        SERIAL_PRINTLN("Entering modem sleep due to BLE idle.");
+    }
 }

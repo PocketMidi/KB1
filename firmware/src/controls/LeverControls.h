@@ -93,6 +93,17 @@ LeverControls<MidiTransport>::LeverControls(
             _targetValue = _settings.minCCValue;
             _rampStartValue = _settings.minCCValue;
         }
+        // If this lever is configured to control velocity (internal marker ccNumber==128),
+        // initialize its current/target/ramp values from the keyboard's current velocity
+        // so it starts in sync instead of defaulting to 64.
+        if (_settings.ccNumber == 128) {
+            int vel = _keyboardControl.getVelocity();
+            _currentValue = vel;
+            _targetValue = vel;
+            _rampStartValue = vel;
+            SERIAL_PRINT("Lever CC 128 initialized to: "); SERIAL_PRINTLN(vel);
+        }
+
         _lastSentValue = _currentValue;
     }
 
@@ -265,14 +276,21 @@ void LeverControls<MidiTransport>::updateValue() {
     }
 
     if (_currentValue != _lastSentValue) {
-        SERIAL_PRINT("Sending CC "); SERIAL_PRINT(_settings.ccNumber);
-        SERIAL_PRINT(", Value: "); SERIAL_PRINTLN(_currentValue);
-        _midi.sendControlChange(_settings.ccNumber, _currentValue, 1);
+        int sendVal = constrain(_currentValue, 0, 127);
         if (_settings.ccNumber == 128) {
-            _keyboardControl.setVelocity(_currentValue);
+            // 128 is reserved as an internal marker for velocity control.
+            // Do NOT send a Control Change for velocity — velocity is part
+            // of Note On messages. Instead update the keyboard's velocity
+            // and update the cached sent value to avoid repeats.
+            SERIAL_PRINT("Velocity set: "); SERIAL_PRINTLN(sendVal);
+            _keyboardControl.setVelocity(sendVal);
+        } else {
+            SERIAL_PRINT("Sending CC "); SERIAL_PRINT(_settings.ccNumber);
+            SERIAL_PRINT(", Value: "); SERIAL_PRINTLN(sendVal);
+            _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
         }
 
-        // _ledController.set(_ledColor, _currentValue);
+        // _ledController.set(_ledColor, sendVal);
         _lastSentValue = _currentValue;
     }
 }

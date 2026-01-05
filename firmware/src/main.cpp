@@ -16,8 +16,12 @@
 #include <MIDI.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <freertos/semphr.h>
+#include <freertos/queue.h>
 #include <BLEDevice.h>
 #include <esp_bt_main.h>
+#include <esp_sleep.h>
+#include <driver/gpio.h>
 #include <bt/BluetoothController.h>
 #include <objects/Constants.h>
 #include <objects/Globals.h>
@@ -29,11 +33,82 @@
 #include <controls/TouchControl.h>
 #include <controls/LeverPushControls.h>
 #include "controls/OctaveControl.h"
+#include <controls/SleepControl.h>
 
 Adafruit_MCP23X17 mcp_U1;
 Adafruit_MCP23X17 mcp_U2;
 
 LEDController ledController;
+
+// LED command queue to serialize all access to ledController from one task
+typedef struct {
+    uint8_t type; // 0 = set immediate, 1 = set with ramp
+    uint8_t color;
+    int value;
+    unsigned long dur;
+} LedCommand;
+
+static QueueHandle_t ledQueue = NULL;
+
+// Enqueue LED set (immediate)
+static inline void ledSet(LedColor color, int value) {
+    if (!ledQueue) {
+        ledController.set(color, value);
+        return;
+    }
+    LedCommand cmd = {0, (uint8_t)color, value, 0};
+    xQueueSendToBack(ledQueue, &cmd, 0);
+}
+
+// Enqueue LED set with ramp/duration
+static inline void ledSetRamp(LedColor color, int value, unsigned long dur) {
+    if (!ledQueue) {
+        ledController.set(color, value, dur);
+        return;
+    }
+    LedCommand cmd = {1, (uint8_t)color, value, dur};
+    xQueueSendToBack(ledQueue, &cmd, 0);
+}
+
+// LED update task (runs on a separate core) — sole owner of ledController
+void ledTask(void *pvParameters) {
+    (void)pvParameters;
+    LedCommand cmd;
+    while (true) {
+        // Process any queued commands first
+        while (ledQueue && xQueueReceive(ledQueue, &cmd, 0) == pdTRUE) {
+            if (cmd.type == 0) {
+                ledController.set((LedColor)cmd.color, cmd.value);
+            } else {
+                ledController.set((LedColor)cmd.color, cmd.value, cmd.dur);
+            }
+        }
+        // Always call update from this task
+        ledController.update();
+        vTaskDelay(1 / portTICK_PERIOD_MS);
+    }
+}
+
+// Pink LED PWM control variables
+const int PINK_LED_PWM_PIN = 8; // Update if different
+// Ramping handled by LEDController via set(color, target, duration)
+const int PWM_MAX = 255;
+const int PWM_MIN = 0;
+const int PINK_PWM_MAX = PWM_MAX / 4; // Pink LED max brightness at 25%
+
+// Blue LED PWM control variables
+const int BLUE_LED_PWM_PIN = 7; // Update if different
+// (state tracking moved to read loop)
+bool blueLedWasPressed = false;
+
+// Lever push state tracking for blue and pink LED effects
+bool leverPushWasPressed = false;
+bool leverPushIsPressed = false;
+// Ramping durations (ms)
+const unsigned long PINK_RAMP_UP_MS = 50;
+const unsigned long PINK_RAMP_DOWN_MS = 150;
+const unsigned long BLUE_RAMP_UP_MS = 50;
+const unsigned long BLUE_RAMP_DOWN_MS = 150;
 
 MIDI_CREATE_INSTANCE(HardwareSerial, Serial0, MIDI);
 
@@ -74,8 +149,8 @@ LeverSettings lever1Settings = {
     .stepSize = 1,
     .functionMode = LeverFunctionMode::INTERPOLATED,
     .valueMode = ValueMode::BIPOLAR,
-    .onsetTime = 1000,
-    .offsetTime = 1000,
+    .onsetTime = 100,
+    .offsetTime = 100,
     .onsetType = InterpolationType::LINEAR,
     .offsetType = InterpolationType::LINEAR,
 };
@@ -96,11 +171,11 @@ LeverControls<decltype(MIDI)> lever1(
 //----------------------------------
 LeverPushSettings leverPush1Settings = {
     .ccNumber = 24,
-    .minCCValue = 0,
+    .minCCValue = 31,
     .maxCCValue = 127,
     .functionMode = LeverPushFunctionMode::INTERPOLATED,
-    .onsetTime = 200,
-    .offsetTime = 200,
+    .onsetTime = 100,
+    .offsetTime = 100,
     .onsetType = InterpolationType::LINEAR,
     .offsetType = InterpolationType::LINEAR,
 };
@@ -119,14 +194,14 @@ LeverPushControls<decltype(MIDI)> leverPush1(
 // Lever 2 Setup
 //----------------------------------
 LeverSettings lever2Settings = {
-    .ccNumber = 7,
-    .minCCValue = 0,
+    .ccNumber = 128,
+    .minCCValue = 15,
     .maxCCValue = 127,
-    .stepSize = 2,
+    .stepSize = 8,
     .functionMode = LeverFunctionMode::INCREMENTAL,
     .valueMode = ValueMode::BIPOLAR,
-    .onsetTime = 200,
-    .offsetTime = 200,
+    .onsetTime = 100,
+    .offsetTime = 100,
     .onsetType = InterpolationType::LINEAR,
     .offsetType = InterpolationType::LINEAR,
 };
@@ -146,12 +221,12 @@ LeverControls<decltype(MIDI)> lever2(
 // LeverPush 2 Setup
 //----------------------------------
 LeverPushSettings leverPush2Settings = {
-    .ccNumber = 7,
-    .minCCValue = 81,
-    .maxCCValue = 127,
+    .ccNumber = 128,
+    .minCCValue = 87,
+    .maxCCValue = 87,
     .functionMode = LeverPushFunctionMode::RESET,
-    .onsetTime = 200,
-    .offsetTime = 200,
+    .onsetTime = 100,
+    .offsetTime = 100,
     .onsetType = InterpolationType::LINEAR,
     .offsetType = InterpolationType::LINEAR,
 };
@@ -170,22 +245,50 @@ LeverPushControls<decltype(MIDI)> leverPush2(
 // Touch Sensor Setup
 //----------------------------------
 TouchSettings touchSettings = {
-    .ccNumber = 51,
-    .minCCValue = 0,
+    .ccNumber = 1,
+    .minCCValue = 64,
     .maxCCValue = 127,
-    .functionMode = TouchFunctionMode::HOLD,
+    .functionMode = TouchFunctionMode::CONTINUOUS,
+    .threshold = 24000,
 };
 TouchControl<decltype(MIDI)> touch(
     T1,
     touchSettings,
-    26000,
-    155000, 
-    26000,
+    24000,
+    64000,
     MIDI
 );
 
 Preferences preferences;
 BluetoothController* bluetoothControllerPtr = nullptr;
+
+//----------------------------------
+// Sleep / Deep Sleep Management
+//----------------------------------
+unsigned long lastActivityMillis = 0;
+const unsigned long DEEP_SLEEP_IDLE_MS = 330000; // 5.5 minutes (330000 ms)
+bool deepSleepTriggered = false;
+
+// Require a short, confirmed quiet window before starting the deep-sleep countdown
+const unsigned long IDLE_CONFIRM_MS = 2000; // require 2s of no activity to confirm idle
+unsigned long idleStartMillis = 0;
+bool idleConfirmed = false;
+unsigned long idleConfirmTime = 0;
+
+// Forward declare touch wake callback so it can be referenced by sleep routines
+void IRAM_ATTR touchWakeCallback();
+
+// Enter a light-sleep mode with a simple LED heartbeat sequence.
+// The sequence runs while the MCU repeatedly enters short light-sleep intervals
+// (3s) to conserve power. If touch wake is sensed, return to normal operation.
+// If no input for the configured light-sleep window (5 minutes), fall back
+// to the deep-sleep path.
+// Light / deep-sleep implementations moved to controls/SleepControl.h
+
+// Touch wake callback (called when touch interrupt fires)
+void IRAM_ATTR touchWakeCallback() {
+    // empty: waking is handled by hardware wake source
+}
 
 void readInputs(void *pvParameters);
 void loadSettings() {
@@ -203,6 +306,60 @@ void loadSettings() {
 }
 
 //---------------------------------------------------
+// Startup LED wave bounce (fast & sharp)
+// Sequence: Pink → Blue → Down → Up → Down → Blue
+// Bounce back & forth 2×
+//---------------------------------------------------
+void startupPulseSequence() {
+    const int onTime = 80;      // LED ON duration (fast flash)
+    const int gapTime = 5;      // quick gap between LEDs
+    const int cyclePause = 100; // short pause after full bounce
+
+    // Wave bounce 2×
+    for (int i = 0; i < 2; i++) {
+        // Forward wave
+        ledSet(LedColor::PINK, PINK_PWM_MAX);
+        delay(onTime);
+        ledSet(LedColor::PINK, 0);
+        delay(gapTime);
+
+        ledSet(LedColor::BLUE, PWM_MAX);
+        delay(onTime);
+        ledSet(LedColor::BLUE, 0);
+        delay(gapTime);
+
+        ledSet(LedColor::OCTAVE_DOWN, 1);
+        delay(onTime);
+        ledSet(LedColor::OCTAVE_DOWN, 0);
+        delay(gapTime);
+
+        ledSet(LedColor::OCTAVE_UP, 1);
+        delay(onTime);
+        ledSet(LedColor::OCTAVE_UP, 0);
+        delay(gapTime);
+
+        // Backward wave (stop at Blue, don’t repeat Pink here)
+        ledSet(LedColor::OCTAVE_DOWN, 1);
+        delay(onTime);
+        ledSet(LedColor::OCTAVE_DOWN, 0);
+        delay(gapTime);
+
+        ledSet(LedColor::BLUE, PWM_MAX);
+        delay(onTime);
+        ledSet(LedColor::BLUE, 0);
+
+        delay(cyclePause);
+    }
+
+    // End of startup sequence — keep the wave/chase only.
+    // Short pause so the last wave step is perceptible before normal operation.
+    delay(100);
+}
+
+// sleep helpers implemented in controls/SleepControl.h
+
+
+//---------------------------------------------------
 //
 //  Setup
 //
@@ -211,12 +368,9 @@ void setup() {
     SERIAL_BEGIN();
     SERIAL_PRINTLN("Serial monitor started.");
 
-    // initialize digital pin LED_BUILTIN as an output.
     pinMode(LED_BUILTIN, OUTPUT);
-    // Keep built-in LED on continuously (active low for some boards)
-    digitalWrite(LED_BUILTIN, LOW);
+    digitalWrite(LED_BUILTIN, LOW); // Keep LED on
 
-    // Initialize Preferences
     if (!preferences.begin("kb1-settings", false)) {
         SERIAL_PRINTLN("Error initializing Preferences. Rebooting...");
         ESP.restart();
@@ -224,29 +378,22 @@ void setup() {
         SERIAL_PRINTLN("Preferences initialized successfully.");
     }
 
-    loadSettings(); // Load settings after Preferences are initialized
+    loadSettings();
 
-    // Start MCP_U1
     if (!mcp_U1.begin_I2C(0x20)) {
         SERIAL_PRINTLN("Error initializing U1.");
-        // ReSharper disable once CppDFAEndlessLoop
         while (true) {}
     }
-    // Start MCP_U2
     if (!mcp_U2.begin_I2C(0x21)) {
         SERIAL_PRINTLN("Error initializing U2.");
-        // ReSharper disable once CppDFAEndlessLoop
         while (true) {}
     }
 
-    // Add a small delay to allow MCP2 to fully initialize
-    delay(100);
+    delay(100); // Allow MCP to settle
 
-    // Configure SWD buttons on U1 as inputs with pull-up
     mcp_U1.pinMode(SWD1_LEFT_PIN, INPUT_PULLUP);
     mcp_U1.pinMode(SWD1_CENTER_PIN, INPUT_PULLUP);
 
-    // Configure SWD buttons on U2 as inputs with pull-up
     mcp_U2.pinMode(SWD1_RIGHT_PIN, INPUT_PULLUP);
     mcp_U2.pinMode(SWD2_LEFT_PIN, INPUT_PULLUP);
     mcp_U2.pinMode(SWD2_CENTER_PIN, INPUT_PULLUP);
@@ -259,11 +406,32 @@ void setup() {
     octaveControl.begin();
     keyboardControl.begin();
 
+    // Register velocity hook to keep lever2 in sync when velocity changes
+    auto velocityHook = [](int v) {
+        lever2.setValue(v);
+    };
+    keyboardControl.registerVelocityChangeHook(velocityHook);
+
     ledController.begin(LedColor::OCTAVE_UP, 7, &mcp_U2);
     ledController.begin(LedColor::OCTAVE_DOWN, 5, &mcp_U2);
 
-    ledController.begin(LedColor::BLUE, 7);
-    ledController.begin(LedColor::PINK, 8);
+    ledController.begin(LedColor::BLUE, BLUE_LED_PWM_PIN);
+    ledController.begin(LedColor::PINK, PINK_LED_PWM_PIN);
+    pinMode(PINK_LED_PWM_PIN, OUTPUT); // Ensure PWM pin is set
+    pinMode(BLUE_LED_PWM_PIN, OUTPUT); // Ensure PWM pin is set
+
+    // Create LED command queue and start LED task on core 0
+    ledQueue = xQueueCreate(16, sizeof(LedCommand));
+    if (ledQueue == NULL) {
+        SERIAL_PRINTLN("Warning: failed to create LED queue");
+    }
+    // Run ledTask on the same core as readInputs to avoid cross-core I2C access
+    xTaskCreatePinnedToCore(ledTask, "ledTask", 4096, nullptr, 1, nullptr, 1);
+
+    // Run LED startup sequence
+    startupPulseSequence();
+
+    // Initialize Bluetooth controller
 
     bluetoothControllerPtr = new BluetoothController(
         preferences,
@@ -278,19 +446,23 @@ void setup() {
     );
 
     octaveControl.setBluetoothController(bluetoothControllerPtr);
+
+    // Initialize activity timer
+    lastActivityMillis = millis();
 }
 
 //---------------------------------------------------
 //
-//  Loops
+//  Loop
 //
 //---------------------------------------------------
 void loop() {
-    ledController.update();
-    // Small delay to avoid watchdog timer issues
+    // Check BLE idle and enter modem sleep if needed (90 seconds = 90000 ms)
+    if (bluetoothControllerPtr) {
+        bluetoothControllerPtr->checkIdleAndSleep(90000);
+    }
     vTaskDelay(1 / portTICK_PERIOD_MS);
 }
-
 [[noreturn]] void readInputs(void *pvParameters) {
     while (true) {
         touch.update();
@@ -301,6 +473,132 @@ void loop() {
         octaveControl.update();
         keyboardControl.updateKeyboardState();
 
+        // Query touch sensor active state (affects LED behavior)
+        bool touchActive = touch.isActive();
+
+        // Activity detection: any active input counts as activity
+        bool activityDetected = false;
+
+        // Pink/Blue LED: compute targets and use LEDController ramping or touch-driven pulse
+        bool lever1Right = mcp_U2.digitalRead(SWD1_RIGHT_PIN) == LOW;
+        bool lever2Right = mcp_U2.digitalRead(SWD2_RIGHT_PIN) == LOW;
+        bool pinkLedPressed = lever1Right || lever2Right;
+
+        bool lever1Left = mcp_U1.digitalRead(SWD1_LEFT_PIN) == LOW;
+        bool lever2Left = mcp_U2.digitalRead(SWD2_LEFT_PIN) == LOW;
+        bool blueLeftPressed = lever1Left || lever2Left;
+
+        // Lever push logic for blue LED
+        bool leverPush1Pressed = mcp_U1.digitalRead(SWD1_CENTER_PIN) == LOW;
+        bool leverPush2Pressed = mcp_U2.digitalRead(SWD2_CENTER_PIN) == LOW;
+        leverPushIsPressed = leverPush1Pressed || leverPush2Pressed;
+
+        static int _lastPinkTarget = -1;
+        static int _lastBlueTarget = -1;
+
+        // Touch-driven alternating pulse parameters
+        static bool _touchPulseMode = false;
+        static unsigned long _pulseStart = 0;
+        const unsigned long blueOnMs = 150UL;
+        const unsigned long gapMs1 = 5UL;
+        const unsigned long pinkOnMs = 150UL;
+        const unsigned long gapMs2 = 250UL; // increased for smoother pacing
+        const unsigned long totalCycle = blueOnMs + gapMs1 + pinkOnMs + gapMs2;
+        const unsigned long pulseRampMs = 60UL; // ramp time for smoother chase
+
+        int computedPinkTarget = pinkLedPressed ? PINK_PWM_MAX : 0;
+        int baseLeftTarget = blueLeftPressed ? PWM_MAX : 0;
+        int basePushTarget = leverPushIsPressed ? (PWM_MAX / 2) : 0;
+        int computedBlueTarget = max(baseLeftTarget, basePushTarget);
+
+        if (touchActive) {
+            if (!_touchPulseMode) {
+                _touchPulseMode = true;
+                _pulseStart = millis();
+            }
+            unsigned long elapsed = (millis() - _pulseStart) % totalCycle;
+            if (elapsed < blueOnMs) {
+                // Blue on, pink off
+                computedBlueTarget = PWM_MAX;
+                computedPinkTarget = 0;
+            } else if (elapsed < (blueOnMs + gapMs1)) {
+                // Gap after blue
+                computedBlueTarget = 0;
+                computedPinkTarget = 0;
+            } else if (elapsed < (blueOnMs + gapMs1 + pinkOnMs)) {
+                // Pink on, blue off
+                computedBlueTarget = 0;
+                computedPinkTarget = PINK_PWM_MAX;
+            } else {
+                // Gap after pink
+                computedBlueTarget = 0;
+                computedPinkTarget = 0;
+            }
+        } else {
+            // Restore normal behavior when not in touch pulse mode
+            if (_touchPulseMode) {
+                _touchPulseMode = false;
+            }
+            // computedPinkTarget and computedBlueTarget already set from base inputs
+        }
+
+        // Apply pink LED change (use short ramps for pulse mode to create a smooth chase)
+        if (computedPinkTarget != _lastPinkTarget) {
+            unsigned long dur;
+            if (_touchPulseMode) {
+                dur = pulseRampMs;
+            } else {
+                dur = (_lastPinkTarget < 0 || computedPinkTarget > _lastPinkTarget) ? PINK_RAMP_UP_MS : PINK_RAMP_DOWN_MS;
+            }
+            ledSetRamp(LedColor::PINK, computedPinkTarget, dur);
+            _lastPinkTarget = computedPinkTarget;
+        }
+
+        // Apply blue LED change (use short ramps for pulse mode to create a smooth chase)
+        if (computedBlueTarget != _lastBlueTarget) {
+            unsigned long dur;
+            if (_touchPulseMode) {
+                dur = pulseRampMs;
+            } else {
+                dur = (_lastBlueTarget < 0 || computedBlueTarget > _lastBlueTarget) ? BLUE_RAMP_UP_MS : BLUE_RAMP_DOWN_MS;
+            }
+            ledSetRamp(LedColor::BLUE, computedBlueTarget, dur);
+            _lastBlueTarget = computedBlueTarget;
+        }
+
+        leverPushWasPressed = leverPushIsPressed;        
+
+        // Determine activity: touch active, any keyboard key, or any pressed switch
+        bool keyboardActive = keyboardControl.anyKeyActive();
+        activityDetected = touchActive || keyboardActive || pinkLedPressed || blueLeftPressed || leverPushIsPressed;
+
+        if (activityDetected) {
+            // Reset idle confirmation and mark last activity time
+            idleStartMillis = 0;
+            idleConfirmed = false;
+            lastActivityMillis = millis();
+            deepSleepTriggered = false;
+        } else {
+            // No activity detected currently — start/continue idle confirmation
+            if (!idleConfirmed) {
+                if (idleStartMillis == 0) {
+                    idleStartMillis = millis();
+                } else if (millis() - idleStartMillis >= IDLE_CONFIRM_MS) {
+                    // We've had a confirmed quiet window — start deep-sleep countdown
+                    idleConfirmed = true;
+                    idleConfirmTime = millis();
+                }
+            } else {
+                // idleConfirmed true => count towards deep sleep timeout
+                if (!deepSleepTriggered && (millis() - idleConfirmTime >= DEEP_SLEEP_IDLE_MS)) {
+                    deepSleepTriggered = true;
+                    enterLightSleep(touch, keyboardControl, ledController, bluetoothControllerPtr, touchSettings, lastActivityMillis, PINK_LED_PWM_PIN, BLUE_LED_PWM_PIN, PINK_PWM_MAX, PWM_MAX, PINK_RAMP_UP_MS, PINK_RAMP_DOWN_MS, BLUE_RAMP_UP_MS, BLUE_RAMP_DOWN_MS);
+                }
+            }
+        }
+
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
+
+// enterDeepSleep() implemented in controls/SleepControl.h
