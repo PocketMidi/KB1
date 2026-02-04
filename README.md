@@ -1,4 +1,10 @@
 # *KB1*
+## Licensing Summary
+
+- **Software & firmware**: MIT License (see LICENSE)
+- **Hardware designs**: CERN Open Hardware Licence v2 – Strongly Reciprocal
+  (see hardware/LICENSE-CERN-OHL-S.txt)
+
 ### A pocket size midi keyboard controller with mini speakers for the [Polyend Tracker Mini](https://polyend.com/tracker-mini/)
 ![KB1 banner](assets/banner_1.jpg)
 ![inner top](assets/inner_1.png)
