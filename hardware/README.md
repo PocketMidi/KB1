@@ -8,4 +8,6 @@
 All hardware design files in this directory are licensed under the
 CERN Open Hardware Licence Version 2 – Strongly Reciprocal (CERN-OHL-S v2).
 
-See LICENSE-CERN-OHL-S.txt for full license text.
+OSHWA UID
+US002800
+https://certification.oshwa.org/us002800.html
