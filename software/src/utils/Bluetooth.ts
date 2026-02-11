@@ -144,7 +144,7 @@ export default class Bluetooth {
                 break;
               }
               case BTECharacteristics.LeverPush2: {
-                dataView = this.createDataView(settings.leverPush1 as LeverPushSettings, SettingsType.LEVERPUSH);
+                dataView = this.createDataView(settings.leverPush2 as LeverPushSettings, SettingsType.LEVERPUSH);
                 break;
               }
               case BTECharacteristics.Touch: {
