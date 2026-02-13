@@ -473,6 +473,8 @@ void loop() {
             unsigned long timeSinceLastPing = now - lastPing;
             
             // If we're still within the grace period since last keep-alive ping, extend the idle threshold
+            // Note: Each ping calls refreshKeepAlive() which updates _lastActivity, so extending the 
+            // threshold to gracePeriod ensures the system won't sleep as long as pings keep coming
             if (timeSinceLastPing < gracePeriod) {
                 idleThreshold = gracePeriod;
             } else {

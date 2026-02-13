@@ -46,7 +46,7 @@ BluetoothController::BluetoothController(
     _modemSleeping(false),
     _lastKeepAlivePing(0),
     _keepAliveActive(false),
-    _keepAliveGracePeriod(120000) // 2 minutes default grace period
+    _keepAliveGracePeriod(KEEPALIVE_GRACE_PERIOD_MS)
 {
 }
 

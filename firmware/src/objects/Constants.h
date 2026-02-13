@@ -24,4 +24,7 @@
 #define MIDI_UUID                "eb58b31b-d963-4c7d-9a11-e8aabec2fe32"
 #define KEEPALIVE_UUID           "a8f3d5e2-9c4b-11ef-8e7a-325096b39f47"
 
+// Keep-alive timing constants (in milliseconds)
+#define KEEPALIVE_GRACE_PERIOD_MS 120000  // 2 minutes
+
 #endif
