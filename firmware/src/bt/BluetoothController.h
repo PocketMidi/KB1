@@ -38,6 +38,7 @@ public:
     BLECharacteristic* getTouchSettingsCharacteristic() { return _pTouchSettingsCharacteristic; }
     BLECharacteristic* getScaleSettingsCharacteristic() { return _pScaleSettingsCharacteristic; }
     BLECharacteristic* getMidiCharacteristic() { return _pMidiCharacteristic; }
+    BLECharacteristic* getKeepAliveCharacteristic() { return _pKeepAliveCharacteristic; }
 
     // Access the last enable/disable timestamp for cooldown checks
     unsigned long getLastToggleTime() const { return _lastToggleTime; }
@@ -52,6 +53,13 @@ public:
     void updateLastActivity();
     unsigned long getLastActivity() const { return _lastActivity; }
     void checkIdleAndSleep(unsigned long idleThresholdMs);
+
+    // Keep-alive management
+    void setKeepAliveActive(bool active);
+    bool isKeepAliveActive() const { return _keepAliveActive; }
+    unsigned long getLastKeepAlivePing() const { return _lastKeepAlivePing; }
+    unsigned long getKeepAliveGracePeriod() const { return _keepAliveGracePeriod; }
+    void refreshKeepAlive();
 
 private:
     BLEServer* _pServer;
@@ -70,6 +78,12 @@ private:
     BLECharacteristic* _pTouchSettingsCharacteristic;
     BLECharacteristic* _pScaleSettingsCharacteristic;
     BLECharacteristic* _pMidiCharacteristic;
+    BLECharacteristic* _pKeepAliveCharacteristic;
+
+    // Keep-alive state
+    unsigned long _lastKeepAlivePing;
+    bool _keepAliveActive;
+    unsigned long _keepAliveGracePeriod;
 
     Preferences& _preferences;
     ScaleManager& _scaleManager;

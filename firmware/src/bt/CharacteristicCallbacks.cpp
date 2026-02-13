@@ -74,3 +74,16 @@ void MidiSettingsCallback::onWrite(BLECharacteristic *pCharacteristic) {
         }
     }
 }
+
+KeepAliveCallback::KeepAliveCallback(BluetoothController* controller)
+    : _controller(controller)
+{
+}
+
+void KeepAliveCallback::onWrite(BLECharacteristic *pCharacteristic) {
+    if (_controller) {
+        // Refresh keep-alive timestamp and ensure it's active
+        _controller->refreshKeepAlive();
+        SERIAL_PRINTLN("Keep-alive ping received.");
+    }
+}

@@ -457,9 +457,33 @@ void setup() {
 //
 //---------------------------------------------------
 void loop() {
-    // Check BLE idle and enter modem sleep if needed (90 seconds = 90000 ms)
+    // Check BLE idle and enter modem sleep if needed
+    // Use extended timeout if keep-alive is active (default 90 seconds, extended to accommodate grace period)
     if (bluetoothControllerPtr) {
-        bluetoothControllerPtr->checkIdleAndSleep(90000);
+        unsigned long idleThreshold = 90000; // Default 90 seconds
+        
+        // If keep-alive is active, check if we're within grace period
+        if (bluetoothControllerPtr->isKeepAliveActive()) {
+            unsigned long now = millis();
+            unsigned long lastPing = bluetoothControllerPtr->getLastKeepAlivePing();
+            unsigned long gracePeriod = bluetoothControllerPtr->getKeepAliveGracePeriod();
+            
+            // Handle millis() overflow correctly by using unsigned arithmetic
+            // This works because unsigned subtraction wraps around correctly
+            unsigned long timeSinceLastPing = now - lastPing;
+            
+            // If we're still within the grace period since last keep-alive ping, extend the idle threshold
+            // Note: Each ping calls refreshKeepAlive() which updates _lastActivity, so extending the 
+            // threshold to gracePeriod ensures the system won't sleep as long as pings keep coming
+            if (timeSinceLastPing < gracePeriod) {
+                idleThreshold = gracePeriod;
+            } else {
+                // Grace period expired, deactivate keep-alive
+                bluetoothControllerPtr->setKeepAliveActive(false);
+            }
+        }
+        
+        bluetoothControllerPtr->checkIdleAndSleep(idleThreshold);
     }
     vTaskDelay(1 / portTICK_PERIOD_MS);
 }
