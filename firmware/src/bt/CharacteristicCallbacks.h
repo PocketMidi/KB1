@@ -38,4 +38,13 @@ private:
     BluetoothController* _controller;
 };
 
+// Keep-alive callback for app ping communication
+class KeepAliveCallback final : public BLECharacteristicCallbacks {
+public:
+    KeepAliveCallback(BluetoothController* controller);
+    void onWrite(BLECharacteristic *pCharacteristic) override;
+private:
+    BluetoothController* _controller;
+};
+
 #endif

@@ -74,3 +74,23 @@ void MidiSettingsCallback::onWrite(BLECharacteristic *pCharacteristic) {
         }
     }
 }
+
+KeepAliveCallback::KeepAliveCallback(BluetoothController* controller)
+    : _controller(controller)
+{
+}
+
+void KeepAliveCallback::onWrite(BLECharacteristic *pCharacteristic) {
+    const std::string rxValue = pCharacteristic->getValue();
+    
+    if (_controller) {
+        // Update activity timestamp to prevent sleep
+        _controller->updateLastActivity();
+        
+        // Activate keep-alive if we receive a non-empty value
+        if (!rxValue.empty()) {
+            _controller->setKeepAliveActive(true);
+            SERIAL_PRINTLN("Keep-alive ping received.");
+        }
+    }
+}

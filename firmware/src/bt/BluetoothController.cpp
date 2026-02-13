@@ -38,11 +38,15 @@ BluetoothController::BluetoothController(
     _pTouchSettingsCharacteristic(nullptr),
     _pScaleSettingsCharacteristic(nullptr),
     _pMidiCharacteristic(nullptr),
+    _pKeepAliveCharacteristic(nullptr),
     _pService(nullptr),
     _isEnabled(false),
     _lastToggleTime(0),
     _lastActivity(0),
-    _modemSleeping(false)
+    _modemSleeping(false),
+    _lastKeepAlivePing(0),
+    _keepAliveActive(false),
+    _keepAliveGracePeriod(120000) // 2 minutes default grace period
 {
 }
 
@@ -170,6 +174,12 @@ void BluetoothController::enable() {
         _pMidiCharacteristic->addDescriptor(new BLE2902());
         _pMidiCharacteristic->setCallbacks(new MidiSettingsCallback(this));
 
+        _pKeepAliveCharacteristic = _pService->createCharacteristic(
+            KEEPALIVE_UUID,
+            BLECharacteristic::PROPERTY_WRITE
+        );
+        _pKeepAliveCharacteristic->setCallbacks(new KeepAliveCallback(this));
+
         // Start the service
         _pService->start();
 
@@ -241,5 +251,16 @@ void BluetoothController::checkIdleAndSleep(unsigned long idleThresholdMs) {
         esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
         _modemSleeping = true;
         SERIAL_PRINTLN("Entering modem sleep due to BLE idle.");
+    }
+}
+
+void BluetoothController::setKeepAliveActive(bool active) {
+    _keepAliveActive = active;
+    if (active) {
+        _lastKeepAlivePing = millis();
+        updateLastActivity();
+        SERIAL_PRINTLN("Keep-alive activated.");
+    } else {
+        SERIAL_PRINTLN("Keep-alive deactivated.");
     }
 }

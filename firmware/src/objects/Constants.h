@@ -22,5 +22,6 @@
 #define TOUCH_SETTINGS_UUID      "5612b54d-8bfe-4217-a079-c9c95ab32c41"
 #define SCALE_SETTINGS_UUID      "297bd635-c3e8-4fb4-b5e0-93586da8f14c"
 #define MIDI_UUID                "eb58b31b-d963-4c7d-9a11-e8aabec2fe32"
+#define KEEPALIVE_UUID           "a8f3d5e2-9c4b-11ef-8e7a-325096b39f47"
 
 #endif
