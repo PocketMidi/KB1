@@ -81,16 +81,11 @@ KeepAliveCallback::KeepAliveCallback(BluetoothController* controller)
 }
 
 void KeepAliveCallback::onWrite(BLECharacteristic *pCharacteristic) {
-    const std::string rxValue = pCharacteristic->getValue();
-    
     if (_controller) {
-        // Update activity timestamp to prevent sleep
+        // Update activity timestamp and activate keep-alive on any write
+        // This ensures consistent behavior regardless of payload
         _controller->updateLastActivity();
-        
-        // Activate keep-alive if we receive a non-empty value
-        if (!rxValue.empty()) {
-            _controller->setKeepAliveActive(true);
-            SERIAL_PRINTLN("Keep-alive ping received.");
-        }
+        _controller->setKeepAliveActive(true);
+        SERIAL_PRINTLN("Keep-alive ping received.");
     }
 }

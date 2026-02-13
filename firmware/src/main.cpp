@@ -465,7 +465,7 @@ void loop() {
         // If keep-alive is active, check if we're within grace period
         if (bluetoothControllerPtr->isKeepAliveActive()) {
             unsigned long timeSinceLastPing = millis() - bluetoothControllerPtr->getLastKeepAlivePing();
-            unsigned long gracePeriod = 120000; // 2 minutes grace period
+            unsigned long gracePeriod = bluetoothControllerPtr->getKeepAliveGracePeriod();
             
             // If we're still within the grace period since last keep-alive ping, extend the idle threshold
             if (timeSinceLastPing < gracePeriod) {

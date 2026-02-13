@@ -58,6 +58,7 @@ public:
     void setKeepAliveActive(bool active);
     bool isKeepAliveActive() const { return _keepAliveActive; }
     unsigned long getLastKeepAlivePing() const { return _lastKeepAlivePing; }
+    unsigned long getKeepAliveGracePeriod() const { return _keepAliveGracePeriod; }
 
 private:
     BLEServer* _pServer;
