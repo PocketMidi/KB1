@@ -264,3 +264,9 @@ void BluetoothController::setKeepAliveActive(bool active) {
         SERIAL_PRINTLN("Keep-alive deactivated.");
     }
 }
+
+void BluetoothController::refreshKeepAlive() {
+    _lastKeepAlivePing = millis();
+    _keepAliveActive = true;
+    updateLastActivity();
+}

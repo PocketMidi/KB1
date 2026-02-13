@@ -82,10 +82,8 @@ KeepAliveCallback::KeepAliveCallback(BluetoothController* controller)
 
 void KeepAliveCallback::onWrite(BLECharacteristic *pCharacteristic) {
     if (_controller) {
-        // Update activity timestamp and activate keep-alive on any write
-        // This ensures consistent behavior regardless of payload
-        _controller->updateLastActivity();
-        _controller->setKeepAliveActive(true);
+        // Refresh keep-alive timestamp and ensure it's active
+        _controller->refreshKeepAlive();
         SERIAL_PRINTLN("Keep-alive ping received.");
     }
 }
