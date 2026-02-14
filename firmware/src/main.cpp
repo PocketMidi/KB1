@@ -458,9 +458,9 @@ void setup() {
 //---------------------------------------------------
 void loop() {
     // Check BLE idle and enter modem sleep if needed
-    // BLE radio turns off 10 seconds before entering light sleep (330 sec light sleep - 10 sec = 320 sec)
+    // BLE radio turns off 10 seconds before entering light sleep (DEEP_SLEEP_IDLE_MS: 330 sec - 10 sec = 320 sec)
     if (bluetoothControllerPtr) {
-        unsigned long idleThreshold = 320000; // Changed from 90 seconds to 320 seconds (5 min 20 sec)
+        unsigned long idleThreshold = 320000; // 320 seconds (5 min 20 sec)
         
         // If keep-alive is active, check if we're within grace period
         if (bluetoothControllerPtr->isKeepAliveActive()) {
