@@ -171,7 +171,7 @@ LeverControls<decltype(MIDI)> lever1(
 //----------------------------------
 LeverPushSettings leverPush1Settings = {
     .ccNumber = 24,
-    .minCCValue = 31,
+    .minCCValue = 32,
     .maxCCValue = 127,
     .functionMode = LeverPushFunctionMode::INTERPOLATED,
     .onsetTime = 100,
@@ -195,7 +195,7 @@ LeverPushControls<decltype(MIDI)> leverPush1(
 //----------------------------------
 LeverSettings lever2Settings = {
     .ccNumber = 128,
-    .minCCValue = 15,
+    .minCCValue = 16,
     .maxCCValue = 127,
     .stepSize = 8,
     .functionMode = LeverFunctionMode::INCREMENTAL,
