@@ -222,8 +222,8 @@ LeverControls<decltype(MIDI)> lever2(
 //----------------------------------
 LeverPushSettings leverPush2Settings = {
     .ccNumber = 128,
-    .minCCValue = 87,
-    .maxCCValue = 87,
+    .minCCValue = 89,
+    .maxCCValue = 89,
     .functionMode = LeverPushFunctionMode::RESET,
     .onsetTime = 100,
     .offsetTime = 100,
@@ -458,9 +458,9 @@ void setup() {
 //---------------------------------------------------
 void loop() {
     // Check BLE idle and enter modem sleep if needed
-    // Use extended timeout if keep-alive is active (default 90 seconds, extended to accommodate grace period)
+    // BLE radio turns off 10 seconds before entering light sleep (5.5 min light sleep - 10 sec = 320 sec)
     if (bluetoothControllerPtr) {
-        unsigned long idleThreshold = 90000; // Default 90 seconds
+        unsigned long idleThreshold = 320000; // Changed from 90 seconds to 320 seconds (5 min 20 sec)
         
         // If keep-alive is active, check if we're within grace period
         if (bluetoothControllerPtr->isKeepAliveActive()) {
