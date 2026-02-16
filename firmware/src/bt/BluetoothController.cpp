@@ -178,6 +178,7 @@ void BluetoothController::enable() {
             KEEPALIVE_UUID,
             BLECharacteristic::PROPERTY_WRITE
         );
+        _pKeepAliveCharacteristic->addDescriptor(new BLE2902());
         _pKeepAliveCharacteristic->setCallbacks(new KeepAliveCallback(this));
 
         // Start the service
