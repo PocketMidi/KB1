@@ -15,7 +15,7 @@ public:
         : _midi(midi),
           _octaveControl(octaveCtrl),
           _scaleManager(scaleManager),
-          _currentVelocity(87),
+          _currentVelocity(89),
           _minVelocity(15)
     {
         memset(_isNoteOn, false, sizeof(_isNoteOn));

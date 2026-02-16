@@ -108,7 +108,7 @@ bool isSwd2LeftPressed = false;
 bool isSwd2RightPressed = false;
 bool isSwd2CenterPressed = false;
 const int swd2Interval = 200;      // Interval in milliseconds (0.2 seconds)
-volatile int currentVelocity = 80; // state variable for velocity value
+volatile int currentVelocity = 89; // state variable for velocity value
 int minVelocity = 8;
 
 // LED Blue // Velocity // Lever 2 ////////
@@ -158,8 +158,8 @@ void updateVelocity(int delta)
 }
 void resetVelocity()
 {
-    currentVelocity = 80; // Reset velocity to 80
-    SERIAL_PRINTLN("Velocity Reset to 80");
+    currentVelocity = 89; // Reset velocity to 89
+    SERIAL_PRINTLN("Velocity Reset to 89");
     analogWrite(bluePin, 51); // Set LED to xx% brightness
     delay(250);               // Delay for 0.5 seconds
     analogWrite(bluePin, 0);  // Turn off LED
@@ -474,9 +474,9 @@ void buttonReadTask(void *pvParameters)
 
         ////////// LEVER 2 CENTER ///////////////////////////////////////////////
         if (SWD2CenterState && !prevSWD2CenterState && !isSwd2CenterPressed)
-        { // Reset velocity to 80
+        { // Reset velocity to 89
             resetVelocity();
-            currentVelocity = 80;
+            currentVelocity = 89;
             SERIAL_PRINTLN("SWD2_Center Pressed! Reset Velocity");
             isSwd2CenterPressed = true;
         }
