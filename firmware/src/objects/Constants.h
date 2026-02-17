@@ -25,6 +25,6 @@
 #define KEEPALIVE_UUID           "a8f3d5e2-9c4b-11ef-8e7a-325096b39f47"
 
 // Keep-alive timing constants (in milliseconds)
-#define KEEPALIVE_GRACE_PERIOD_MS 120000  // 2 minutes
+#define KEEPALIVE_GRACE_PERIOD_MS 600000  // 10 minutes
 
 #endif
