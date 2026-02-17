@@ -44,4 +44,12 @@ struct ScaleSettings {
     int rootNote;
 };
 
+// Struct for System/Power settings
+struct SystemSettings {
+    int lightSleepTimeout;  // in seconds
+    int deepSleepTimeout;   // in seconds
+    int bleTimeout;         // in seconds
+    int idleConfirmTimeout; // in seconds
+};
+
 #endif

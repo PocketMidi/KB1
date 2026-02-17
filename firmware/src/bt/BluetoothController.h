@@ -22,7 +22,8 @@ public:
         LeverSettings& lever2Settings,
         LeverPushSettings& leverPush2Settings,
         TouchSettings& touchSettings,
-        ScaleSettings& scaleSettings
+        ScaleSettings& scaleSettings,
+        SystemSettings& systemSettings
     );
 
     LEDController& _ledController;
@@ -37,6 +38,7 @@ public:
     BLECharacteristic* getLeverPush2SettingsCharacteristic() { return _pLeverPush2SettingsCharacteristic; }
     BLECharacteristic* getTouchSettingsCharacteristic() { return _pTouchSettingsCharacteristic; }
     BLECharacteristic* getScaleSettingsCharacteristic() { return _pScaleSettingsCharacteristic; }
+    BLECharacteristic* getSystemSettingsCharacteristic() { return _pSystemSettingsCharacteristic; }
     BLECharacteristic* getMidiCharacteristic() { return _pMidiCharacteristic; }
     BLECharacteristic* getKeepAliveCharacteristic() { return _pKeepAliveCharacteristic; }
 
@@ -77,6 +79,7 @@ private:
     BLECharacteristic* _pLeverPush2SettingsCharacteristic;
     BLECharacteristic* _pTouchSettingsCharacteristic;
     BLECharacteristic* _pScaleSettingsCharacteristic;
+    BLECharacteristic* _pSystemSettingsCharacteristic;
     BLECharacteristic* _pMidiCharacteristic;
     BLECharacteristic* _pKeepAliveCharacteristic;
 
@@ -96,6 +99,7 @@ private:
     LeverPushSettings& _leverPush2Settings;
     TouchSettings& _touchSettings;
     ScaleSettings& _scaleSettings;
+    SystemSettings& _systemSettings;
 };
 
 #endif

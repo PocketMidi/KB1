@@ -21,6 +21,7 @@
 #define LEVERPUSH2_SETTINGS_UUID "52629808-3d14-4ae8-a826-40bcec6467d5"
 #define TOUCH_SETTINGS_UUID      "5612b54d-8bfe-4217-a079-c9c95ab32c41"
 #define SCALE_SETTINGS_UUID      "297bd635-c3e8-4fb4-b5e0-93586da8f14c"
+#define SYSTEM_SETTINGS_UUID     "8f7e6d5c-4b3a-2c1d-0e9f-8a7b6c5d4e3f"
 #define MIDI_UUID                "eb58b31b-d963-4c7d-9a11-e8aabec2fe32"
 #define KEEPALIVE_UUID           "a8f3d5e2-9c4b-11ef-8e7a-325096b39f47"
 

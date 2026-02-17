@@ -259,6 +259,13 @@ TouchControl<decltype(MIDI)> touch(
     MIDI
 );
 
+SystemSettings systemSettings = {
+    .lightSleepTimeout = 90,    // 90 seconds
+    .deepSleepTimeout = 330,    // 330 seconds (5.5 minutes)
+    .bleTimeout = 600,          // 600 seconds (10 minutes)
+    .idleConfirmTimeout = 2,    // 2 seconds
+};
+
 Preferences preferences;
 BluetoothController* bluetoothControllerPtr = nullptr;
 
@@ -266,11 +273,11 @@ BluetoothController* bluetoothControllerPtr = nullptr;
 // Sleep / Deep Sleep Management
 //----------------------------------
 unsigned long lastActivityMillis = 0;
-const unsigned long DEEP_SLEEP_IDLE_MS = 330000; // 5.5 minutes (330000 ms)
+unsigned long deepSleepIdleMs = 330000; // Default: 5.5 minutes, updated from systemSettings
 bool deepSleepTriggered = false;
 
 // Require a short, confirmed quiet window before starting the deep-sleep countdown
-const unsigned long IDLE_CONFIRM_MS = 2000; // require 2s of no activity to confirm idle
+unsigned long idleConfirmMs = 2000; // Default: 2s, updated from systemSettings
 unsigned long idleStartMillis = 0;
 bool idleConfirmed = false;
 unsigned long idleConfirmTime = 0;
@@ -298,9 +305,14 @@ void loadSettings() {
     preferences.getBytes("leverpush2", &leverPush2Settings, sizeof(LeverPushSettings));
     preferences.getBytes("touch", &touchSettings, sizeof(TouchSettings));
     preferences.getBytes("scale", &scaleSettings, sizeof(ScaleSettings));
+    preferences.getBytes("system", &systemSettings, sizeof(SystemSettings));
 
     scaleManager.setScale(scaleSettings.scaleType);
     scaleManager.setRootNote(scaleSettings.rootNote);
+
+    // Update timing variables from system settings (convert seconds to milliseconds)
+    deepSleepIdleMs = systemSettings.deepSleepTimeout * 1000UL;
+    idleConfirmMs = systemSettings.idleConfirmTimeout * 1000UL;
 
     SERIAL_PRINTLN("Settings loaded from Preferences.");
 }
@@ -442,7 +454,8 @@ void setup() {
         lever2Settings,
         leverPush2Settings,
         touchSettings,
-        scaleSettings
+        scaleSettings,
+        systemSettings
     );
 
     octaveControl.setBluetoothController(bluetoothControllerPtr);
@@ -607,14 +620,14 @@ void loop() {
             if (!idleConfirmed) {
                 if (idleStartMillis == 0) {
                     idleStartMillis = millis();
-                } else if (millis() - idleStartMillis >= IDLE_CONFIRM_MS) {
+                } else if (millis() - idleStartMillis >= idleConfirmMs) {
                     // We've had a confirmed quiet window — start deep-sleep countdown
                     idleConfirmed = true;
                     idleConfirmTime = millis();
                 }
             } else {
                 // idleConfirmed true => count towards deep sleep timeout
-                if (!deepSleepTriggered && (millis() - idleConfirmTime >= DEEP_SLEEP_IDLE_MS)) {
+                if (!deepSleepTriggered && (millis() - idleConfirmTime >= deepSleepIdleMs)) {
                     deepSleepTriggered = true;
                     enterLightSleep(touch, keyboardControl, ledController, bluetoothControllerPtr, touchSettings, lastActivityMillis, PINK_LED_PWM_PIN, BLUE_LED_PWM_PIN, PINK_PWM_MAX, PWM_MAX, PINK_RAMP_UP_MS, PINK_RAMP_DOWN_MS, BLUE_RAMP_UP_MS, BLUE_RAMP_DOWN_MS);
                 }

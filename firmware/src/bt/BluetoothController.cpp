@@ -16,7 +16,8 @@ BluetoothController::BluetoothController(
     LeverSettings& lever2Settings,
     LeverPushSettings& leverPush2Settings,
     TouchSettings& touchSettings,
-    ScaleSettings& scaleSettings)
+    ScaleSettings& scaleSettings,
+    SystemSettings& systemSettings)
     :
     _preferences(preferences),
     _scaleManager(scaleManager),
@@ -27,6 +28,7 @@ BluetoothController::BluetoothController(
     _leverPush2Settings(leverPush2Settings),
     _touchSettings(touchSettings),
     _scaleSettings(scaleSettings),
+    _systemSettings(systemSettings),
 
     _pServer(nullptr),
     _pAdvertising(nullptr),
@@ -37,6 +39,7 @@ BluetoothController::BluetoothController(
     _pLeverPush2SettingsCharacteristic(nullptr),
     _pTouchSettingsCharacteristic(nullptr),
     _pScaleSettingsCharacteristic(nullptr),
+    _pSystemSettingsCharacteristic(nullptr),
     _pMidiCharacteristic(nullptr),
     _pKeepAliveCharacteristic(nullptr),
     _pService(nullptr),
@@ -162,6 +165,22 @@ void BluetoothController::enable() {
             sizeof(ScaleSettings),
             "scale",
             &_scaleManager
+        ));
+
+        _pSystemSettingsCharacteristic = _pService->createCharacteristic(
+            SYSTEM_SETTINGS_UUID,
+            BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE
+        );
+        _pSystemSettingsCharacteristic->addDescriptor(new BLE2902());
+        _pSystemSettingsCharacteristic->setValue((uint8_t*)&_systemSettings, sizeof(SystemSettings));
+        _pSystemSettingsCharacteristic->setCallbacks(new GenericSettingsCallback(
+            this,
+            _preferences,
+            &_systemSettings,
+            sizeof(SystemSettings),
+            "system",
+            nullptr
         ));
 
         _pMidiCharacteristic = _pService->createCharacteristic(
