@@ -49,6 +49,21 @@ int ScaleManager::quantizeNote(int note) const {
     return getClosestNoteInScale(note, _currentScaleIntervals, _settings.rootNote);
 }
 
+int ScaleManager::getCompactModeNote(int keyIndex) const {
+    // In compact mode, map white key indices to sequential scale degrees
+    if (_currentScaleIntervals.empty()) {
+        return _settings.rootNote + keyIndex; // Fallback to chromatic
+    }
+    
+    // Calculate which scale degree and octave
+    int scaleSize = _currentScaleIntervals.size();
+    int scaleDegree = keyIndex % scaleSize;
+    int octaveOffset = keyIndex / scaleSize;
+    
+    // Return root + interval + octave offset
+    return _settings.rootNote + _currentScaleIntervals[scaleDegree] + (octaveOffset * 12);
+}
+
 void ScaleManager::updateScaleIntervals() {
     _currentScaleIntervals.clear();
     SERIAL_PRINTLN(static_cast<int>(_settings.scaleType));

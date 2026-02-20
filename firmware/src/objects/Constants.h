@@ -25,6 +25,12 @@
 #define MIDI_UUID                "eb58b31b-d963-4c7d-9a11-e8aabec2fe32"
 #define KEEPALIVE_UUID           "a8f3d5e2-9c4b-11ef-8e7a-325096b39f47"
 
+// Preset Management UUIDs
+#define PRESET_SAVE_UUID         "d3a7b321-0001-4000-8000-000000000009"
+#define PRESET_LOAD_UUID         "d3a7b321-0001-4000-8000-00000000000a"
+#define PRESET_LIST_UUID         "d3a7b321-0001-4000-8000-00000000000b"
+#define PRESET_DELETE_UUID       "d3a7b321-0001-4000-8000-00000000000c"
+
 // Keep-alive timing constants (in milliseconds)
 #define KEEPALIVE_GRACE_PERIOD_MS 600000  // 10 minutes
 

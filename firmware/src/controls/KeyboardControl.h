@@ -57,9 +57,26 @@ public:
         resetAllKeys();
     }
 
-    void playMidiNote(const byte note) {
+    void playMidiNote(const byte note, int keyIndex = -1) {
         constexpr byte channel = 1;
-        int quantizedNote = _scaleManager.quantizeNote(note + _octaveControl.getOctave() * 12);
+        int quantizedNote;
+        
+        // Check if compact mode and we have a valid key index
+        if (_scaleManager.getKeyMapping() == 1 && keyIndex >= 0) {
+            // Compact mode: map white keys to sequential scale degrees
+            int whiteKeyPosition = getWhiteKeyPosition(keyIndex);
+            if (whiteKeyPosition >= 0) {
+                // This is a white key, use compact mapping (root starts at leftmost white key)
+                quantizedNote = _scaleManager.getCompactModeNote(whiteKeyPosition) + (_octaveControl.getOctave() * 12);
+            } else {
+                // Black key in compact mode, use quantization
+                quantizedNote = _scaleManager.quantizeNote(note + _octaveControl.getOctave() * 12);
+            }
+        } else {
+            // Natural mode: quantize to nearest scale note
+            quantizedNote = _scaleManager.quantizeNote(note + _octaveControl.getOctave() * 12);
+        }
+        
         _midi.sendNoteOn(quantizedNote, _currentVelocity, channel);
         SERIAL_PRINT("Note On: ");
         SERIAL_PRINT(quantizedNote);
@@ -68,11 +85,28 @@ public:
         _isNoteOn[note] = true;
     }
 
-    void stopMidiNote(const byte note) {
+    void stopMidiNote(const byte note, int keyIndex = -1) {
         if (_isNoteOn[note])
         {
             constexpr byte channel = 1;
-            int quantizedNote = _scaleManager.quantizeNote(note + _octaveControl.getOctave() * 12);
+            int quantizedNote;
+            
+            // Check if compact mode and we have a valid key index
+            if (_scaleManager.getKeyMapping() == 1 && keyIndex >= 0) {
+                // Compact mode: map white keys to sequential scale degrees
+                int whiteKeyPosition = getWhiteKeyPosition(keyIndex);
+                if (whiteKeyPosition >= 0) {
+                    // This is a white key, use compact mapping (root starts at leftmost white key)
+                    quantizedNote = _scaleManager.getCompactModeNote(whiteKeyPosition) + (_octaveControl.getOctave() * 12);
+                } else {
+                    // Black key in compact mode, use quantization
+                    quantizedNote = _scaleManager.quantizeNote(note + _octaveControl.getOctave() * 12);
+                }
+            } else {
+                // Natural mode: quantize to nearest scale note
+                quantizedNote = _scaleManager.quantizeNote(note + _octaveControl.getOctave() * 12);
+            }
+            
             _midi.sendNoteOff(quantizedNote, 0, channel);
             SERIAL_PRINT("Note Off: ");
             SERIAL_PRINT(quantizedNote);
@@ -121,7 +155,8 @@ public:
 
     void updateKeyboardState() {
         // Debounced key scanning
-        for (auto & key : _keys) {
+        for (int i = 0; i < MAX_KEYS; ++i) {
+            auto & key = _keys[i];
             bool raw = !key.mcp->digitalRead(key.pin);
             if (raw != key.lastReading) {
                 key.lastDebounceTime = millis();
@@ -132,11 +167,11 @@ public:
                 if (raw != key.debouncedState) {
                     key.debouncedState = raw;
                     if (key.debouncedState) {
-                        playMidiNote(key.midi);
+                        playMidiNote(key.midi, i);  // Pass key index
                         SERIAL_PRINT(key.name);
                         SERIAL_PRINTLN(" Pressed!");
                     } else {
-                        stopMidiNote(key.midi);
+                        stopMidiNote(key.midi, i);  // Pass key index
                     }
                 }
             }
@@ -155,6 +190,18 @@ public:
     }
 
 private:
+    // Map key index to white key position (-1 if not a white key)
+    // White keys are: SW1-SW12 (indices: 0,1,3,5,6,8,10,12,13,15,17,18)
+    int getWhiteKeyPosition(int keyIndex) const {
+        const int whiteKeyIndices[] = {0, 1, 3, 5, 6, 8, 10, 12, 13, 15, 17, 18};
+        for (int i = 0; i < 12; ++i) {
+            if (whiteKeyIndices[i] == keyIndex) {
+                return i;  // Return position among white keys (0-11)
+            }
+        }
+        return -1;  // Not a white key
+    }
+
     MidiTransport& _midi;
     OctaveControlType& _octaveControl;
     ScaleManager& _scaleManager; // Add ScaleManager member

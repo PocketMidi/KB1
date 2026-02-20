@@ -2,6 +2,7 @@
 #include <bt/ServerCallbacks.h>
 #include <bt/CharacteristicCallbacks.h>
 #include <bt/SecurityCallbacks.h>
+#include <bt/PresetCallbacks.h>
 #include <objects/Constants.h>
 #include <objects/Globals.h>
 #include <objects/Settings.h>
@@ -42,6 +43,10 @@ BluetoothController::BluetoothController(
     _pSystemSettingsCharacteristic(nullptr),
     _pMidiCharacteristic(nullptr),
     _pKeepAliveCharacteristic(nullptr),
+    _pPresetSaveCharacteristic(nullptr),
+    _pPresetLoadCharacteristic(nullptr),
+    _pPresetListCharacteristic(nullptr),
+    _pPresetDeleteCharacteristic(nullptr),
     _pService(nullptr),
     _isEnabled(false),
     _lastToggleTime(0),
@@ -69,7 +74,7 @@ void BluetoothController::enable() {
         _pServer = BLEDevice::createServer();
         _pServer->setCallbacks(new ServerCallbacks(this));
 
-        _pService = _pServer->createService(BLEUUID(SERVICE_UUID), 25, 0);
+        _pService = _pServer->createService(BLEUUID(SERVICE_UUID), 50, 0);
 
         _pLever1SettingsCharacteristic = _pService->createCharacteristic(
             LEVER1_SETTINGS_UUID,
@@ -187,18 +192,74 @@ void BluetoothController::enable() {
             MIDI_UUID,
             BLECharacteristic::PROPERTY_READ |
             BLECharacteristic::PROPERTY_WRITE |
+            BLECharacteristic::PROPERTY_WRITE_NR |
             BLECharacteristic::PROPERTY_NOTIFY |
             BLECharacteristic::PROPERTY_INDICATE
         );
         _pMidiCharacteristic->addDescriptor(new BLE2902());
         _pMidiCharacteristic->setCallbacks(new MidiSettingsCallback(this));
 
+        SERIAL_PRINTLN("Creating Keep-Alive Characteristic...");
         _pKeepAliveCharacteristic = _pService->createCharacteristic(
             KEEPALIVE_UUID,
-            BLECharacteristic::PROPERTY_WRITE
+            BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE |
+            BLECharacteristic::PROPERTY_WRITE_NR
         );
+        SERIAL_PRINTLN("Adding descriptor to Keep-Alive...");
         _pKeepAliveCharacteristic->addDescriptor(new BLE2902());
+        SERIAL_PRINTLN("Setting Keep-Alive callback...");
         _pKeepAliveCharacteristic->setCallbacks(new KeepAliveCallback(this));
+        SERIAL_PRINTLN("✓ Keep-Alive Characteristic created");
+
+        // Preset Save Characteristic (Write)
+        SERIAL_PRINTLN("Creating Preset Save Characteristic...");
+        _pPresetSaveCharacteristic = _pService->createCharacteristic(
+            PRESET_SAVE_UUID,
+            BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE |
+            BLECharacteristic::PROPERTY_WRITE_NR
+        );
+        SERIAL_PRINTLN("Adding BLE2902 descriptor...");
+        _pPresetSaveCharacteristic->addDescriptor(new BLE2902());
+        SERIAL_PRINTLN("Setting callback...");
+        _pPresetSaveCharacteristic->setCallbacks(new PresetSaveCallback(
+            this, _preferences, _lever1Settings, _leverPush1Settings,
+            _lever2Settings, _leverPush2Settings, _touchSettings,
+            _scaleSettings, _systemSettings
+        ));
+        SERIAL_PRINTLN("✓ Preset Save Characteristic created");
+        // Preset Load Characteristic (Write)
+        _pPresetLoadCharacteristic = _pService->createCharacteristic(
+            PRESET_LOAD_UUID,
+            BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE |
+            BLECharacteristic::PROPERTY_WRITE_NR
+        );
+        _pPresetLoadCharacteristic->addDescriptor(new BLE2902());
+        _pPresetLoadCharacteristic->setCallbacks(new PresetLoadCallback(
+            this, _preferences, _scaleManager, _lever1Settings, _leverPush1Settings,
+            _lever2Settings, _leverPush2Settings, _touchSettings,
+            _scaleSettings, _systemSettings
+        ));
+
+        // Preset List Characteristic (Read)
+        _pPresetListCharacteristic = _pService->createCharacteristic(
+            PRESET_LIST_UUID,
+            BLECharacteristic::PROPERTY_READ
+        );
+        _pPresetListCharacteristic->addDescriptor(new BLE2902());
+        _pPresetListCharacteristic->setCallbacks(new PresetListCallback(this, _preferences));
+
+        // Preset Delete Characteristic (Write)
+        _pPresetDeleteCharacteristic = _pService->createCharacteristic(
+            PRESET_DELETE_UUID,
+            BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE |
+            BLECharacteristic::PROPERTY_WRITE_NR
+        );
+        _pPresetDeleteCharacteristic->addDescriptor(new BLE2902());
+        _pPresetDeleteCharacteristic->setCallbacks(new PresetDeleteCallback(this, _preferences));
 
         // Start the service
         _pService->start();
@@ -253,7 +314,7 @@ void BluetoothController::setDeviceConnected(bool connected) {
 
 void BluetoothController::updateLastActivity() {
     _lastActivity = millis();
-    SERIAL_PRINT("BLE activity at ms: "); SERIAL_PRINTLN(_lastActivity);
+    // SERIAL_PRINT("BLE activity at ms: "); SERIAL_PRINTLN(_lastActivity);
     if (_modemSleeping) {
         esp_wifi_set_ps(WIFI_PS_NONE);
         _modemSleeping = false;

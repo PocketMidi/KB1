@@ -41,6 +41,12 @@ public:
     BLECharacteristic* getSystemSettingsCharacteristic() { return _pSystemSettingsCharacteristic; }
     BLECharacteristic* getMidiCharacteristic() { return _pMidiCharacteristic; }
     BLECharacteristic* getKeepAliveCharacteristic() { return _pKeepAliveCharacteristic; }
+    
+    // Preset characteristic getters
+    BLECharacteristic* getPresetSaveCharacteristic() { return _pPresetSaveCharacteristic; }
+    BLECharacteristic* getPresetLoadCharacteristic() { return _pPresetLoadCharacteristic; }
+    BLECharacteristic* getPresetListCharacteristic() { return _pPresetListCharacteristic; }
+    BLECharacteristic* getPresetDeleteCharacteristic() { return _pPresetDeleteCharacteristic; }
 
     // Access the last enable/disable timestamp for cooldown checks
     unsigned long getLastToggleTime() const { return _lastToggleTime; }
@@ -82,6 +88,12 @@ private:
     BLECharacteristic* _pSystemSettingsCharacteristic;
     BLECharacteristic* _pMidiCharacteristic;
     BLECharacteristic* _pKeepAliveCharacteristic;
+    
+    // Preset management characteristics
+    BLECharacteristic* _pPresetSaveCharacteristic;
+    BLECharacteristic* _pPresetLoadCharacteristic;
+    BLECharacteristic* _pPresetListCharacteristic;
+    BLECharacteristic* _pPresetDeleteCharacteristic;
 
     // Keep-alive state
     unsigned long _lastKeepAlivePing;

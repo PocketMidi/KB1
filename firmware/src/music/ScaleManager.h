@@ -19,8 +19,10 @@ public:
     void setScale(ScaleType type);
     void setRootNote(int root);
     int quantizeNote(int note) const;
+    int getCompactModeNote(int keyIndex) const;  // Map key index to scale note in compact mode
     ScaleType getScaleType() const { return _settings.scaleType; }
     int getRootNote() const { return _settings.rootNote; }
+    int getKeyMapping() const { return _settings.keyMapping; }
     void enableWhiteKeyQuantization(bool enable) { _whiteKeysQuantize = enable; }
 
 private:

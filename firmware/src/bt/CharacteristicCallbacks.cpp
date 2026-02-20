@@ -41,7 +41,7 @@ void GenericSettingsCallback::onWrite(BLECharacteristic *pCharacteristic) {
         _scaleManager->setRootNote(s->rootNote);
     }
 
-    SERIAL_PRINT(_prefKey.c_str()); SERIAL_PRINTLN(" updated and saved.");
+    // SERIAL_PRINT(_prefKey.c_str()); SERIAL_PRINTLN(" updated and saved.");
 }
 
 MidiSettingsCallback::MidiSettingsCallback(BluetoothController* controller)
@@ -68,6 +68,15 @@ void MidiSettingsCallback::onWrite(BLECharacteristic *pCharacteristic) {
 
             if (ccNumber >= 0 && ccNumber <= 127 && ccValue >= 0 && ccValue <= 127) {
                 MIDI.sendControlChange(ccNumber, ccValue, 1);
+                SERIAL_PRINT("✓ Sent MIDI CC #");
+                SERIAL_PRINT(ccNumber);
+                SERIAL_PRINT(" = ");
+                SERIAL_PRINTLN(ccValue);
+            } else {
+                SERIAL_PRINT("✗ Invalid CC range: CC#");
+                SERIAL_PRINT(ccNumber);
+                SERIAL_PRINT(" Value=");
+                SERIAL_PRINTLN(ccValue);
             }
         } else {
             SERIAL_PRINTLN("Invalid MIDI CC string format. Expected 'CC_NUMBER,VALUE'.");

@@ -42,6 +42,7 @@ struct TouchSettings {
 struct ScaleSettings {
     ScaleType scaleType;
     int rootNote;
+    int keyMapping; // 0 = Natural, 1 = Compact
 };
 
 // Struct for System/Power settings
@@ -51,5 +52,37 @@ struct SystemSettings {
     int bleTimeout;         // in seconds
     int idleConfirmTimeout; // in seconds
 };
+
+// ============================================
+// Preset System Structures
+// ============================================
+
+#define MAX_PRESET_SLOTS 8
+#define PRESET_NAME_MAX_LEN 32
+
+/**
+ * Preset metadata stored in NVS
+ * Allows listing presets without loading full data
+ */
+struct PresetMetadata {
+    char name[PRESET_NAME_MAX_LEN];
+    uint32_t timestamp;      // Unix timestamp
+    uint8_t isValid;         // 0 = empty slot, 1 = valid preset
+    uint8_t padding[3];      // Align to 4-byte boundary
+} __attribute__((packed));
+
+/**
+ * Complete preset data bundle
+ * All device settings in one atomic structure
+ */
+struct PresetData {
+    LeverSettings lever1;
+    LeverPushSettings leverPush1;
+    LeverSettings lever2;
+    LeverPushSettings leverPush2;
+    TouchSettings touch;
+    ScaleSettings scale;
+    SystemSettings system;
+} __attribute__((packed));
 
 #endif

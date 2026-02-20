@@ -40,6 +40,9 @@ Adafruit_MCP23X17 mcp_U2;
 
 LEDController ledController;
 
+// I2C mutex for thread-safe access to MCP23017 chips
+static SemaphoreHandle_t i2cMutex = NULL;
+
 // LED command queue to serialize all access to ledController from one task
 typedef struct {
     uint8_t type; // 0 = set immediate, 1 = set with ramp
@@ -83,8 +86,11 @@ void ledTask(void *pvParameters) {
                 ledController.set((LedColor)cmd.color, cmd.value, cmd.dur);
             }
         }
-        // Always call update from this task
-        ledController.update();
+        // Always call update from this task (with I2C mutex protection)
+        if (xSemaphoreTake(i2cMutex, portMAX_DELAY) == pdTRUE) {
+            ledController.update();
+            xSemaphoreGive(i2cMutex);
+        }
         vTaskDelay(1 / portTICK_PERIOD_MS);
     }
 }
@@ -127,6 +133,7 @@ OctaveControl<Adafruit_MCP23X17, LEDController> octaveControl(
 ScaleSettings scaleSettings = {
     .scaleType = ScaleType::CHROMATIC,
     .rootNote = 60,
+    .keyMapping = 0, // 0 = Natural, 1 = Compact
 };
 ScaleManager scaleManager(scaleSettings);
 
@@ -378,7 +385,13 @@ void startupPulseSequence() {
 //---------------------------------------------------
 void setup() {
     SERIAL_BEGIN();
+    delay(2000); // Wait for USB CDC to enumerate
+    while (!Serial && millis() < 3000) { delay(10); } // Wait up to 3 seconds for serial connection
     SERIAL_PRINTLN("Serial monitor started.");
+    SERIAL_PRINTLN("===========================================");
+    SERIAL_PRINTLN("KB1 FIRMWARE v2.0 - WITH PRESET SUPPORT");
+    SERIAL_PRINTLN("Build Date: " __DATE__ " " __TIME__);
+    SERIAL_PRINTLN("===========================================");
 
     pinMode(LED_BUILTIN, OUTPUT);
     digitalWrite(LED_BUILTIN, LOW); // Keep LED on
@@ -410,6 +423,13 @@ void setup() {
     mcp_U2.pinMode(SWD2_LEFT_PIN, INPUT_PULLUP);
     mcp_U2.pinMode(SWD2_CENTER_PIN, INPUT_PULLUP);
     mcp_U2.pinMode(SWD2_RIGHT_PIN, INPUT_PULLUP);
+
+    // Create I2C mutex for thread-safe access to MCP23017 chips
+    i2cMutex = xSemaphoreCreateMutex();
+    if (i2cMutex == NULL) {
+        SERIAL_PRINTLN("Error creating I2C mutex");
+        while (true) {}
+    }
 
     xTaskCreatePinnedToCore(readInputs, "readInputs", 4096, nullptr, 1, nullptr, 1);
 
@@ -516,18 +536,20 @@ void loop() {
         // Activity detection: any active input counts as activity
         bool activityDetected = false;
 
-        // Pink/Blue LED: compute targets and use LEDController ramping or touch-driven pulse
-        bool lever1Right = mcp_U2.digitalRead(SWD1_RIGHT_PIN) == LOW;
-        bool lever2Right = mcp_U2.digitalRead(SWD2_RIGHT_PIN) == LOW;
+        // Pink/Blue LED: compute targets and use LEDController ramping or touch-driven pulse (with I2C mutex protection)
+        bool lever1Right, lever2Right, lever1Left, lever2Left, leverPush1Pressed, leverPush2Pressed;
+        if (xSemaphoreTake(i2cMutex, portMAX_DELAY) == pdTRUE) {
+            lever1Right = mcp_U2.digitalRead(SWD1_RIGHT_PIN) == LOW;
+            lever2Right = mcp_U2.digitalRead(SWD2_RIGHT_PIN) == LOW;
+            lever1Left = mcp_U1.digitalRead(SWD1_LEFT_PIN) == LOW;
+            lever2Left = mcp_U2.digitalRead(SWD2_LEFT_PIN) == LOW;
+            leverPush1Pressed = mcp_U1.digitalRead(SWD1_CENTER_PIN) == LOW;
+            leverPush2Pressed = mcp_U2.digitalRead(SWD2_CENTER_PIN) == LOW;
+            xSemaphoreGive(i2cMutex);
+        }
+        
         bool pinkLedPressed = lever1Right || lever2Right;
-
-        bool lever1Left = mcp_U1.digitalRead(SWD1_LEFT_PIN) == LOW;
-        bool lever2Left = mcp_U2.digitalRead(SWD2_LEFT_PIN) == LOW;
         bool blueLeftPressed = lever1Left || lever2Left;
-
-        // Lever push logic for blue LED
-        bool leverPush1Pressed = mcp_U1.digitalRead(SWD1_CENTER_PIN) == LOW;
-        bool leverPush2Pressed = mcp_U2.digitalRead(SWD2_CENTER_PIN) == LOW;
         leverPushIsPressed = leverPush1Pressed || leverPush2Pressed;
 
         static int _lastPinkTarget = -1;
@@ -605,9 +627,10 @@ void loop() {
 
         leverPushWasPressed = leverPushIsPressed;        
 
-        // Determine activity: touch active, any keyboard key, or any pressed switch
+        // Determine activity: touch active, any keyboard key, any pressed switch, or BLE keep-alive active
         bool keyboardActive = keyboardControl.anyKeyActive();
-        activityDetected = touchActive || keyboardActive || pinkLedPressed || blueLeftPressed || leverPushIsPressed;
+        bool bleKeepAliveActive = bluetoothControllerPtr && bluetoothControllerPtr->isKeepAliveActive();
+        activityDetected = touchActive || keyboardActive || pinkLedPressed || blueLeftPressed || leverPushIsPressed || bleKeepAliveActive;
 
         if (activityDetected) {
             // Reset idle confirmation and mark last activity time
