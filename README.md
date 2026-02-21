@@ -47,7 +47,7 @@ Tutorial: [ESPConnect video guide](https://youtu.be/-nhDKzBxHiI)
 
 ### 2. Configure Over Bluetooth
 
-**Launch the web app**: [pocketmidi.github.io/KB1/KB1-config](https://pocketmidi.github.io/KB1/KB1-config)
+**Launch the web app**: [pocketmidi.github.io/KB1-config](https://pocketmidi.github.io/KB1-config)
 
 1. Click **DISCONNECTED** (top-right) and pair with "KB1"
 2. Settings load automatically from device

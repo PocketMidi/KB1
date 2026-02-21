@@ -46,7 +46,7 @@ pio run --target upload --environment seeed_xiao_esp32s3
 ## 🌐 Configuration App
 
 Access the web-based configuration app at:
-**[pocketmidi.github.io/KB1/KB1-config](https://pocketmidi.github.io/KB1/KB1-config)**
+**[pocketmidi.github.io/KB1-config](https://pocketmidi.github.io/KB1-config)**
 
 Configure chord settings, scales, MIDI mappings, and more directly from your browser via BLE.
 
