@@ -51,7 +51,7 @@
 ### 2. Configure Your KB1
 
 **Open the web configuration app:**
-- 🌐 **[kb1-config.pocketmidi.com](https://kb1-config.pocketmidi.com)** (or your deployment URL)
+- 🌐 **[pocketmidi.github.io/KB1/KB1-config](https://pocketmidi.github.io/KB1/KB1-config)**
 
 **First-time setup:**
 1. Click **DISCONNECTED** in top-right corner
