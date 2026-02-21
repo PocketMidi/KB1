@@ -1,69 +1,60 @@
 # KB1 - Pocket MIDI Keyboard Controller
 
-### A pocket-sized MIDI keyboard controller with mini speakers for the [Polyend Tracker Mini](https://polyend.com/tracker-mini/)
+A pocket-sized, feature-rich MIDI keyboard controller designed for the [Polyend Tracker Mini](https://polyend.com/tracker-mini/). This first release delivers professional-grade performance controls, wireless configuration, and extensive musical capabilities in an ultra-portable package.
 
 ![KB1 banner](assets/banner_1.jpg)
 
-## ✨ Features
+## System Overview
 
-**Hardware:**
-- 🎹 **19-Key Keyboard** - Compact chromatic layout with velocity sensitivity
-- 🎚️ **Dual Levers** - Configurable MIDI CC controllers with multiple function modes
-- 🔘 **Lever Push Buttons** - Additional control options with interpolation
-- 👆 **Touch Sensor** - Capacitive touch for expressive control
-- 🔊 **Mini Speakers** - Built-in audio playback
-- 🔋 **Portable Design** - Fits in your pocket, perfect for Polyend Tracker Mini
+The KB1 system consists of three integrated components working together to provide a complete MIDI performance solution:
 
-**Firmware v1.1:**
-- 🎵 **Scale Mode** - Quantize keys to Major, Minor, Pentatonic, Blues, and modal scales
-- 🎸 **Chord Mode** - Play full chords with each key (10 types: Major, Minor, Diminished, Augmented, Sus2/4, Power, Major7, Minor7, Dom7)
-- 🎶 **Strum Mode** - Cascade chord notes with configurable timing and velocity spread
-- ⚙️ **Configurable Controls** - Customize lever behavior, CC mappings, interpolation curves
-- 💾 **8 Preset Slots** - Store complete configurations on-device
-- 🔋 **Power Management** - Configurable sleep timers and BLE keepalive
-- 📡 **Wireless Configuration** - Web Bluetooth connection for easy setup
+**Hardware**
+- 19-key velocity-sensitive keyboard with dual operating modes (Scale/Chord)
+- 2 analog levers with push buttons for expressive control
+- Capacitive touch sensor for additional expression
+- Built-in mini speakers for audio monitoring
+- ESP32-based with Bluetooth Low Energy connectivity
+- Rechargeable battery with intelligent power management
 
-**Web Configuration App:**
-- 🌐 **Browser-Based** - No drivers or software installation required
-- 📱 **Mobile & Desktop** - Responsive design works everywhere
-- 🎚️ **12 Performance Sliders** - Real-time MIDI CC control with live mode
-- 🎨 **Visual Editor** - Intuitive UI for all settings and parameters
-- 💾 **Preset Management** - Save/load unlimited configurations
+**Firmware** ([details](firmware/README.md))
+- Dual keyboard modes: Scale (quantized to musical scales) and Chord (10 chord types with chord/strum options)
+- Fully configurable controls with advanced interpolation curves and function modes
+- 12 real-time performance sliders (CC 51-62) with bipolar/unipolar and momentary/latched modes
+- 8 on-device preset slots for storing complete configurations
+- Wireless BLE configuration and standard MIDI output
 
-## 🚀 Getting Started
+**Web Configuration App** ([details](KB1-config/README.md))
+- Browser-based configuration tool (no installation required)
+- Real-time parameter editing over Bluetooth Low Energy
+- 12-slider performance interface with mobile live mode
+- Preset management with unlimited browser-stored configurations
+- Works on desktop and mobile (Chrome, Edge, Opera)
 
-### 1. Update Firmware (Recommended)
+## Quick Start
 
-**Download the latest firmware:**
-1. Go to [Releases](https://github.com/PocketMidi/KB1/releases)
-2. Download `KB1-firmware-v1.1.1.bin` (or latest version)
+### 1. Flash Firmware to Your Device
 
-**Flash using ESPConnect (Chrome/Edge Browser):**
+Download the latest firmware from [Releases](https://github.com/PocketMidi/KB1/releases) (e.g., `KB1-firmware-v1.1.1.bin`)
+
+**Flash using ESPConnect (Chrome/Edge):**
 1. Connect KB1 to your computer via USB-C
-2. Open [ESPConnect](https://thelastoutpostworkshop.github.io/ESPConnect/) in Chrome or Edge
+2. Open [ESPConnect](https://thelastoutpostworkshop.github.io/ESPConnect/)
 3. Click **CONNECT** and select your KB1 device
-4. Click the upload icon, choose the downloaded .bin file
-5. Wait for upload to complete (~30 seconds)
-6. Device will restart automatically
+4. Upload the .bin file using the upload icon
+5. Wait ~30 seconds for completion
 
-> 💡 **Tutorial**: Watch the [ESPConnect video guide](https://youtu.be/-nhDKzBxHiI) for step-by-step instructions
+Tutorial: [ESPConnect video guide](https://youtu.be/-nhDKzBxHiI)
 
-### 2. Configure Your KB1
+### 2. Configure Over Bluetooth
 
-**Open the web configuration app:**
-- 🌐 **[pocketmidi.github.io/KB1/KB1-config](https://pocketmidi.github.io/KB1/KB1-config)**
+**Launch the web app**: [pocketmidi.github.io/KB1/KB1-config](https://pocketmidi.github.io/KB1/KB1-config)
 
-**First-time setup:**
-1. Click **DISCONNECTED** in top-right corner
-2. Select "KB1" from Bluetooth pairing dialog
-3. Settings load automatically from device
-4. Customize keyboard modes, levers, scales, and more
-5. Click **Save to Device** to apply changes
+1. Click **DISCONNECTED** (top-right) and pair with "KB1"
+2. Settings load automatically from device
+3. Configure keyboard modes, controls, scales, and performance sliders
+4. Click **Save to Device** to persist changes to flash memory
 
-**Try Performance Sliders:**
-- Switch to **SLIDERS** tab
-- Rotate mobile device to landscape for fullscreen live mode
-- Control 12 customizable MIDI CC sliders in real-time
+**Performance Sliders**: Switch to the SLIDERS tab for 12 real-time CC controllers. On mobile, rotate to landscape for fullscreen live mode.
 
 ## 📖 Documentation
 
@@ -74,31 +65,31 @@
 ## 🛠️ Advanced: Build from Source
 
 **Firmware:**
+```Documentation
+
+- [Configuration App Guide](KB1-config/README.md) - Complete web app documentation with usage examples
+- [Firmware Documentation](firmware/README.md) - Technical details, features, and build instructions
+- [Hardware Design](hardware/) - Schematics and PCB files
+
+## Building from Source
+
+**Firmware** (PlatformIO):
 ```bash
 cd firmware
 pio run --target upload
 ```
 
-**Web App:**
+**Web App** (Vite + Vue 3):
 ```bash
 cd KB1-config
 npm install
 npm run build
-```
+```e
 
-See respective READMEs for detailed build instructions.
-
-## 📷 Gallery
-
-![inner top](assets/inner_1.png)
-![inner bottom](assets/inner_2.png)
-
-## Licensing Summary
-
-- **Software & firmware**: MIT License (see LICENSE)
-- **Hardware designs**: CERN Open Hardware Licence v2 – Strongly Reciprocal (see hardware/LICENSE-CERN-OHL-S.txt)
+- **Software & Firmware**: MIT License (see LICENSE)
+- **Hardware Designs**: CERN Open Hardware Licence v2 – Strongly Reciprocal (see hardware/LICENSE-CERN-OHL-S.txt)
 
 ---
 
-**Built with ❤️ for the Polyend Tracker Mini community**
+Built for the Polyend Tracker Mini community
 
