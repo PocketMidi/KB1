@@ -45,6 +45,15 @@ struct ScaleSettings {
     int keyMapping; // 0 = Natural, 1 = Compact
 };
 
+// Struct for Chord/Keyboard settings
+struct ChordSettings {
+    PlayMode playMode;          // SCALE or CHORD
+    ChordType chordType;        // MAJOR, MINOR, etc.
+    bool strumEnabled;          // false = chord (all notes together), true = strum (cascaded)
+    int velocitySpread;         // 0-100 (percentage) - velocity variation for chord notes
+    int strumSpeed;             // 5-100 (milliseconds) - delay between notes in strum mode
+};
+
 // Struct for System/Power settings
 struct SystemSettings {
     int lightSleepTimeout;  // in seconds
@@ -82,6 +91,7 @@ struct PresetData {
     LeverPushSettings leverPush2;
     TouchSettings touch;
     ScaleSettings scale;
+    ChordSettings chord;
     SystemSettings system;
 } __attribute__((packed));
 

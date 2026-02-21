@@ -89,6 +89,24 @@ enum class ScaleType {
     LOCRIAN
 };
 
+enum class ChordType {
+    MAJOR,
+    MINOR,
+    DIMINISHED,
+    AUGMENTED,
+    SUS2,
+    SUS4,
+    POWER,
+    MAJOR7,
+    MINOR7,
+    DOM7
+};
+
+enum class PlayMode {
+    SCALE,
+    CHORD
+};
+
 extern Preferences preferences;
 
 #define MAX_KEYS 19

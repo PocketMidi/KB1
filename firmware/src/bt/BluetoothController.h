@@ -23,6 +23,7 @@ public:
         LeverPushSettings& leverPush2Settings,
         TouchSettings& touchSettings,
         ScaleSettings& scaleSettings,
+        ChordSettings& chordSettings,
         SystemSettings& systemSettings
     );
 
@@ -38,6 +39,7 @@ public:
     BLECharacteristic* getLeverPush2SettingsCharacteristic() { return _pLeverPush2SettingsCharacteristic; }
     BLECharacteristic* getTouchSettingsCharacteristic() { return _pTouchSettingsCharacteristic; }
     BLECharacteristic* getScaleSettingsCharacteristic() { return _pScaleSettingsCharacteristic; }
+    BLECharacteristic* getChordSettingsCharacteristic() { return _pChordSettingsCharacteristic; }
     BLECharacteristic* getSystemSettingsCharacteristic() { return _pSystemSettingsCharacteristic; }
     BLECharacteristic* getMidiCharacteristic() { return _pMidiCharacteristic; }
     BLECharacteristic* getKeepAliveCharacteristic() { return _pKeepAliveCharacteristic; }
@@ -85,6 +87,7 @@ private:
     BLECharacteristic* _pLeverPush2SettingsCharacteristic;
     BLECharacteristic* _pTouchSettingsCharacteristic;
     BLECharacteristic* _pScaleSettingsCharacteristic;
+    BLECharacteristic* _pChordSettingsCharacteristic;
     BLECharacteristic* _pSystemSettingsCharacteristic;
     BLECharacteristic* _pMidiCharacteristic;
     BLECharacteristic* _pKeepAliveCharacteristic;
@@ -111,6 +114,7 @@ private:
     LeverPushSettings& _leverPush2Settings;
     TouchSettings& _touchSettings;
     ScaleSettings& _scaleSettings;
+    ChordSettings& _chordSettings;
     SystemSettings& _systemSettings;
 };
 

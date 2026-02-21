@@ -138,12 +138,24 @@ ScaleSettings scaleSettings = {
 ScaleManager scaleManager(scaleSettings);
 
 //----------------------------------
+// Chord Settings
+//----------------------------------
+ChordSettings chordSettings = {
+    .playMode = PlayMode::SCALE,
+    .chordType = ChordType::MAJOR,
+    .strumEnabled = false,
+    .velocitySpread = 8,
+    .strumSpeed = 45,
+};
+
+//----------------------------------
 // KeyboardControl Setup
 //----------------------------------
 KeyboardControl<decltype(MIDI), decltype(octaveControl)> keyboardControl(
     MIDI,
     octaveControl,
-    scaleManager
+    scaleManager,
+    chordSettings
 );
 
 //----------------------------------
@@ -312,6 +324,7 @@ void loadSettings() {
     preferences.getBytes("leverpush2", &leverPush2Settings, sizeof(LeverPushSettings));
     preferences.getBytes("touch", &touchSettings, sizeof(TouchSettings));
     preferences.getBytes("scale", &scaleSettings, sizeof(ScaleSettings));
+    preferences.getBytes("chord", &chordSettings, sizeof(ChordSettings));
     preferences.getBytes("system", &systemSettings, sizeof(SystemSettings));
 
     scaleManager.setScale(scaleSettings.scaleType);
@@ -475,6 +488,7 @@ void setup() {
         leverPush2Settings,
         touchSettings,
         scaleSettings,
+        chordSettings,
         systemSettings
     );
 

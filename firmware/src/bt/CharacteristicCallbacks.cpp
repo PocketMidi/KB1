@@ -56,9 +56,6 @@ void MidiSettingsCallback::onWrite(BLECharacteristic *pCharacteristic) {
     }
 
     if (!rxValue.empty()) {
-        SERIAL_PRINT("Received BLE MIDI CC: ");
-        SERIAL_PRINTLN(rxValue.c_str());
-
         const auto rxString = String(rxValue.c_str());
         const int commaIndex = rxString.indexOf(',');
 
@@ -66,20 +63,19 @@ void MidiSettingsCallback::onWrite(BLECharacteristic *pCharacteristic) {
             const int ccNumber = rxString.substring(0, commaIndex).toInt();
             const int ccValue = rxString.substring(commaIndex + 1).toInt();
 
-            if (ccNumber >= 0 && ccNumber <= 127 && ccValue >= 0 && ccValue <= 127) {
-                MIDI.sendControlChange(ccNumber, ccValue, 1);
-                SERIAL_PRINT("✓ Sent MIDI CC #");
+            // Throttle serial output: only print every 10th message
+            static uint8_t printCounter = 0;
+            if (printCounter == 0) {
+                SERIAL_PRINT("CC");
                 SERIAL_PRINT(ccNumber);
-                SERIAL_PRINT(" = ");
-                SERIAL_PRINTLN(ccValue);
-            } else {
-                SERIAL_PRINT("✗ Invalid CC range: CC#");
-                SERIAL_PRINT(ccNumber);
-                SERIAL_PRINT(" Value=");
+                SERIAL_PRINT("=");
                 SERIAL_PRINTLN(ccValue);
             }
-        } else {
-            SERIAL_PRINTLN("Invalid MIDI CC string format. Expected 'CC_NUMBER,VALUE'.");
+            printCounter = (printCounter + 1) % 10;
+
+            if (ccNumber >= 0 && ccNumber <= 127 && ccValue >= 0 && ccValue <= 127) {
+                MIDI.sendControlChange(ccNumber, ccValue, 1);
+            }
         }
     }
 }

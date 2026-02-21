@@ -26,6 +26,7 @@ PresetSaveCallback::PresetSaveCallback(
     LeverPushSettings& leverPush2,
     TouchSettings& touch,
     ScaleSettings& scale,
+    ChordSettings& chord,
     SystemSettings& system
 ) : _controller(controller), 
     _preferences(preferences),
@@ -35,6 +36,7 @@ PresetSaveCallback::PresetSaveCallback(
     _leverPush2(leverPush2),
     _touch(touch),
     _scale(scale),
+    _chord(chord),
     _system(system)
 {}
 
@@ -85,7 +87,7 @@ void PresetSaveCallback::onWrite(BLECharacteristic *pCharacteristic) {
     memcpy(&data.lever2, &_lever2, sizeof(LeverSettings));
     memcpy(&data.leverPush2, &_leverPush2, sizeof(LeverPushSettings));
     memcpy(&data.touch, &_touch, sizeof(TouchSettings));
-    memcpy(&data.scale, &_scale, sizeof(ScaleSettings));
+    memcpy(&data.scale, &_scale, sizeof(ScaleSettings));    memcpy(&data.chord, &_chord, sizeof(ChordSettings));    memcpy(&data.chord, &_chord, sizeof(ChordSettings));
     memcpy(&data.system, &_system, sizeof(SystemSettings));
     
     // Save to NVS
@@ -115,6 +117,7 @@ PresetLoadCallback::PresetLoadCallback(
     LeverPushSettings& leverPush2,
     TouchSettings& touch,
     ScaleSettings& scale,
+    ChordSettings& chord,
     SystemSettings& system
 ) : _controller(controller),
     _preferences(preferences),
@@ -125,6 +128,7 @@ PresetLoadCallback::PresetLoadCallback(
     _leverPush2(leverPush2),
     _touch(touch),
     _scale(scale),
+    _chord(chord),
     _system(system)
 {}
 
@@ -193,6 +197,7 @@ void PresetLoadCallback::onWrite(BLECharacteristic *pCharacteristic) {
     memcpy(&_leverPush2, &data.leverPush2, sizeof(LeverPushSettings));
     memcpy(&_touch, &data.touch, sizeof(TouchSettings));
     memcpy(&_scale, &data.scale, sizeof(ScaleSettings));
+    memcpy(&_chord, &data.chord, sizeof(ChordSettings));
     memcpy(&_system, &data.system, sizeof(SystemSettings));
     
     // Update scale manager

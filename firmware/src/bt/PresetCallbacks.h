@@ -23,6 +23,7 @@ public:
         LeverPushSettings& leverPush2,
         TouchSettings& touch,
         ScaleSettings& scale,
+        ChordSettings& chord,
         SystemSettings& system
     );
     
@@ -37,6 +38,7 @@ private:
     LeverPushSettings& _leverPush2;
     TouchSettings& _touch;
     ScaleSettings& _scale;
+    ChordSettings& _chord;
     SystemSettings& _system;
 };
 
@@ -56,6 +58,7 @@ public:
         LeverPushSettings& leverPush2,
         TouchSettings& touch,
         ScaleSettings& scale,
+        ChordSettings& chord,
         SystemSettings& system
     );
     
@@ -71,6 +74,7 @@ private:
     LeverPushSettings& _leverPush2;
     TouchSettings& _touch;
     ScaleSettings& _scale;
+    ChordSettings& _chord;
     SystemSettings& _system;
 };
 

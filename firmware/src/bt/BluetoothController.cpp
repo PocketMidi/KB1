@@ -18,6 +18,7 @@ BluetoothController::BluetoothController(
     LeverPushSettings& leverPush2Settings,
     TouchSettings& touchSettings,
     ScaleSettings& scaleSettings,
+    ChordSettings& chordSettings,
     SystemSettings& systemSettings)
     :
     _preferences(preferences),
@@ -29,6 +30,7 @@ BluetoothController::BluetoothController(
     _leverPush2Settings(leverPush2Settings),
     _touchSettings(touchSettings),
     _scaleSettings(scaleSettings),
+    _chordSettings(chordSettings),
     _systemSettings(systemSettings),
 
     _pServer(nullptr),
@@ -40,6 +42,7 @@ BluetoothController::BluetoothController(
     _pLeverPush2SettingsCharacteristic(nullptr),
     _pTouchSettingsCharacteristic(nullptr),
     _pScaleSettingsCharacteristic(nullptr),
+    _pChordSettingsCharacteristic(nullptr),
     _pSystemSettingsCharacteristic(nullptr),
     _pMidiCharacteristic(nullptr),
     _pKeepAliveCharacteristic(nullptr),
@@ -172,6 +175,22 @@ void BluetoothController::enable() {
             &_scaleManager
         ));
 
+        _pChordSettingsCharacteristic = _pService->createCharacteristic(
+            CHORD_SETTINGS_UUID,
+            BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE
+        );
+        _pChordSettingsCharacteristic->addDescriptor(new BLE2902());
+        _pChordSettingsCharacteristic->setValue((uint8_t*)&_chordSettings, sizeof(ChordSettings));
+        _pChordSettingsCharacteristic->setCallbacks(new GenericSettingsCallback(
+            this,
+            _preferences,
+            &_chordSettings,
+            sizeof(ChordSettings),
+            "chord",
+            nullptr
+        ));
+
         _pSystemSettingsCharacteristic = _pService->createCharacteristic(
             SYSTEM_SETTINGS_UUID,
             BLECharacteristic::PROPERTY_READ |
@@ -226,7 +245,7 @@ void BluetoothController::enable() {
         _pPresetSaveCharacteristic->setCallbacks(new PresetSaveCallback(
             this, _preferences, _lever1Settings, _leverPush1Settings,
             _lever2Settings, _leverPush2Settings, _touchSettings,
-            _scaleSettings, _systemSettings
+            _scaleSettings, _chordSettings, _systemSettings
         ));
         SERIAL_PRINTLN("✓ Preset Save Characteristic created");
         // Preset Load Characteristic (Write)
@@ -240,7 +259,7 @@ void BluetoothController::enable() {
         _pPresetLoadCharacteristic->setCallbacks(new PresetLoadCallback(
             this, _preferences, _scaleManager, _lever1Settings, _leverPush1Settings,
             _lever2Settings, _leverPush2Settings, _touchSettings,
-            _scaleSettings, _systemSettings
+            _scaleSettings, _chordSettings, _systemSettings
         ));
 
         // Preset List Characteristic (Read)
