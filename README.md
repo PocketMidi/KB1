@@ -23,7 +23,7 @@ The KB1 system consists of three integrated components working together to provi
 - 8 on-device preset slots for storing complete configurations
 - Wireless BLE configuration and standard MIDI output
 
-**Web Configuration App** ([details](KB1-config/README.md))
+**Web Configuration App** ([details](https://github.com/PocketMidi/KB1-config))
 - Browser-based configuration tool (no installation required)
 - Real-time parameter editing over Bluetooth Low Energy
 - 12-slider performance interface with mobile live mode
@@ -47,7 +47,7 @@ Tutorial: [ESPConnect video guide](https://youtu.be/-nhDKzBxHiI)
 
 ### 2. Configure Over Bluetooth
 
-**Launch the web app**: [pocketmidi.github.io/KB1-config](https://pocketmidi.github.io/KB1-config)
+**Launch the web app**: [https://pocketmidi.github.io/KB1-config](https://pocketmidi.github.io/KB1-config)
 
 1. Click **DISCONNECTED** (top-right) and pair with "KB1"
 2. Settings load automatically from device
@@ -56,18 +56,9 @@ Tutorial: [ESPConnect video guide](https://youtu.be/-nhDKzBxHiI)
 
 **Performance Sliders**: Switch to the SLIDERS tab for 12 real-time CC controllers. On mobile, rotate to landscape for fullscreen live mode.
 
-## 📖 Documentation
+## Documentation
 
-- **[Configuration App Guide](KB1-config/README.md)** - Complete web app documentation
-- **[Firmware Development](firmware/README.md)** - Build and development setup
-- **[Hardware Design](hardware/)** - Schematics and PCB files
-
-## 🛠️ Advanced: Build from Source
-
-**Firmware:**
-```Documentation
-
-- [Configuration App Guide](KB1-config/README.md) - Complete web app documentation with usage examples
+- [Configuration App Guide](https://github.com/PocketMidi/KB1-config) - Complete web app documentation with usage examples
 - [Firmware Documentation](firmware/README.md) - Technical details, features, and build instructions
 - [Hardware Design](hardware/) - Schematics and PCB files
 
@@ -84,7 +75,16 @@ pio run --target upload
 cd KB1-config
 npm install
 npm run build
-```e
+```
+
+Detailed build instructions are available in the respective README files.
+
+## Gallery
+
+![inner top](assets/inner_1.png)
+![inner bottom](assets/inner_2.png)
+
+## License
 
 - **Software & Firmware**: MIT License (see LICENSE)
 - **Hardware Designs**: CERN Open Hardware Licence v2 – Strongly Reciprocal (see hardware/LICENSE-CERN-OHL-S.txt)
