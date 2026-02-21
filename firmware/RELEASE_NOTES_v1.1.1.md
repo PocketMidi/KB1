@@ -56,21 +56,40 @@ Configure chord settings, scales, MIDI mappings, and more directly from your bro
 - [Preset Implementation Guide](PRESET_IMPLEMENTATION.md)
 - [Config App Documentation](../KB1-config/README.md)
 
-## ✨ What's New from v1.0
+## ✨ Complete Feature Set
 
-- Complete chord mode implementation with 10 chord types
-- Strum feature for guitar-like chord articulation
-- Velocity spread for natural, dynamic chord voicing
-- Root note sharing between scale and chord modes
-- Enhanced serial output throttling for device stability
-- Comprehensive UI controls in config app
+This is the first feature-complete release of KB1 firmware, including:
 
-## 🐛 Bug Fixes
+### Core MIDI Features
+- 🎹 **Dual keyboard modes**: Scale mode and Chord mode
+- 🎵 **7 musical scales**: Major, Minor, Dorian, Phrygian, Lydian, Mixolydian, Blues
+- 🎸 **10 chord types**: Major, Minor, Diminished, Augmented, Sus2, Sus4, Power, Major7, Minor7, Dom7
+- 🎚️ **4 analog sliders**: Fully configurable MIDI CC mapping
+- 🕹️ **2 analog joysticks** (levers): 4 axes with configurable behavior
+- 👆 **Capacitive touch pad**: Additional MIDI CC control
+- 🎛️ **8 preset slots**: Save/load all settings
 
-- Fixed serial buffer overflow during heavy MIDI traffic
-- Corrected BLE characteristic initialization order
-- Resolved preset save/load for chord settings
-- Fixed memory management for chord note tracking
+### Control Features
+- Strum mode with 5-100ms configurable speed
+- Velocity spread for dynamic chord voicing (0-100%)
+- Octave shift (-2 to +2)
+- Momentary/latching/toggle modes for levers
+- Unipolar/bipolar lever profiles
+- Sleep mode with power management
+
+### BLE & Configuration
+- Full BLE MIDI support (iOS, macOS, Windows, Linux)
+- Web-based configuration app (no installation required)
+- Real-time parameter adjustment with visual feedback
+- Preset management via BLE
+- Firmware updates via ESPConnect
+
+## 🔧 System Stability
+
+- Optimized serial output throttling for reliable operation
+- Enhanced BLE characteristic management
+- Efficient chord note tracking and memory management
+- Robust preset save/load system
 
 ## 🙏 Feedback & Support
 
