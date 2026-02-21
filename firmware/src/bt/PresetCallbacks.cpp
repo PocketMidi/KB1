@@ -151,6 +151,15 @@ void PresetLoadCallback::onWrite(BLECharacteristic *pCharacteristic) {
     
     // Check if slot is valid
     String metaKey = getPresetMetaKey(slot);
+    
+    // Check if key exists first to avoid NVS error logs
+    if (!_preferences.isKey(metaKey.c_str())) {
+        SERIAL_PRINT("Preset slot ");
+        SERIAL_PRINT(slot);
+        SERIAL_PRINTLN(" is empty");
+        return;
+    }
+    
     PresetMetadata meta;
     size_t metaSize = _preferences.getBytes(metaKey.c_str(), &meta, sizeof(PresetMetadata));
     
@@ -163,6 +172,12 @@ void PresetLoadCallback::onWrite(BLECharacteristic *pCharacteristic) {
     
     // Load preset data
     String dataKey = getPresetDataKey(slot);
+    
+    // Check if data key exists
+    if (!_preferences.isKey(dataKey.c_str())) {
+        SERIAL_PRINTLN("Failed to load preset data");
+        return;
+    }
     PresetData data;
     size_t dataSize = _preferences.getBytes(dataKey.c_str(), &data, sizeof(PresetData));
     
@@ -221,12 +236,20 @@ void PresetListCallback::onRead(BLECharacteristic *pCharacteristic) {
         String metaKey = getPresetMetaKey(slot);
         PresetMetadata meta;
         
-        size_t size = _preferences.getBytes(metaKey.c_str(), &meta, sizeof(PresetMetadata));
-        
-        if (size == sizeof(PresetMetadata) && meta.isValid == 1) {
-            memcpy(buffer + (slot * sizeof(PresetMetadata)), &meta, sizeof(PresetMetadata));
+        // Check if key exists first to avoid NVS error logs
+        if (_preferences.isKey(metaKey.c_str())) {
+            size_t size = _preferences.getBytes(metaKey.c_str(), &meta, sizeof(PresetMetadata));
+            
+            if (size == sizeof(PresetMetadata) && meta.isValid == 1) {
+                memcpy(buffer + (slot * sizeof(PresetMetadata)), &meta, sizeof(PresetMetadata));
+            } else {
+                // Invalid data - treat as empty slot
+                PresetMetadata emptyMeta;
+                memset(&emptyMeta, 0, sizeof(PresetMetadata));
+                memcpy(buffer + (slot * sizeof(PresetMetadata)), &emptyMeta, sizeof(PresetMetadata));
+            }
         } else {
-            // Empty slot - set isValid to 0
+            // Key doesn't exist - empty slot
             PresetMetadata emptyMeta;
             memset(&emptyMeta, 0, sizeof(PresetMetadata));
             memcpy(buffer + (slot * sizeof(PresetMetadata)), &emptyMeta, sizeof(PresetMetadata));
