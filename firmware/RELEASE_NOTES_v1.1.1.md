@@ -1,97 +1,218 @@
 # KB1 Firmware v1.1.1 Release Notes
 
-## 🎹 New Features
+## Overview
 
-### Chord Mode
-Transform your KB1 into a chord machine! Play full chords from any key on the keyboard.
+This is the first production-ready release of KB1 firmware, delivering a complete embedded MIDI controller system for the ESP32-S3 hardware platform. The firmware implements dual-mode keyboard operation, comprehensive analog control processing, wireless BLE MIDI communication, and full device configuration via Bluetooth Low Energy.
 
-- **10 Chord Types**: Major, Minor, Diminished, Augmented, Sus2, Sus4, Power, Major7, Minor7, Dom7
-- **Strum Mode**: Optional cascading note triggering with configurable speed (5-100ms)
-- **Velocity Spread**: Dynamic voicing with exponential velocity reduction per note (0-100%)
-- **Seamless Integration**: Easy mode switching between scale and chord modes via the config app
+## Hardware Support
 
-### Performance Improvements
-- **Enhanced BLE Stability**: Throttled serial output to prevent buffer overflow during heavy slider usage
-- **Optimized MIDI Processing**: Improved chord note tracking and management
+### Input Processing
 
-## 🔧 Technical Details
+**Keyboard Array** — Full capacitive keyboard matrix scanning with dual operating modes:
+- Scale mode: Quantized note output across seven musical scales
+- Chord mode: Multi-note triggering with ten chord types and optional strum
+- Real-time mode switching via BLE configuration
+- Octave shift control (-2 to +2)
 
-**Memory Usage:**
-- Flash: 29.9% (1MB / 3.34MB)
-- RAM: 15.6% (51KB / 327KB)
+**Analog Controls** — Multi-channel ADC sampling for continuous controllers:
+- 4 performance sliders with individual CC mapping
+- 2 analog levers (4 axes total) with interpolation curves and value modes
+- 2 lever push buttons with programmable behavior
+- 1 capacitive touch sensor with adjustable threshold
 
-**BLE Protocol:**
-- New Chord Settings Characteristic: `4a8c9f2e-1b7d-4e3f-a5c6-d7e8f9a0b1c2`
-- Backward compatible with existing presets
+**Power Management** — Configurable sleep states for battery operation:
+- Light sleep: 30-300s timeout
+- Deep sleep: 120-1800s timeout
+- Automatic wake on control interaction
 
-**Default Settings:**
+### Firmware Architecture
+
+**BLE Stack Management** — Serial output throttling prevents buffer overflow during simultaneous control input. Heavy slider and lever usage maintains stable communication without dropped messages or delays.
+
+**MIDI Note Tracking** — Chord note management system properly pairs note-on/note-off events across mode changes, octave shifts, and rapid chord transitions. Prevents stuck notes and ensures clean voice management.
+
+## Technical Specifications
+
+**Hardware Platform:**
+- Target MCU: ESP32-S3 (Seeed Xiao ESP32S3)
+- Flash Usage: 29.9% (1,002,496 bytes / 3,342,336 bytes)
+- RAM Usage: 15.6% (51,092 bytes / 327,680 bytes)
+- Build Framework: PlatformIO with Arduino core
+
+**BLE Service Implementation:**
+- MIDI Service: Standard BLE MIDI profile for note/CC transmission
+- Configuration Service: Custom GATT service for parameter control
+- Preset Service: 8-slot storage system with flash persistence
+- Security: Optional pairing with secure bonding support
+
+**Key Characteristics:**
+- Keyboard Settings: `UUID: 4a8c9f2e-1b7d-4e3f-a5c6-d7e8f9a0b1c1`
+- Chord Settings: `UUID: 4a8c9f2e-1b7d-4e3f-a5c6-d7e8f9a0b1c2`
+- Lever Configuration: Individual UUIDs per lever and axis
+- Power Management: Dedicated characteristic for sleep timing
+
+**Default Configuration:**
+- Keyboard mode: Scale (Major scale, root C)
+- Chord type: Major (when in chord mode)
+- Strum: Disabled
 - Strum speed: 45ms
 - Velocity spread: 8%
-- Mode: Scale (chord mode available via config app)
+- Sleep timeouts: 120s light, 300s deep
+- BLE keep-alive: 60s
 
-## 📦 Installation
+## Installation
 
-### Method 1: ESPConnect (Recommended - No Tools Required)
-1. Visit [ESPConnect](https://espconnect.io/)
-2. Click "Connect" and select your KB1 device
-3. Upload `KB1-firmware-v1.1.1.bin` from this release
-4. Device will restart automatically
+### Method 1: ESPConnect (Recommended)
 
-### Method 2: PlatformIO (For Developers)
+No toolchain installation required. Flash firmware directly from your web browser.
+
+1. Navigate to [ESPConnect](https://espconnect.io/)
+2. Click "Connect" and select your KB1 device from the browser's serial port dialog
+3. Select and upload `KB1-firmware-v1.1.1.bin` from this release
+4. Device will restart automatically upon completion
+5. Reconnect via BLE to verify firmware version
+
+**Requirements:** Chrome, Edge, or Opera browser with Web Serial API support.
+
+### Method 2: PlatformIO (Development Environment)
+
+Build and flash from source using the PlatformIO toolchain.
+
 ```bash
 cd firmware
 pio run --target upload --environment seeed_xiao_esp32s3
 ```
 
-## 🌐 Configuration App
+**Requirements:** PlatformIO Core or PlatformIO IDE extension for VS Code.
 
-Access the web-based configuration app at:
-**[pocketmidi.github.io/KB1-config](https://pocketmidi.github.io/KB1-config)**
+## Configuration
 
-Configure chord settings, scales, MIDI mappings, and more directly from your browser via BLE.
+The KB1 web configuration app provides wireless access to all firmware settings via Bluetooth Low Energy.
 
-## 📝 Documentation
+**Access:** [pocketmidi.github.io/KB1-config](https://pocketmidi.github.io/KB1-config)
 
-- [Main README](../README.md)
-- [Preset Implementation Guide](PRESET_IMPLEMENTATION.md)
-- [Config App Documentation](../KB1-config/README.md)
+**Chord Settings Configuration:**
+- Select chord type from dropdown menu
+- Toggle between chord and strum modes
+- Adjust strum speed with real-time slider feedback
+- Set velocity spread for dynamic voicing
+- Changes take effect immediately on connected device
 
-## ✨ Complete Feature Set
+**Other Settings:**
+- Scale selection and root note configuration
+- Lever CC mapping and interpolation curves
+- Touch sensor threshold adjustment
+- Power management timing
+- Preset save/load operations
 
-This is the first feature-complete release of KB1 firmware, including:
+## Documentation
 
-### Core MIDI Features
-- 🎹 **Dual keyboard modes**: Scale mode and Chord mode
-- 🎵 **7 musical scales**: Major, Minor, Dorian, Phrygian, Lydian, Mixolydian, Blues
-- 🎸 **10 chord types**: Major, Minor, Diminished, Augmented, Sus2, Sus4, Power, Major7, Minor7, Dom7
-- 🎚️ **4 analog sliders**: Fully configurable MIDI CC mapping
-- 🕹️ **2 analog joysticks** (levers): 4 axes with configurable behavior
-- 👆 **Capacitive touch pad**: Additional MIDI CC control
-- 🎛️ **8 preset slots**: Save/load all settings
+- [Firmware README](../README.md) - Complete firmware architecture and feature documentation
+- [Preset Implementation Guide](PRESET_IMPLEMENTATION.md) - BLE protocol and preset structure
+- [Config App Documentation](../KB1-config/README.md) - Web app user guide
 
-### Control Features
-- Strum mode with 5-100ms configurable speed
-- Velocity spread for dynamic chord voicing (0-100%)
-- Octave shift (-2 to +2)
-- Momentary/latching/toggle modes for levers
-- Unipolar/bipolar lever profiles
-- Sleep mode with power management
+## Complete Feature Set
 
-### BLE & Configuration
-- Full BLE MIDI support (iOS, macOS, Windows, Linux)
-- Web-based configuration app (no installation required)
-- Real-time parameter adjustment with visual feedback
-- Preset management via BLE
-- Firmware updates via ESPConnect
+This first production release implements full hardware controller functionality across all subsystems.
 
-## 🔧 System Stability
+### Keyboard Hardware
 
-- Optimized serial output throttling for reliable operation
-- Enhanced BLE characteristic management
-- Efficient chord note tracking and memory management
-- Robust preset save/load system
+**Operating Modes:**
+- Scale Mode: Quantized note output with musical scale selection
+- Chord Mode: Multi-note chord triggering per key press
 
-## 🙏 Feedback & Support
+**Scale Types** — Seven musical scales:
+- Major, Minor, Dorian, Phrygian, Lydian, Mixolydian, Blues
+- Selectable root note (C through B, including sharps)
+- Natural/Compact key mapping options
+
+**Chord Types** — Ten chord voicings:
+- Major, Minor, Diminished, Augmented
+- Sus2, Sus4, Power
+- Major7, Minor7, Dominant7
+
+**Chord Performance Controls:**
+- Strum mode: 5-100ms configurable note delay for cascading articulation
+- Velocity spread: 0-100% dynamic voicing (exponential reduction per note)
+- Seamless mode switching via configuration app
+
+**General Keyboard Controls:**
+- Octave shift: -2 to +2 range
+- Velocity sensitivity from hardware input
+- MIDI channel assignment
+
+### Analog Control Hardware
+
+**Slider Array** — Four analog sliders with full MIDI CC mapping:
+- Individual CC number assignment (0-127)
+- Configurable output range per slider
+- Bipolar/unipolar operation modes
+- Momentary/latched behavior options
+
+**Lever Controls** — Two analog joysticks (4 total axes) with advanced control options:
+- Per-axis CC number assignment
+- Configurable value ranges (0-127)
+- Step quantization for discrete values
+- Function modes: Uni/bi-directional, momentary, toggle
+- Value modes: Jump, hook, pickup, latch
+- Interpolation control: onset/offset timing (0-5000ms)
+- Curve options: Linear, S-Curve, Logarithmic
+
+**Lever Push Buttons** — Two push button inputs with dedicated CC mapping:
+- Independent CC assignment per button
+- Function modes: Trigger, momentary, toggle
+- Interpolation support with configurable curves
+
+**Capacitive Touch Sensor** — Single touch pad with adjustable sensitivity:
+- Configurable threshold (0-65535, default: 24000)
+- CC output with range control
+- Trigger/momentary modes
+
+### Power Management Hardware
+
+**Sleep Mode Implementation:**
+- Light sleep: 30-300s configurable timeout
+- Deep sleep: 120-1800s configurable timeout
+- Automatic wake on any control interaction
+- Current draw reduction during sleep states
+
+**BLE Connection Management:**
+- Configurable keep-alive timeout (30-600s)
+- 10-minute firmware grace period
+- Automatic reconnection handling
+- Connection state reflected via LED feedback
+
+### Bluetooth Low Energy Stack
+
+**MIDI Profile:**
+- Standard BLE MIDI implementation
+- Compatible with iOS, macOS, Windows, Linux
+- Low-latency note triggering
+- Reliable CC message delivery
+
+**Configuration Service:**
+- Custom GATT service for wireless configuration
+- Real-time parameter updates
+- Bidirectional communication (read/write characteristics)
+- Secure pairing support with bonding
+
+**Preset Management:**
+- 8 on-device preset slots
+- Complete configuration storage per preset
+- Non-volatile flash storage
+- BLE-based save/load operations
+
+### System Stability & Performance
+
+**Serial Output Management** — Throttled debug output prevents buffer overflow during heavy control usage. Internal serial buffer maintained below capacity even with simultaneous slider and lever input.
+
+**BLE Characteristic Management** — Enhanced characteristic update handling ensures reliable parameter synchronization between firmware and configuration app. No dropped updates during rapid setting changes.
+
+**MIDI Note Tracking** — Improved chord note management system properly pairs note-on/note-off events. Prevents stuck notes during rapid chord changes, mode switches, or octave shifts.
+
+**Preset Storage** — Robust save/load implementation with flash wear leveling. All configuration parameters persist across power cycles and firmware updates.
+
+## Support
 
 Found a bug or have a feature request? Open an issue on [GitHub](https://github.com/pocketmidi/KB1/issues).
 
