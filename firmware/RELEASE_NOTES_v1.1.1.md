@@ -85,6 +85,20 @@ pio run --target upload --environment seeed_xiao_esp32s3
 
 **Requirements:** PlatformIO Core or PlatformIO IDE extension for VS Code.
 
+## First Time Setup
+
+**IMPORTANT: Enable Bluetooth Before Connecting**
+
+After flashing firmware, you must enable Bluetooth to connect with the configuration app:
+
+1. **Hold both octave buttons** (up + down) simultaneously for **3 seconds**
+2. **Watch for LED confirmation:**
+   - Fast blinking (pink + blue LEDs) = **Bluetooth enabled** ✓
+   - Slow blinking = Bluetooth disabled
+3. Repeat the same process anytime to toggle Bluetooth on/off
+
+**Note:** Without enabling Bluetooth, the web configuration app will not detect your device.
+
 ## Configuration
 
 The KB1 web configuration app provides wireless access to all firmware settings via Bluetooth Low Energy.
