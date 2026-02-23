@@ -45,7 +45,19 @@ Download the latest firmware from [Releases](https://github.com/PocketMidi/KB1/r
 
 Tutorial: [ESPConnect video guide](https://youtu.be/-nhDKzBxHiI)
 
-### 2. Configure Over Bluetooth
+### 2. Enable Bluetooth on Your KB1
+
+**IMPORTANT**: Before connecting, ensure Bluetooth is enabled on your device.
+
+**To enable Bluetooth:**
+1. Hold both octave buttons (up + down) simultaneously for 3 seconds
+2. Watch for LED confirmation:
+   - **Fast blinking** (pink + blue LEDs) = Bluetooth enabled ✓
+   - **Slow blinking** = Bluetooth disabled
+
+Repeat the same process to toggle Bluetooth on/off at any time.
+
+### 3. Configure Over Bluetooth
 
 **Launch the web app**: [https://pocketmidi.github.io/KB1-config](https://pocketmidi.github.io/KB1-config)
 
