@@ -2,14 +2,6 @@
 
 The KB1 firmware is a feature-rich, production-ready embedded system for the PocketMidi KB1 MIDI controller. This first release delivers a comprehensive suite of musical capabilities including dual-mode keyboard operation (Scale/Chord modes with chord/strum options), flexible lever controls with advanced interpolation, customizable touch sensing, intelligent power management, and 12-channel performance sliders—all controllable wirelessly via Bluetooth Low Energy.
 
-## Hardware Controls
-
-**Bluetooth Toggle** — Enable or disable Bluetooth Low Energy:
-- Hold both octave buttons (up + down) for 3 seconds
-- Pink and blue LEDs will blink to confirm toggle
-- Fast blink = Bluetooth enabled
-- Slow blink = Bluetooth disabled
-
 ## Features
 
 ### Keyboard Modes
@@ -106,6 +98,20 @@ pio device monitor
 ```
 
 > **Troubleshooting**: See [docs/INSTALL.md](docs/INSTALL.md) for PlatformIO upload fixes (e.g. installing `intelhex`).
+
+### First Time Setup
+
+**IMPORTANT: Enable Bluetooth Before Connecting**
+
+After flashing firmware, you must enable Bluetooth to connect with the configuration app:
+
+1. **Hold both octave buttons** (up + down) simultaneously for **3 seconds**
+2. **Watch for LED confirmation:**
+   - Fast blinking (pink + blue LEDs) = **Bluetooth enabled** ✓
+   - Slow blinking = Bluetooth disabled
+3. Repeat the same process anytime to toggle Bluetooth on/off
+
+Without enabling Bluetooth, the web configuration app will not detect your device.
 
 ### Configuration
 
