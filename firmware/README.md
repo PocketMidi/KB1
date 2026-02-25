@@ -97,6 +97,16 @@ pio run --target upload
 pio device monitor
 ```
 
+### Building Release Firmware
+
+**⚠️ CRITICAL:** For distribution, always build **complete images** that include bootloader, partitions, and app.
+
+```bash
+./build_factory.sh
+```
+
+This prevents SHA-256 verification failures and bricking. See [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md) for details.
+
 > **Troubleshooting**: See [docs/INSTALL.md](docs/INSTALL.md) for PlatformIO upload fixes (e.g. installing `intelhex`).
 
 ### First Time Setup
