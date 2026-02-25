@@ -79,10 +79,23 @@ Address    Component           Size
 ## Flashing Instructions
 
 ### For Users (ESPConnect/Web Flasher)
+
+**Recommended:** Use the browser-based ESPConnect tool for easy flashing.
+
 ```
 Flash address: 0x0
 File: KB1-firmware-vX.X.X.bin
+Erase flash: Yes (check "Erase entire flash before writing")
 ```
+
+**Detailed Tutorial:** See [RELEASE_NOTES_v1.1.1.md](RELEASE_NOTES_v1.1.1.md#method-1-espconnect-recommended) for complete step-by-step instructions with screenshots.
+
+**Quick Instructions:**
+1. Connect KB1 via USB-C
+2. Open [ESPConnect](https://thelastoutpostworkshop.github.io/ESPConnect/)
+3. Click Flash Tools → Download Flash Backup (save it!)
+4. Load firmware .bin file
+5. Check "Erase entire flash" and click "Flash Firmware"
 
 ### For Developers (PlatformIO)
 ```bash

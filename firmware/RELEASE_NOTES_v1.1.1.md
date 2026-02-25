@@ -64,15 +64,56 @@ This is the first production-ready release of KB1 firmware, delivering a complet
 
 ### Method 1: ESPConnect (Recommended)
 
-No toolchain installation required. Flash firmware directly from your web browser.
-
-1. Navigate to [ESPConnect](https://espconnect.io/)
-2. Click "Connect" and select your KB1 device from the browser's serial port dialog
-3. Select and upload `KB1-firmware-v1.1.1.bin` from this release
-4. Device will restart automatically upon completion
-5. Reconnect via BLE to verify firmware version
+No toolchain installation required. Flash firmware directly from your web browser using Web Serial API.
 
 **Requirements:** Chrome, Edge, or Opera browser with Web Serial API support.
+
+**Step-by-Step Instructions:**
+
+1. **Connect Hardware:**
+   - Plug KB1 into your computer via USB-C cable
+   - Navigate to [ESPConnect](https://thelastoutpostworkshop.github.io/ESPConnect/)
+   - Click **CONNECT** button
+   - Select your KB1 device from the browser's serial port dialog
+
+2. **Backup Your Flash (Important!):**
+   - Click **Flash Tools** in the left sidebar
+   - Click **DOWNLOAD FLASH BACKUP** button
+   - Save the backup file to a safe location (in case you need to restore)
+   
+   ![Flash Tools Selection](../assets/installation/espconnect-step-1.png)
+   
+   ![Download Flash Backup](../assets/installation/espconnect-step-2.png)
+
+3. **Load Firmware File:**
+   - In the "Firmware binary (.bin)" field, click to browse
+   - Select `KB1-firmware-v1.1.1.bin` from this release
+   - Verify "Flash offset" is set to `0x0` (default)
+   
+   ![Load Firmware File](../assets/installation/espconnect-step-3.png)
+
+4. **Flash the Firmware:**
+   - **Important:** Check the box for **"Erase entire flash before writing"**
+   - Click the blue **FLASH FIRMWARE** button
+   - Confirm the flash operation when prompted
+   - Wait for the process to complete (typically 30-60 seconds)
+   
+   ![Erase and Flash](../assets/installation/espconnect-step-4.png)
+   
+   ![Flash Progress](../assets/installation/espconnect-step-5.png)
+
+5. **Verification (Optional):**
+   - After flashing completes, you can verify operation:
+   - Click **Serial Monitor** in the left sidebar
+   - Click **START** to begin monitoring
+   - Press keys on your KB1 to see MIDI note events in real-time
+   - This confirms the firmware is running correctly
+   
+   ![Serial Monitor](../assets/installation/espconnect-step-6.png)
+
+6. **Finish:**
+   - Disconnect from ESPConnect
+   - Proceed to "First Time Setup" section below to enable Bluetooth
 
 ### Method 2: PlatformIO (Development Environment)
 
