@@ -86,7 +86,15 @@ enum class ScaleType {
     PHRYGIAN,
     LYDIAN,
     MIXOLYDIAN,
-    LOCRIAN
+    LOCRIAN,
+    PHRYGIAN_DOMINANT,
+    WHOLE_TONE,
+    DIMINISHED,
+    BLUES_MAJOR,
+    HIRAJOSHI,
+    IN_SEN,
+    DOUBLE_HARMONIC,
+    SUPER_LOCRIAN
 };
 
 enum class ChordType {

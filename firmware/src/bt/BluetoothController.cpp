@@ -46,6 +46,7 @@ BluetoothController::BluetoothController(
     _pSystemSettingsCharacteristic(nullptr),
     _pMidiCharacteristic(nullptr),
     _pKeepAliveCharacteristic(nullptr),
+    _pFirmwareVersionCharacteristic(nullptr),
     _pPresetSaveCharacteristic(nullptr),
     _pPresetLoadCharacteristic(nullptr),
     _pPresetListCharacteristic(nullptr),
@@ -230,6 +231,18 @@ void BluetoothController::enable() {
         SERIAL_PRINTLN("Setting Keep-Alive callback...");
         _pKeepAliveCharacteristic->setCallbacks(new KeepAliveCallback(this));
         SERIAL_PRINTLN("✓ Keep-Alive Characteristic created");
+
+        // Firmware Version Characteristic (Read-only)
+        SERIAL_PRINTLN("Creating Firmware Version Characteristic...");
+        _pFirmwareVersionCharacteristic = _pService->createCharacteristic(
+            FIRMWARE_VERSION_UUID,
+            BLECharacteristic::PROPERTY_READ
+        );
+        _pFirmwareVersionCharacteristic->addDescriptor(new BLE2902());
+        
+        // Set version as string in format "major.minor.patch"
+        _pFirmwareVersionCharacteristic->setValue(FIRMWARE_VERSION);
+        SERIAL_PRINTLN("✓ Firmware Version Characteristic created");
 
         // Preset Save Characteristic (Write)
         SERIAL_PRINTLN("Creating Preset Save Characteristic...");

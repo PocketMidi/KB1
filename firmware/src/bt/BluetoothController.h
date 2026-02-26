@@ -43,6 +43,7 @@ public:
     BLECharacteristic* getSystemSettingsCharacteristic() { return _pSystemSettingsCharacteristic; }
     BLECharacteristic* getMidiCharacteristic() { return _pMidiCharacteristic; }
     BLECharacteristic* getKeepAliveCharacteristic() { return _pKeepAliveCharacteristic; }
+    BLECharacteristic* getFirmwareVersionCharacteristic() { return _pFirmwareVersionCharacteristic; }
     
     // Preset characteristic getters
     BLECharacteristic* getPresetSaveCharacteristic() { return _pPresetSaveCharacteristic; }
@@ -91,6 +92,7 @@ private:
     BLECharacteristic* _pSystemSettingsCharacteristic;
     BLECharacteristic* _pMidiCharacteristic;
     BLECharacteristic* _pKeepAliveCharacteristic;
+    BLECharacteristic* _pFirmwareVersionCharacteristic;
     
     // Preset management characteristics
     BLECharacteristic* _pPresetSaveCharacteristic;

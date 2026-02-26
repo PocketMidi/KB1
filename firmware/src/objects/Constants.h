@@ -1,6 +1,12 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
+// Firmware version
+#define FIRMWARE_VERSION "1.1.2"
+#define FIRMWARE_VERSION_MAJOR 1
+#define FIRMWARE_VERSION_MINOR 1
+#define FIRMWARE_VERSION_PATCH 2
+
 // Uncomment following line to enable Serial Printing
 #define SERIAL_PRINT_ENABLED 1
 
@@ -25,6 +31,9 @@
 #define SYSTEM_SETTINGS_UUID     "8f7e6d5c-4b3a-2c1d-0e9f-8a7b6c5d4e3f"
 #define MIDI_UUID                "eb58b31b-d963-4c7d-9a11-e8aabec2fe32"
 #define KEEPALIVE_UUID           "a8f3d5e2-9c4b-11ef-8e7a-325096b39f47"
+
+// Firmware Version UUID (read-only)
+#define FIRMWARE_VERSION_UUID    "f3b2c1a0-5e4d-3c2b-1a0f-9e8d7c6b5a4f"
 
 // Preset Management UUIDs
 #define PRESET_SAVE_UUID         "d3a7b321-0001-4000-8000-000000000009"

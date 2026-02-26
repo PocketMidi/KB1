@@ -402,7 +402,7 @@ void setup() {
     while (!Serial && millis() < 3000) { delay(10); } // Wait up to 3 seconds for serial connection
     SERIAL_PRINTLN("Serial monitor started.");
     SERIAL_PRINTLN("===========================================");
-    SERIAL_PRINTLN("KB1 FIRMWARE v1.1.1 - WITH CHORD MODE");
+    SERIAL_PRINTLN("KB1 FIRMWARE v" FIRMWARE_VERSION " - WITH CHORD MODE");
     SERIAL_PRINTLN("Build Date: " __DATE__ " " __TIME__);
     SERIAL_PRINTLN("===========================================");
 

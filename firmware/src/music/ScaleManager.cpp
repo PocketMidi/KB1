@@ -6,15 +6,23 @@ const ScaleDefinition ScaleManager::_allScales[] = {
     {ScaleType::MAJOR, "Major", {0, 2, 4, 5, 7, 9, 11}},
     {ScaleType::MINOR, "Minor", {0, 2, 3, 5, 7, 8, 10}},
     {ScaleType::HARMONIC_MINOR, "Harmonic Minor", {0, 2, 3, 5, 7, 8, 11}},
-    {ScaleType::MELODIC_MINOR_ASC, "Melodic Minor Ascending", {0, 2, 3, 5, 7, 9, 11}},
+    {ScaleType::MELODIC_MINOR_ASC, "Melodic Minor", {0, 2, 3, 5, 7, 9, 11}},
     {ScaleType::PENTATONIC_MAJOR, "Pentatonic Major", {0, 2, 4, 7, 9}},
     {ScaleType::PENTATONIC_MINOR, "Pentatonic Minor", {0, 3, 5, 7, 10}},
-    {ScaleType::BLUES, "Blues", {0, 3, 5, 6, 7, 10}},
+    {ScaleType::BLUES, "Blues Minor", {0, 3, 5, 6, 7, 10}},
     {ScaleType::DORIAN, "Dorian", {0, 2, 3, 5, 7, 9, 10}},
     {ScaleType::PHRYGIAN, "Phrygian", {0, 1, 3, 5, 7, 8, 10}},
     {ScaleType::LYDIAN, "Lydian", {0, 2, 4, 6, 7, 9, 11}},
     {ScaleType::MIXOLYDIAN, "Mixolydian", {0, 2, 4, 5, 7, 9, 10}},
-    {ScaleType::LOCRIAN, "Locrian", {0, 1, 3, 4, 6, 8, 10}}
+    {ScaleType::LOCRIAN, "Locrian", {0, 1, 3, 5, 6, 8, 10}},
+    {ScaleType::PHRYGIAN_DOMINANT, "Phrygian Dominant", {0, 1, 4, 5, 7, 8, 10}},
+    {ScaleType::WHOLE_TONE, "Whole Tone", {0, 2, 4, 6, 8, 10}},
+    {ScaleType::DIMINISHED, "Diminished", {0, 2, 3, 5, 6, 8, 9, 11}},
+    {ScaleType::BLUES_MAJOR, "Blues Major", {0, 2, 3, 4, 7, 9}},
+    {ScaleType::HIRAJOSHI, "Hirajoshi", {0, 2, 3, 7, 8}},
+    {ScaleType::IN_SEN, "In Sen", {0, 1, 5, 7, 10}},
+    {ScaleType::DOUBLE_HARMONIC, "Double Harmonic", {0, 1, 4, 5, 7, 8, 11}},
+    {ScaleType::SUPER_LOCRIAN, "Super Locrian", {0, 1, 3, 4, 6, 8, 10}}
 };
 
 ScaleManager::ScaleManager(ScaleSettings& settings) :
