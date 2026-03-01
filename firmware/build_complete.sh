@@ -1,15 +1,16 @@
 #!/bin/bash
-# Factory Firmware Build Script for KB1 ESP32-S3
-# This creates a complete factory image including bootloader, partitions, and app
+# Complete Firmware Build Script for KB1 ESP32-S3
+# Handcrafted by a one-person operation
+# This creates a complete firmware image including bootloader, partitions, and app
 
 set -e  # Exit on error
 
-FIRMWARE_VERSION="v1.1.3"
+FIRMWARE_VERSION="v1.1.4"
 BUILD_DIR=".pio/build/seeed_xiao_esp32s3"
 OUTPUT_NAME="KB1-firmware-${FIRMWARE_VERSION}.bin"
 
 echo "======================================"
-echo "KB1 Factory Firmware Builder"
+echo "KB1 Complete Firmware Builder"
 echo "Version: ${FIRMWARE_VERSION}"
 echo "======================================"
 
@@ -44,8 +45,8 @@ if [ ! -f "${ESPTOOL}" ]; then
     exit 1
 fi
 
-# Create factory image with all components
-echo "Creating factory image..."
+# Create complete image with all components
+echo "Creating complete firmware image..."
 python3 "${ESPTOOL}" --chip esp32s3 merge_bin \
     -o "${OUTPUT_NAME}" \
     --flash_mode dio \
@@ -57,7 +58,7 @@ python3 "${ESPTOOL}" --chip esp32s3 merge_bin \
 
 echo ""
 echo "======================================"
-echo "✅ Factory firmware created successfully!"
+echo "✅ Complete firmware image created successfully!"
 echo "======================================"
 echo "File: ${OUTPUT_NAME}"
 ls -lh "${OUTPUT_NAME}"
