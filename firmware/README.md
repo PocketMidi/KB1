@@ -20,10 +20,14 @@ The KB1 firmware is a feature-rich, production-ready embedded system for the Poc
 - **12 Performance Sliders**: Real-time CC control (51-62) with bipolar/unipolar and momentary/latched modes
 
 ### Power Management
-- **Light Sleep**: Configurable timeout (30-300s) for power conservation
-- **Deep Sleep**: Extended timeout (120-1800s) for battery preservation
-- **BLE Timeout**: Adjustable Bluetooth keep-alive (30-600s) with 10-minute grace period
-- **Automatic Wake**: Resume on any control interaction
+- **Light Sleep**: Configurable timeout (3-10 minutes, default: 5 min) - triggers pulsing LED feedback and low power mode
+- **Deep Sleep**: Fixed at light sleep + 90s - ensures consistent 90-second LED warning before deep sleep
+- **BLE Timeout**: Adjustable Bluetooth keep-alive (5-20 minutes, default: 10 min) - web app pings prevent sleep while connected
+- **Sleep Behavior**: 
+  - Without web app: Automatic sleep progression after idle timeouts
+  - With web app connected: Keepalive pings reset sleep timers, keeping device awake during configuration
+  - BLE radio disabled before entering sleep modes
+- **Automatic Wake**: Touch sensor wakes from deep sleep; any control interaction prevents sleep entry
 
 ### Bluetooth Low Energy
 - **Standard BLE MIDI**: Compatible with all major DAWs and MIDI applications

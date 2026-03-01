@@ -279,8 +279,8 @@ TouchControl<decltype(MIDI)> touch(
 );
 
 SystemSettings systemSettings = {
-    .lightSleepTimeout = 90,    // 90 seconds
-    .deepSleepTimeout = 330,    // 330 seconds (5.5 minutes)
+    .lightSleepTimeout = 300,   // 300 seconds (5 minutes)
+    .deepSleepTimeout = 390,    // 390 seconds (6.5 minutes)
     .bleTimeout = 600,          // 600 seconds (10 minutes)
     .idleConfirmTimeout = 2,    // 2 seconds
 };
@@ -292,7 +292,7 @@ BluetoothController* bluetoothControllerPtr = nullptr;
 // Sleep / Deep Sleep Management
 //----------------------------------
 unsigned long lastActivityMillis = 0;
-unsigned long deepSleepIdleMs = 330000; // Default: 5.5 minutes, updated from systemSettings
+unsigned long lightSleepIdleMs = 300000; // Default: 5 minutes, updated from systemSettings
 bool deepSleepTriggered = false;
 
 // Require a short, confirmed quiet window before starting the deep-sleep countdown
@@ -331,7 +331,7 @@ void loadSettings() {
     scaleManager.setRootNote(scaleSettings.rootNote);
 
     // Update timing variables from system settings (convert seconds to milliseconds)
-    deepSleepIdleMs = systemSettings.deepSleepTimeout * 1000UL;
+    lightSleepIdleMs = systemSettings.lightSleepTimeout * 1000UL;
     idleConfirmMs = systemSettings.idleConfirmTimeout * 1000UL;
 
     SERIAL_PRINTLN("Settings loaded from Preferences.");
@@ -398,8 +398,11 @@ void startupPulseSequence() {
 //---------------------------------------------------
 void setup() {
     SERIAL_BEGIN();
-    delay(2000); // Wait for USB CDC to enumerate
-    while (!Serial && millis() < 3000) { delay(10); } // Wait up to 3 seconds for serial connection
+    delay(100); // Brief delay for USB CDC to stabilize (reduced from 2000ms)
+    unsigned long serialWaitStart = millis();
+    while (!Serial && (millis() - serialWaitStart < 500)) { 
+        delay(10); 
+    } // Wait max 500ms for serial (reduced from 3000ms)
     SERIAL_PRINTLN("Serial monitor started.");
     SERIAL_PRINTLN("===========================================");
     SERIAL_PRINTLN("KB1 FIRMWARE v" FIRMWARE_VERSION " - WITH CHORD MODE");
@@ -664,7 +667,7 @@ void loop() {
                 }
             } else {
                 // idleConfirmed true => count towards deep sleep timeout
-                if (!deepSleepTriggered && (millis() - idleConfirmTime >= deepSleepIdleMs)) {
+                if (!deepSleepTriggered && (millis() - idleConfirmTime >= lightSleepIdleMs)) {
                     deepSleepTriggered = true;
                     enterLightSleep(touch, keyboardControl, ledController, bluetoothControllerPtr, touchSettings, lastActivityMillis, PINK_LED_PWM_PIN, BLUE_LED_PWM_PIN, PINK_PWM_MAX, PWM_MAX, PINK_RAMP_UP_MS, PINK_RAMP_DOWN_MS, BLUE_RAMP_UP_MS, BLUE_RAMP_DOWN_MS);
                 }
