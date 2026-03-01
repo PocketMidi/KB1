@@ -97,7 +97,7 @@ Repeat the same process to toggle Bluetooth on/off at any time.
 
 **Performance Sliders**: Switch to the SLIDERS tab for 12 real-time CC controllers. On mobile, rotate to landscape for fullscreen live mode.
 
-**iOS Users**: Safari does not support Web Bluetooth. Download the [Bluefy app](https://apps.apple.com/app/bluefy-web-ble-browser/id1492822055) from the App Store to access the web configuration app on iOS devices. Note: When using Bluefy, live mode automatically compensates for touch offset, and you may see one slider grayed out (11 remain active) - this is normal behavior for optimal touch accuracy.
+**iOS Users**: Safari does not support Web Bluetooth. Download V Browser from the App Store to access the web configuration app on iOS devices. Note: When using V Browser, live mode automatically compensates for touch offset, and you may see one slider grayed out (11 remain active) - this is normal behavior for optimal touch accuracy.
 
 ## Documentation
 

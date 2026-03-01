@@ -92,20 +92,8 @@ public:
             SERIAL_PRINTLN(_currentVelocity);
             _isNoteOn[note] = true;
         } else {
-            // Chord mode
-            int rootNote;
-            
-            // Check if compact mode and we have a valid key index
-            if (_scaleManager.getKeyMapping() == 1 && keyIndex >= 0) {
-                int whiteKeyPosition = getWhiteKeyPosition(keyIndex);
-                if (whiteKeyPosition >= 0) {
-                    rootNote = _scaleManager.getCompactModeNote(whiteKeyPosition) + (_octaveControl.getOctave() * 12);
-                } else {
-                    rootNote = _scaleManager.quantizeNote(note + _octaveControl.getOctave() * 12);
-                }
-            } else {
-                rootNote = _scaleManager.quantizeNote(note + _octaveControl.getOctave() * 12);
-            }
+            // Chord mode - use chromatic notes (no scale quantization)
+            int rootNote = note + (_octaveControl.getOctave() * 12);
             
             // Get chord intervals
             const int* intervals;
@@ -186,7 +174,8 @@ public:
                 SERIAL_PRINT(quantizedNote);
                 SERIAL_PRINTLN(", Velocity: 0");
             } else {
-                // Chord mode: stop all chord notes
+                // Chord mode - use chromatic notes (no scale quantization)
+                // Stop all chord notes
                 for (int i = 0; i < _activeChordCount[note]; i++) {
                     int chordNote = _activeChordNotes[note][i];
                     _midi.sendNoteOff(chordNote, 0, channel);
