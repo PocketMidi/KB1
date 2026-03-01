@@ -46,6 +46,11 @@ if [ ! -f "${ESPTOOL}" ]; then
 fi
 
 # Create complete image with all components
+# CRITICAL: These esp32s3 settings must remain unchanged for hardware compatibility
+# --chip esp32s3: Target chip (Seeed XIAO ESP32-S3)
+# --flash_mode dio: Dual I/O mode for 8MB flash
+# --flash_freq 80m: 80MHz flash frequency
+# --flash_size 8MB: Total flash capacity
 echo "Creating complete firmware image..."
 python3 "${ESPTOOL}" --chip esp32s3 merge_bin \
     -o "${OUTPUT_NAME}" \
