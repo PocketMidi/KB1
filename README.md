@@ -34,7 +34,7 @@ The KB1 system consists of three integrated components working together to provi
 
 ### 1. Flash Firmware to Your Device
 
-**Download the firmware:** Get the latest firmware from [Releases](https://github.com/PocketMidi/KB1/releases) (e.g., `KB1-firmware-v1.1.1.bin`)
+**Download the firmware:** Get the latest firmware from [Releases](https://github.com/PocketMidi/KB1/releases) (e.g., `KB1-firmware-v1.2.0.bin`)
 
 **Flash using ESPConnect (Recommended - No Tools Required):**
 
@@ -52,7 +52,7 @@ The KB1 system consists of three integrated components working together to provi
 
 5. **Load Firmware File:**
    - Click the firmware file upload field
-   - Select the `KB1-firmware-v1.1.1.bin` file you downloaded
+   - Select the `KB1-firmware-v1.2.0.bin` file you downloaded
    - Flash offset should remain at `0x0`
    
    ![Load Firmware](assets/installation/espconnect-step-3.png)
@@ -79,12 +79,15 @@ The KB1 system consists of three integrated components working together to provi
 **IMPORTANT**: Before connecting, ensure Bluetooth is enabled on your device.
 
 **To enable Bluetooth:**
-1. Hold both octave buttons (up + down) simultaneously for 3 seconds
-2. Watch for LED confirmation:
-   - **Fast blinking** (pink + blue LEDs) = Bluetooth enabled ✓
-   - **Slow blinking** = Bluetooth disabled
+1. **Cross-lever gesture**: Push both levers toward each other (left lever → right, right lever → left) and **hold for 3 seconds**
+2. **Watch for progressive LED feedback:**
+   - Octave arrow LEDs turn ON immediately (gesture detected)
+   - Pink + blue LEDs pulse with increasing speed as you hold
+   - **All LEDs turn OFF** = activation complete, release levers
 
-Repeat the same process to toggle Bluetooth on/off at any time.
+Repeat the same gesture anytime to toggle Bluetooth on/off.
+
+**Note:** The gesture is automatically cancelled if any keyboard key is pressed, preventing accidental triggers during performance.
 
 ### 3. Configure Over Bluetooth
 
