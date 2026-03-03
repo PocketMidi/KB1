@@ -39,6 +39,17 @@ Visual feedback builds as you hold the gesture:
 
 The gesture automatically aborts if any keyboard key is pressed during the hold. This prevents accidental BLE toggles during performance or if the device is jostled in a bag.
 
+### BLE Connection LED Feedback
+
+Visual confirmation when the app connects or disconnects:
+
+| Event | LED Feedback |
+|-------|--------------|
+| **App connects** | Pink double-blink (200ms) |
+| **App disconnects** | Blue single blink |
+
+This provides clear feedback that the app has successfully paired or unpaired.
+
 ### Why This Change?
 
 - **Impossible to trigger accidentally** - cross-lever gesture doesn't happen during normal play
@@ -67,6 +78,7 @@ The gesture automatically aborts if any keyboard key is pressed during the hold.
 - `src/controls/LeverControls.h` - Added cooldown check to prevent MIDI output after BLE toggle
 - `src/objects/Globals.h` - Added `leverCooldownUntil` global for cooldown tracking
 - `src/bt/BluetoothController.cpp` - Removed post-toggle LED pulse (superseded by gesture feedback)
+- `src/bt/ServerCallbacks.cpp` - Added LED feedback on BLE connect/disconnect
 - `src/main.cpp` - Integrated BLEGestureControl
 
 ---
