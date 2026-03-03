@@ -5,7 +5,7 @@
 
 set -e  # Exit on error
 
-FIRMWARE_VERSION="v1.1.4"
+FIRMWARE_VERSION="v1.2.0"
 BUILD_DIR=".pio/build/seeed_xiao_esp32s3"
 OUTPUT_NAME="KB1-firmware-${FIRMWARE_VERSION}.bin"
 

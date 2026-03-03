@@ -109,6 +109,10 @@ LeverControls<MidiTransport>::LeverControls(
 
 template<class MidiTransport>
 void LeverControls<MidiTransport>::update() {
+    // Skip lever processing during cooldown (after BLE toggle)
+    if (millis() < leverCooldownUntil) {
+        return;
+    }
     handleInput();
     updateValue();
 }

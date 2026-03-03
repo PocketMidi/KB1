@@ -33,12 +33,16 @@
 #include <controls/TouchControl.h>
 #include <controls/LeverPushControls.h>
 #include "controls/OctaveControl.h"
+#include <controls/BLEGestureControl.h>
 #include <controls/SleepControl.h>
 
 Adafruit_MCP23X17 mcp_U1;
 Adafruit_MCP23X17 mcp_U2;
 
 LEDController ledController;
+
+// Lever cooldown after BLE toggle (prevents MIDI output during lever release)
+unsigned long leverCooldownUntil = 0;
 
 // I2C mutex for thread-safe access to MCP23017 chips
 static SemaphoreHandle_t i2cMutex = NULL;
@@ -123,8 +127,7 @@ MIDI_CREATE_INSTANCE(HardwareSerial, Serial0, MIDI);
 //----------------------------------
 OctaveControl<Adafruit_MCP23X17, LEDController> octaveControl(
     mcp_U2,
-    ledController,
-    nullptr
+    ledController
 );
 
 //----------------------------------
@@ -287,6 +290,9 @@ SystemSettings systemSettings = {
 
 Preferences preferences;
 BluetoothController* bluetoothControllerPtr = nullptr;
+
+// BLE Gesture Control - cross-lever gesture to toggle BLE
+BLEGestureControl* bleGestureControl = nullptr;
 
 //----------------------------------
 // Sleep / Deep Sleep Management
@@ -495,7 +501,8 @@ void setup() {
         systemSettings
     );
 
-    octaveControl.setBluetoothController(bluetoothControllerPtr);
+    // Initialize BLE gesture control (cross-lever activation)
+    bleGestureControl = new BLEGestureControl(ledController, bluetoothControllerPtr);
 
     // Initialize activity timer
     lastActivityMillis = millis();
@@ -540,20 +547,8 @@ void loop() {
 [[noreturn]] void readInputs(void *pvParameters) {
     while (true) {
         touch.update();
-        lever1.update();
-        lever2.update();
-        leverPush1.update();
-        leverPush2.update();
-        octaveControl.update();
-        keyboardControl.updateKeyboardState();
-
-        // Query touch sensor active state (affects LED behavior)
-        bool touchActive = touch.isActive();
-
-        // Activity detection: any active input counts as activity
-        bool activityDetected = false;
-
-        // Pink/Blue LED: compute targets and use LEDController ramping or touch-driven pulse (with I2C mutex protection)
+        
+        // Read lever states FIRST (for BLE gesture detection before lever MIDI processing)
         bool lever1Right, lever2Right, lever1Left, lever2Left, leverPush1Pressed, leverPush2Pressed;
         if (xSemaphoreTake(i2cMutex, portMAX_DELAY) == pdTRUE) {
             lever1Right = mcp_U2.digitalRead(SWD1_RIGHT_PIN) == LOW;
@@ -565,6 +560,31 @@ void loop() {
             xSemaphoreGive(i2cMutex);
         }
         
+        // BLE gesture detection BEFORE lever updates to suppress MIDI during gesture
+        bool bleGestureActive = false;
+        if (bleGestureControl) {
+            bool keyboardActiveForGesture = keyboardControl.anyKeyActive();
+            bleGestureActive = bleGestureControl->update(lever1Right, lever2Left, keyboardActiveForGesture);
+        }
+        
+        // Only update levers if gesture not active (cooldown already checked inside lever update)
+        if (!bleGestureActive) {
+            lever1.update();
+            lever2.update();
+        }
+        
+        leverPush1.update();
+        leverPush2.update();
+        octaveControl.update();
+        keyboardControl.updateKeyboardState();
+
+        // Query touch sensor active state (affects LED behavior)
+        bool touchActive = touch.isActive();
+
+        // Activity detection: any active input counts as activity
+        bool activityDetected = false;
+
+        // Pink/Blue LED: compute targets and use LEDController ramping
         bool pinkLedPressed = lever1Right || lever2Right;
         bool blueLeftPressed = lever1Left || lever2Left;
         leverPushIsPressed = leverPush1Pressed || leverPush2Pressed;

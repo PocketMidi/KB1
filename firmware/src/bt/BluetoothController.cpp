@@ -308,9 +308,6 @@ void BluetoothController::enable() {
         _lastActivity = millis();
         _modemSleeping = false;
         SERIAL_PRINTLN("Exiting modem sleep due to Bluetooth enable.");
-        // Blink LEDs for Bluetooth enabled
-        _ledController.pulse(LedColor::BLUE, 333, 2000);
-        _ledController.pulse(LedColor::PINK, 333, 2000);
     }
 }
 
@@ -327,9 +324,6 @@ void BluetoothController::disable() {
         _modemSleeping = false;
         SERIAL_PRINTLN("Bluetooth Disabled.");
         SERIAL_PRINTLN("Exiting modem sleep due to Bluetooth disable.");
-        // Blink LEDs for Bluetooth disabled
-        _ledController.pulse(LedColor::BLUE, 1000, 2000);
-        _ledController.pulse(LedColor::PINK, 1000, 2000);
     }
 }
 

@@ -122,6 +122,9 @@ extern Preferences preferences;
 
 extern MIDI_NAMESPACE::MidiInterface<MIDI_NAMESPACE::SerialMIDI<HardwareSerial>> MIDI;
 
+// Lever cooldown after BLE toggle (prevents MIDI output during lever release)
+extern unsigned long leverCooldownUntil;
+
 // Helper macro for serial printing, depends on SERIAL_PRINT_ENABLED from Constants.h
 #ifdef SERIAL_PRINT_ENABLED
 #define SERIAL_BEGIN() Serial.begin(115200); delay(1000);
