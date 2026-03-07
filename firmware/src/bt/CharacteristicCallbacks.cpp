@@ -2,6 +2,7 @@
 #include <bt/BluetoothController.h>
 #include <objects/Globals.h>
 #include <music/ScaleManager.h>
+#include <music/StrumPatterns.h>
 #include <objects/Settings.h>
 #include <cstring>
 
@@ -33,6 +34,15 @@ void GenericSettingsCallback::onWrite(BLECharacteristic *pCharacteristic) {
     // Perform copy and persist
     memcpy(_dest, rxValue.data(), _destSize);
     _preferences.putBytes(_prefKey.c_str(), _dest, _destSize);
+
+    // Debug: Log lever settings updates to see stepSize
+    if (_prefKey == "lever1" || _prefKey == "lever2") {
+        LeverSettings* s = static_cast<LeverSettings*>(_dest);
+        SERIAL_PRINT("✓ "); SERIAL_PRINT(_prefKey.c_str()); 
+        SERIAL_PRINT(" settings updated - CC:"); SERIAL_PRINT(s->ccNumber);
+        SERIAL_PRINT(", stepSize:"); SERIAL_PRINT(s->stepSize);
+        SERIAL_PRINT(", mode:"); SERIAL_PRINTLN((int)s->functionMode);
+    }
 
     // If this was scale settings, update the scale manager
     if (_scaleManager && _prefKey == "scale") {
@@ -91,4 +101,45 @@ void KeepAliveCallback::onWrite(BLECharacteristic *pCharacteristic) {
         _controller->refreshKeepAlive();
         SERIAL_PRINTLN("Keep-alive ping received.");
     }
+}
+
+StrumIntervalsCallback::StrumIntervalsCallback(BluetoothController* controller, Preferences& preferences)
+    : _controller(controller), _preferences(preferences)
+{
+}
+
+void StrumIntervalsCallback::onWrite(BLECharacteristic *pCharacteristic) {
+    const std::string rxValue = pCharacteristic->getValue();
+
+    if (_controller) {
+        _controller->updateLastActivity();
+    }
+
+    // Expect data format: length byte + interval bytes (int8_t array)
+    // Max 16 intervals, so max 17 bytes total
+    if (rxValue.length() < 1 || rxValue.length() > 17) {
+        SERIAL_PRINTLN("Invalid strum intervals data length");
+        return;
+    }
+
+    uint8_t length = static_cast<uint8_t>(rxValue[0]);
+    if (length > MAX_PATTERN_LENGTH) {
+        length = MAX_PATTERN_LENGTH;
+    }
+
+    // Extract intervals from remaining bytes
+    int8_t intervals[MAX_PATTERN_LENGTH];
+    for (uint8_t i = 0; i < length && i + 1 < rxValue.length(); i++) {
+        intervals[i] = static_cast<int8_t>(rxValue[i + 1]);
+    }
+
+    // Set custom pattern
+    setCustomPattern(intervals, length);
+
+    // Persist to preferences
+    _preferences.putBytes("customStrum", &customPattern, sizeof(CustomPattern));
+
+    SERIAL_PRINT("Custom strum pattern updated: ");
+    SERIAL_PRINT(length);
+    SERIAL_PRINTLN(" intervals");
 }

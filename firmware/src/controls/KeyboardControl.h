@@ -7,6 +7,7 @@
 #include <objects/Globals.h>
 #include <led/LEDController.h>
 #include <music/ScaleManager.h>
+#include <music/StrumPatterns.h>
 
 template<typename MidiTransport, typename OctaveControlType>
 class KeyboardControl {
@@ -16,8 +17,15 @@ public:
           _octaveControl(octaveCtrl),
           _scaleManager(scaleManager),
           _chordSettings(chordSettings),
-          _currentVelocity(89),
-          _minVelocity(15)
+          _currentVelocity(85),
+          _minVelocity(15),
+          _arpActive(false),
+          _arpRootNote(0),
+          _arpPattern(nullptr),
+          _arpPatternLength(0),
+          _arpCurrentIndex(0),
+          _arpLastNoteTime(0),
+          _arpCurrentNote(-1)
     {
         memset(_isNoteOn, false, sizeof(_isNoteOn));
         memset(_activeChordNotes, 0, sizeof(_activeChordNotes));
@@ -96,55 +104,136 @@ public:
             int rootNote = note + (_octaveControl.getOctave() * 12);
             
             // Get chord intervals
-            const int* intervals;
+            const int8_t* intervals;
             int intervalCount;
             getChordIntervals(intervals, intervalCount);
             
-            // Store chord notes for this key
-            _activeChordCount[note] = intervalCount;
+            // Check if this is advanced strum mode (pattern > 0)
+            // Advanced mode works independently of chord/strum toggle
+            bool isAdvancedStrum = _chordSettings.strumPattern > 0;
             
-            if (_chordSettings.strumEnabled) {
-                // Strum mode: cascade note-on messages with delay
-                for (int i = 0; i < intervalCount; i++) {
-                    int chordNote = rootNote + intervals[i];
-                    int velocity = calculateChordVelocity(i, intervalCount);
-                    _activeChordNotes[note][i] = chordNote;
-                    
-                    // Apply strum delay
-                    if (i > 0) {
-                        delay(_chordSettings.strumSpeed);
+            if (isAdvancedStrum) {
+                // ADVANCED STRUM: Looping arpeggiator (monophonic)
+                
+                // If arpeggiator is already running, smoothly transition to new root note
+                // Keep current index to continue pattern seamlessly
+                bool wasAlreadyRunning = _arpActive;
+                int previousIndex = _arpCurrentIndex;
+                
+                // Stop currently playing note (if any)
+                if (_arpCurrentNote >= 0) {
+                    _midi.sendNoteOff(_arpCurrentNote, 0, 1);
+                    SERIAL_PRINT("Arp Note Off (interrupted): ");
+                    SERIAL_PRINTLN(_arpCurrentNote);
+                }
+                
+                // Update arpeggiator state
+                _arpActive = true;
+                _arpRootNote = rootNote;
+                _arpPattern = intervals;
+                _arpPatternLength = intervalCount;
+                
+                // Keep current index if already running, otherwise start from beginning
+                if (!wasAlreadyRunning) {
+                    _arpCurrentIndex = 0;
+                    _arpLastNoteTime = millis();
+                    SERIAL_PRINT("Advanced Strum Arp Started: Root=");
+                    SERIAL_PRINT(rootNote);
+                    SERIAL_PRINT(", Pattern=");
+                    SERIAL_PRINT(_chordSettings.strumPattern);
+                    SERIAL_PRINT(", Length=");
+                    SERIAL_PRINTLN(intervalCount);
+                } else {
+                    // Continue from current position, adjust if pattern length changed
+                    if (_arpCurrentIndex >= intervalCount) {
+                        _arpCurrentIndex = 0;
                     }
-                    
-                    _midi.sendNoteOn(chordNote, velocity, channel);
-                    SERIAL_PRINT("Strum Note ");
-                    SERIAL_PRINT(i);
-                    SERIAL_PRINT(" On: ");
-                    SERIAL_PRINT(chordNote);
-                    SERIAL_PRINT(", Velocity: ");
-                    SERIAL_PRINTLN(velocity);
+                    SERIAL_PRINT("Advanced Strum Root Changed: New Root=");
+                    SERIAL_PRINT(rootNote);
+                    SERIAL_PRINT(", Continuing at index ");
+                    SERIAL_PRINTLN(_arpCurrentIndex);
                 }
+                
+                _arpCurrentNote = -1;
+                _isNoteOn[note] = true;
+                
             } else {
-                // Chord mode: send all notes immediately
-                for (int i = 0; i < intervalCount; i++) {
-                    int chordNote = rootNote + intervals[i];
-                    int velocity = calculateChordVelocity(i, intervalCount);
-                    _activeChordNotes[note][i] = chordNote;
-                    
-                    _midi.sendNoteOn(chordNote, velocity, channel);
-                    SERIAL_PRINT("Chord Note ");
-                    SERIAL_PRINT(i);
-                    SERIAL_PRINT(" On: ");
-                    SERIAL_PRINT(chordNote);
-                    SERIAL_PRINT(", Velocity: ");
-                    SERIAL_PRINTLN(velocity);
-                }
-            }
+                // BASIC STRUM or CHORD: Play once (polyphonic)
+                // Store chord notes for this key
+                _activeChordCount[note] = intervalCount;
             
-            _isNoteOn[note] = true;
+                if (_chordSettings.strumEnabled) {
+                    // Strum mode: cascade note-on messages with delay
+                    for (int i = 0; i < intervalCount; i++) {
+                        int chordNote = rootNote + intervals[i];
+                        int velocity = calculateChordVelocity(i, intervalCount);
+                        _activeChordNotes[note][i] = chordNote;
+                        
+                        // Apply strum delay with swing
+                        if (i > 0) {
+                            int delayTime = _chordSettings.strumSpeed;
+                            
+                            // Apply swing to odd-indexed notes (every other note)
+                            if (_chordSettings.strumSwing > 0 && (i % 2) == 1) {
+                                // Swing adds extra delay to odd notes (0-100% swing = 0-50% extra delay)
+                                int swingDelay = (delayTime * _chordSettings.strumSwing) / 200;
+                                delayTime += swingDelay;
+                            }
+                            
+                            delay(delayTime);
+                        }
+                        
+                        _midi.sendNoteOn(chordNote, velocity, channel);
+                        SERIAL_PRINT("Strum Note ");
+                        SERIAL_PRINT(i);
+                        SERIAL_PRINT(" On: ");
+                        SERIAL_PRINT(chordNote);
+                        SERIAL_PRINT(", Velocity: ");
+                        SERIAL_PRINTLN(velocity);
+                    }
+                } else {
+                    // Chord mode: send all notes immediately
+                    for (int i = 0; i < intervalCount; i++) {
+                        int chordNote = rootNote + intervals[i];
+                        int velocity = calculateChordVelocity(i, intervalCount);
+                        _activeChordNotes[note][i] = chordNote;
+                        
+                        _midi.sendNoteOn(chordNote, velocity, channel);
+                        SERIAL_PRINT("Chord Note ");
+                        SERIAL_PRINT(i);
+                        SERIAL_PRINT(" On: ");
+                        SERIAL_PRINT(chordNote);
+                        SERIAL_PRINT(", Velocity: ");
+                        SERIAL_PRINTLN(velocity);
+                    }
+                }
+                
+                _isNoteOn[note] = true;
+            }  // End of isAdvancedStrum else block
         }
     }
 
     void stopMidiNote(const byte note, int keyIndex = -1) {
+        // If arpeggiator is active, only stop it when the last key is released
+        if (_arpActive) {
+            _isNoteOn[note] = false;
+            
+            // Check if any other keys are still held
+            bool otherKeysHeld = false;
+            for (int i = 0; i < 128; i++) {
+                if (_isNoteOn[i]) {
+                    otherKeysHeld = true;
+                    break;
+                }
+            }
+            
+            // Only stop arpeggiator when the last key is released
+            if (!otherKeysHeld) {
+                stopArpeggiator();
+            }
+            return;
+        }
+        
         if (_isNoteOn[note])
         {
             constexpr byte channel = 1;
@@ -230,6 +319,9 @@ public:
     }
 
     void updateKeyboardState() {
+        // Update arpeggiator (for advanced strum looping)
+        updateArpeggiator();
+        
         // Debounced key scanning
         for (int i = 0; i < MAX_KEYS; ++i) {
             auto & key = _keys[i];
@@ -265,7 +357,89 @@ public:
         return false;
     }
 
+    // Update arpeggiator state (called from updateKeyboardState)
+    void updateArpeggiator() {
+        if (!_arpActive || !_arpPattern || _arpPatternLength == 0) {
+            return;
+        }
+
+        unsigned long now = millis();
+        
+        // Calculate note duration based on strum speed and swing
+        int baseDelay = _chordSettings.strumSpeed;
+        int noteDelay = baseDelay;
+        
+        // Apply swing to odd-indexed notes
+        if (_chordSettings.strumSwing > 0 && (_arpCurrentIndex % 2) == 1) {
+            int swingDelay = (baseDelay * _chordSettings.strumSwing) / 200;
+            noteDelay += swingDelay;
+        }
+        
+        // Check if it's time for the next note
+        if (now - _arpLastNoteTime < (unsigned long)noteDelay) {
+            return;
+        }
+        
+        // Turn off previous note
+        if (_arpCurrentNote >= 0) {
+            _midi.sendNoteOff(_arpCurrentNote, 0, 1);
+            SERIAL_PRINT("Arp Note Off: ");
+            SERIAL_PRINTLN(_arpCurrentNote);
+        }
+        
+        // Play next note in pattern
+        int interval = _arpPattern[_arpCurrentIndex];
+        _arpCurrentNote = _arpRootNote + interval;
+        int velocity = calculateChordVelocity(_arpCurrentIndex, _arpPatternLength);
+        
+        _midi.sendNoteOn(_arpCurrentNote, velocity, 1);
+        SERIAL_PRINT("Arp Note ");
+        SERIAL_PRINT(_arpCurrentIndex);
+        SERIAL_PRINT(" On: ");
+        SERIAL_PRINT(_arpCurrentNote);
+        SERIAL_PRINT(", Velocity: ");
+        SERIAL_PRINTLN(velocity);
+        
+        _arpLastNoteTime = now;
+        _arpCurrentIndex++;
+        
+        // Loop with calculated gap
+        if (_arpCurrentIndex >= _arpPatternLength) {
+            _arpCurrentIndex = 0;
+            // Add a gap between loops (20% of total pattern duration)
+            int patternDuration = baseDelay * _arpPatternLength;
+            int loopGap = patternDuration / 5;  // 20% gap
+            _arpLastNoteTime += loopGap;  // Extra delay before restarting
+            
+            SERIAL_PRINTLN("Arp loop restart");
+        }
+    }
+
 private:
+    // Stop arpeggiator and silence current note (clean cutoff)
+    void stopArpeggiator() {
+        if (!_arpActive) {
+            return;
+        }
+        
+        // Turn off current note if any
+        if (_arpCurrentNote >= 0) {
+            _midi.sendNoteOff(_arpCurrentNote, 0, 1);
+            SERIAL_PRINT("Arp stopped, Note Off: ");
+            SERIAL_PRINTLN(_arpCurrentNote);
+        }
+        
+        // Clear arp state
+        _arpActive = false;
+        _arpRootNote = 0;
+        _arpPattern = nullptr;
+        _arpPatternLength = 0;
+        _arpCurrentIndex = 0;
+        _arpCurrentNote = -1;
+        
+        SERIAL_PRINTLN("Arpeggiator stopped");
+    }
+
     // Map key index to white key position (-1 if not a white key)
     // White keys are: SW1-SW12 (indices: 0,1,3,5,6,8,10,12,13,15,17,18)
     int getWhiteKeyPosition(int keyIndex) const {
@@ -278,19 +452,45 @@ private:
         return -1;  // Not a white key
     }
 
-    // Get chord intervals based on chord type
-    void getChordIntervals(const int*& intervals, int& count) const {
+    // Get chord intervals based on chord type or strum pattern
+    void getChordIntervals(const int8_t*& intervals, int& count) const {
+        // Check if a strum pattern is selected (pattern > 0)
+        // Pattern 0 = use chord type intervals
+        // Pattern 1-6 = predefined patterns
+        // Pattern 7 = custom pattern
+        if (_chordSettings.strumPattern > 0 && _chordSettings.strumPattern < 7) {
+            // Use predefined strum pattern (1-6)
+            const StrumPattern* pattern = getStrumPattern(_chordSettings.strumPattern);
+            intervals = pattern->intervals;
+            count = pattern->length;
+            return;
+        } else if (_chordSettings.strumPattern == 7) {
+            // Use custom pattern  
+            const int8_t* customIntervals;
+            uint8_t customLength;
+            getCustomPattern(customIntervals, customLength);
+            intervals = customIntervals;
+            count = customLength;
+            return;
+        }
+        
+        // Pattern 0 or invalid: use chord type intervals
         // Define chord interval arrays locally (semitones from root)
-        static const int CHORD_MAJOR[] = {0, 4, 7};
-        static const int CHORD_MINOR[] = {0, 3, 7};
-        static const int CHORD_DIMINISHED[] = {0, 3, 6};
-        static const int CHORD_AUGMENTED[] = {0, 4, 8};
-        static const int CHORD_SUS2[] = {0, 2, 7};
-        static const int CHORD_SUS4[] = {0, 5, 7};
-        static const int CHORD_POWER[] = {0, 7, 12};
-        static const int CHORD_MAJOR7[] = {0, 4, 7, 11};
-        static const int CHORD_MINOR7[] = {0, 3, 7, 10};
-        static const int CHORD_DOM7[] = {0, 4, 7, 10};
+        static const int8_t CHORD_MAJOR[] = {0, 4, 7};
+        static const int8_t CHORD_MINOR[] = {0, 3, 7};
+        static const int8_t CHORD_DIMINISHED[] = {0, 3, 6};
+        static const int8_t CHORD_AUGMENTED[] = {0, 4, 8};
+        static const int8_t CHORD_SUS2[] = {0, 2, 7};
+        static const int8_t CHORD_SUS4[] = {0, 5, 7};
+        static const int8_t CHORD_POWER[] = {0, 7, 12};
+        static const int8_t CHORD_MAJOR7[] = {0, 4, 7, 11};
+        static const int8_t CHORD_MINOR7[] = {0, 3, 7, 10};
+        static const int8_t CHORD_DOM7[] = {0, 4, 7, 10};
+        static const int8_t CHORD_MAJOR_ADD9[] = {0, 4, 7, 14};
+        static const int8_t CHORD_MINOR_ADD9[] = {0, 3, 7, 14};
+        static const int8_t CHORD_MAJOR6[] = {0, 4, 7, 9};
+        static const int8_t CHORD_MINOR6[] = {0, 3, 7, 9};
+        static const int8_t CHORD_MAJOR9[] = {0, 4, 7, 11, 14};
         
         switch (_chordSettings.chordType) {
             case ChordType::MAJOR:
@@ -332,6 +532,26 @@ private:
             case ChordType::DOM7:
                 intervals = CHORD_DOM7;
                 count = 4;
+                break;
+            case ChordType::MAJOR_ADD9:
+                intervals = CHORD_MAJOR_ADD9;
+                count = 4;
+                break;
+            case ChordType::MINOR_ADD9:
+                intervals = CHORD_MINOR_ADD9;
+                count = 4;
+                break;
+            case ChordType::MAJOR6:
+                intervals = CHORD_MAJOR6;
+                count = 4;
+                break;
+            case ChordType::MINOR6:
+                intervals = CHORD_MINOR6;
+                count = 4;
+                break;
+            case ChordType::MAJOR9:
+                intervals = CHORD_MAJOR9;
+                count = 5;
                 break;
             default:
                 intervals = CHORD_MAJOR;
@@ -380,6 +600,15 @@ private:
     // Chord tracking
     int _activeChordNotes[128][MAX_CHORD_NOTES];  // Store active chord notes for each key
     int _activeChordCount[128];  // Count of active chord notes for each key
+    
+    // Arpeggiator state (for advanced strum mode with pattern > 0)
+    bool _arpActive;                    // Is arpeggiator running
+    int _arpRootNote;                   // Root note for arpeggio
+    const int8_t* _arpPattern;          // Pointer to interval pattern
+    int _arpPatternLength;              // Number of intervals in pattern
+    int _arpCurrentIndex;               // Current position in pattern
+    unsigned long _arpLastNoteTime;     // Timestamp of last note
+    int _arpCurrentNote;                // Currently playing MIDI note (-1 if none)
 };
 
 #endif

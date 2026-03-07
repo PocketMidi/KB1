@@ -47,4 +47,14 @@ private:
     BluetoothController* _controller;
 };
 
+// Strum intervals callback for custom pattern data
+class StrumIntervalsCallback final : public BLECharacteristicCallbacks {
+public:
+    StrumIntervalsCallback(BluetoothController* controller, Preferences& preferences);
+    void onWrite(BLECharacteristic *pCharacteristic) override;
+private:
+    BluetoothController* _controller;
+    Preferences& _preferences;
+};
+
 #endif

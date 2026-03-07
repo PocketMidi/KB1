@@ -40,6 +40,7 @@ public:
     BLECharacteristic* getTouchSettingsCharacteristic() { return _pTouchSettingsCharacteristic; }
     BLECharacteristic* getScaleSettingsCharacteristic() { return _pScaleSettingsCharacteristic; }
     BLECharacteristic* getChordSettingsCharacteristic() { return _pChordSettingsCharacteristic; }
+    BLECharacteristic* getStrumIntervalsCharacteristic() { return _pStrumIntervalsCharacteristic; }
     BLECharacteristic* getSystemSettingsCharacteristic() { return _pSystemSettingsCharacteristic; }
     BLECharacteristic* getMidiCharacteristic() { return _pMidiCharacteristic; }
     BLECharacteristic* getKeepAliveCharacteristic() { return _pKeepAliveCharacteristic; }
@@ -89,6 +90,7 @@ private:
     BLECharacteristic* _pTouchSettingsCharacteristic;
     BLECharacteristic* _pScaleSettingsCharacteristic;
     BLECharacteristic* _pChordSettingsCharacteristic;
+    BLECharacteristic* _pStrumIntervalsCharacteristic;
     BLECharacteristic* _pSystemSettingsCharacteristic;
     BLECharacteristic* _pMidiCharacteristic;
     BLECharacteristic* _pKeepAliveCharacteristic;

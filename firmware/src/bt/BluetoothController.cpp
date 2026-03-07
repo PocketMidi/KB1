@@ -43,6 +43,7 @@ BluetoothController::BluetoothController(
     _pTouchSettingsCharacteristic(nullptr),
     _pScaleSettingsCharacteristic(nullptr),
     _pChordSettingsCharacteristic(nullptr),
+    _pStrumIntervalsCharacteristic(nullptr),
     _pSystemSettingsCharacteristic(nullptr),
     _pMidiCharacteristic(nullptr),
     _pKeepAliveCharacteristic(nullptr),
@@ -191,6 +192,14 @@ void BluetoothController::enable() {
             "chord",
             nullptr
         ));
+
+        _pStrumIntervalsCharacteristic = _pService->createCharacteristic(
+            STRUM_INTERVALS_UUID,
+            BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE
+        );
+        _pStrumIntervalsCharacteristic->addDescriptor(new BLE2902());
+        _pStrumIntervalsCharacteristic->setCallbacks(new StrumIntervalsCallback(this, _preferences));
 
         _pSystemSettingsCharacteristic = _pService->createCharacteristic(
             SYSTEM_SETTINGS_UUID,

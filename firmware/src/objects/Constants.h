@@ -2,10 +2,10 @@
 #define CONSTANTS_H
 
 // Firmware version
-#define FIRMWARE_VERSION "1.2.0"
+#define FIRMWARE_VERSION "1.2.5"
 #define FIRMWARE_VERSION_MAJOR 1
 #define FIRMWARE_VERSION_MINOR 2
-#define FIRMWARE_VERSION_PATCH 0
+#define FIRMWARE_VERSION_PATCH 5
 
 // Uncomment following line to enable Serial Printing
 #define SERIAL_PRINT_ENABLED 1
@@ -28,6 +28,7 @@
 #define TOUCH_SETTINGS_UUID      "5612b54d-8bfe-4217-a079-c9c95ab32c41"
 #define SCALE_SETTINGS_UUID      "297bd635-c3e8-4fb4-b5e0-93586da8f14c"
 #define CHORD_SETTINGS_UUID      "4a8c9f2e-1b7d-4e3f-a5c6-d7e8f9a0b1c2"
+#define STRUM_INTERVALS_UUID     "7f3e2d1c-0a9b-8c7d-6e5f-4a3b2c1d0e9f"
 #define SYSTEM_SETTINGS_UUID     "8f7e6d5c-4b3a-2c1d-0e9f-8a7b6c5d4e3f"
 #define MIDI_UUID                "eb58b31b-d963-4c7d-9a11-e8aabec2fe32"
 #define KEEPALIVE_UUID           "a8f3d5e2-9c4b-11ef-8e7a-325096b39f47"

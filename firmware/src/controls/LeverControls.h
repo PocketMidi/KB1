@@ -20,7 +20,8 @@ public:
         MidiTransport& midi,
         LEDController& ledController,
         LedColor ledColor,
-        KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>>& keyboardControl
+        KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>>& keyboardControl,
+        ChordSettings& chordSettings
     );
 
     void update();
@@ -47,6 +48,7 @@ private:
     KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>>& _keyboardControl;
     LEDController& _ledController;
     LedColor _ledColor;
+    ChordSettings& _chordSettings;
 
     bool _isPressed;
     int _lastSentValue;
@@ -70,7 +72,8 @@ LeverControls<MidiTransport>::LeverControls(
     MidiTransport& midi,
     LEDController& ledController,
     LedColor ledColor,
-    KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>>& keyboardControl)
+    KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>>& keyboardControl,
+    ChordSettings& chordSettings)
     :
     _midi(midi),
     _mcpLeft(mcpLeft),
@@ -81,6 +84,7 @@ LeverControls<MidiTransport>::LeverControls(
     _ledController(ledController),
     _ledColor(ledColor),
     _keyboardControl(keyboardControl),
+    _chordSettings(chordSettings),
     _isPressed(false),
     _rampStartTime(0)
     {
@@ -159,6 +163,7 @@ void LeverControls<MidiTransport>::setMaxCCValue(int number) {
 
 template<class MidiTransport>
 void LeverControls<MidiTransport>::setStepSize(int size) {
+    SERIAL_PRINT("LeverControls::setStepSize called: "); SERIAL_PRINTLN(size);
     _settings.stepSize = size;
 }
 
@@ -185,11 +190,19 @@ void LeverControls<MidiTransport>::handleInput() {
 
     if (_settings.functionMode == LeverFunctionMode::INCREMENTAL) {
         if (leftState && !_isPressed) {
+            int oldValue = _currentValue;
             _currentValue = max(_settings.minCCValue, _currentValue - _settings.stepSize);
             _isPressed = true;
+            SERIAL_PRINT("INCREMENTAL: "); SERIAL_PRINT(oldValue); 
+            SERIAL_PRINT(" -> "); SERIAL_PRINT(_currentValue);
+            SERIAL_PRINT(" (stepSize: "); SERIAL_PRINT(_settings.stepSize); SERIAL_PRINTLN(")");
         } else if (rightState && !_isPressed) {
+            int oldValue = _currentValue;
             _currentValue = min(_settings.maxCCValue, _currentValue + _settings.stepSize);
             _isPressed = true;
+            SERIAL_PRINT("INCREMENTAL: "); SERIAL_PRINT(oldValue);
+            SERIAL_PRINT(" -> "); SERIAL_PRINT(_currentValue);
+            SERIAL_PRINT(" (stepSize: "); SERIAL_PRINT(_settings.stepSize); SERIAL_PRINTLN(")");
         } else if (!leftState && !rightState && _isPressed) {
             _isPressed = false;
         }
@@ -288,6 +301,30 @@ void LeverControls<MidiTransport>::updateValue() {
             // and update the cached sent value to avoid repeats.
             SERIAL_PRINT("Velocity set: "); SERIAL_PRINTLN(sendVal);
             _keyboardControl.setVelocity(sendVal);
+        } else if (_settings.ccNumber == 200) {
+            // 200 = KB1 Expression: Strum Speed (4-120ms)
+            // Map CC value (0-127) to speed: 0=slow(120ms), 127=fast(4ms) - inverted output
+            int strumSpeed = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 120, 4);
+            _chordSettings.strumSpeed = constrain(strumSpeed, 4, 120);
+            SERIAL_PRINT("KB1 Expression: Strum Speed set to "); SERIAL_PRINTLN(_chordSettings.strumSpeed);
+        } else if (_settings.ccNumber == 201) {
+            // 201 = KB1 Expression: Pattern Selector (1-6)
+            // Map CC value (0-127) to pattern range (1-6)
+            int pattern = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 1, 6);
+            _chordSettings.strumPattern = constrain(pattern, 1, 6);
+            SERIAL_PRINT("KB1 Expression: Pattern set to "); SERIAL_PRINTLN(_chordSettings.strumPattern);
+        } else if (_settings.ccNumber == 202) {
+            // 202 = KB1 Expression: Swing (0-100%)
+            // Map CC value (0-127) to swing range (0-100)
+            int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 100);
+            _chordSettings.strumSwing = constrain(swing, 0, 100);
+            SERIAL_PRINT("KB1 Expression: Swing set to "); SERIAL_PRINTLN(_chordSettings.strumSwing);
+        } else if (_settings.ccNumber == 203) {
+            // 203 = KB1 Expression: Velocity Spread (8-100%)
+            // Map CC value (0-127) to velocity spread range (8-100)
+            int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 8, 100);
+            _chordSettings.velocitySpread = constrain(velocitySpread, 8, 100);
+            SERIAL_PRINT("KB1 Expression: Velocity Spread set to "); SERIAL_PRINTLN(_chordSettings.velocitySpread);
         } else {
             SERIAL_PRINT("Sending CC "); SERIAL_PRINT(_settings.ccNumber);
             SERIAL_PRINT(", Value: "); SERIAL_PRINTLN(sendVal);

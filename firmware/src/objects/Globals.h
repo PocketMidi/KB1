@@ -107,7 +107,12 @@ enum class ChordType {
     POWER,
     MAJOR7,
     MINOR7,
-    DOM7
+    DOM7,
+    MAJOR_ADD9,
+    MINOR_ADD9,
+    MAJOR6,
+    MINOR6,
+    MAJOR9
 };
 
 enum class PlayMode {

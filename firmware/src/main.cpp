@@ -28,6 +28,7 @@
 #include <objects/Settings.h>
 #include <led/LEDController.h>
 #include <music/ScaleManager.h>
+#include <music/StrumPatterns.h>
 #include <controls/KeyboardControl.h>
 #include <controls/LeverControls.h>
 #include <controls/TouchControl.h>
@@ -40,6 +41,12 @@ Adafruit_MCP23X17 mcp_U1;
 Adafruit_MCP23X17 mcp_U2;
 
 LEDController ledController;
+
+// Custom strum pattern storage (pattern 7 - modifiable via BLE)
+CustomPattern customPattern = {
+    .intervals = {0, 2, 4, 5, 7, 9, 11, 12, 0, 0, 0, 0, 0, 0, 0, 0},
+    .length = 8
+};
 
 // Lever cooldown after BLE toggle (prevents MIDI output during lever release)
 unsigned long leverCooldownUntil = 0;
@@ -148,7 +155,9 @@ ChordSettings chordSettings = {
     .chordType = ChordType::MAJOR,
     .strumEnabled = false,
     .velocitySpread = 8,
-    .strumSpeed = 45,
+    .strumSpeed = 30,   // 30ms default (range: 4-120ms)
+    .strumPattern = 0,  // Default to chord type
+    .strumSwing = 0     // No swing by default
 };
 
 //----------------------------------
@@ -185,7 +194,8 @@ LeverControls<decltype(MIDI)> lever1(
     MIDI,
     ledController,
     LedColor::PINK,
-    keyboardControl
+    keyboardControl,
+    chordSettings
 );
 
 //----------------------------------
@@ -209,7 +219,8 @@ LeverPushControls<decltype(MIDI)> leverPush1(
     MIDI,
     ledController,
     LedColor::PINK,
-    keyboardControl
+    keyboardControl,
+    chordSettings
 );
 
 //----------------------------------
@@ -217,9 +228,9 @@ LeverPushControls<decltype(MIDI)> leverPush1(
 //----------------------------------
 LeverSettings lever2Settings = {
     .ccNumber = 128,
-    .minCCValue = 16,
+    .minCCValue = 13,
     .maxCCValue = 127,
-    .stepSize = 8,
+    .stepSize = 6,
     .functionMode = LeverFunctionMode::INCREMENTAL,
     .valueMode = ValueMode::BIPOLAR,
     .onsetTime = 100,
@@ -236,7 +247,8 @@ LeverControls<decltype(MIDI)> lever2(
     MIDI,
     ledController,
     LedColor::BLUE,
-    keyboardControl
+    keyboardControl,
+    chordSettings
 );
 
 //----------------------------------
@@ -244,8 +256,8 @@ LeverControls<decltype(MIDI)> lever2(
 //----------------------------------
 LeverPushSettings leverPush2Settings = {
     .ccNumber = 128,
-    .minCCValue = 89,
-    .maxCCValue = 89,
+    .minCCValue = 85,
+    .maxCCValue = 85,
     .functionMode = LeverPushFunctionMode::RESET,
     .onsetTime = 100,
     .offsetTime = 100,
@@ -260,7 +272,8 @@ LeverPushControls<decltype(MIDI)> leverPush2(
         MIDI,
         ledController,
         LedColor::BLUE,
-        keyboardControl
+        keyboardControl,
+        chordSettings
 );
 
 //----------------------------------
@@ -331,6 +344,7 @@ void loadSettings() {
     preferences.getBytes("touch", &touchSettings, sizeof(TouchSettings));
     preferences.getBytes("scale", &scaleSettings, sizeof(ScaleSettings));
     preferences.getBytes("chord", &chordSettings, sizeof(ChordSettings));
+    preferences.getBytes("customStrum", &customPattern, sizeof(CustomPattern));
     preferences.getBytes("system", &systemSettings, sizeof(SystemSettings));
 
     scaleManager.setScale(scaleSettings.scaleType);

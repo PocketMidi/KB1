@@ -1,4 +1,4 @@
-# KB1 Firmware v1.1.4 Release Notes
+“‘’”# KB1 Firmware v1.1.4 Release Notes
 
 ## Overview
 
