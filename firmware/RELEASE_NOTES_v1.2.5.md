@@ -2,7 +2,7 @@
 
 **Release Date:** March 7, 2026
 
-Version 1.2.5 is a major musical capability expansion that transforms the KB1 into a comprehensive polyphonic chord controller with programmable strum patterns. This release adds Chord Mode, 15 chord types, 8 strum patterns with advanced musical expression controls and pattern looping capabilities, while preserving all existing Scale Mode functionality.
+Version 1.2.5 adds Chord Mode with 15 chord types and 6 strum patterns with looping capabilities. Scale Mode functionality is unchanged.
 
 **Version Identification:**
 - Firmware version string: `1.2.5`
@@ -14,32 +14,30 @@ Version 1.2.5 is a major musical capability expansion that transforms the KB1 in
 
 ### Dual Keyboard Modes
 
-The KB1 now supports two distinct operational modes, selectable via BLE:
+Two keyboard modes, selectable via BLE:
 
-#### **Scale Mode (Original)**
+#### **Scale Mode**
 - Quantized note output with multiple scale types
 - Chromatic, Major, Minor, Pentatonic, Blues, and more
 - Natural/Compact key mapping options
-- Perfect for melodic performance
 
-#### **Chord Mode (NEW)**
+#### **Chord Mode**
 - Chromatic chord/strum playback
-- 15 professional chord types
+- 15 chord types
 - Polyphonic or cascaded note output
-- Ideal for harmonic accompaniment and looping pattern sequences
 
 ### Chord Mode: Two Sub-Modes
 
-Toggle between two distinct playback behaviors:
+Toggle between simultaneous or cascaded playback:
 
-| Mode | Behavior | Best For |
-|------|----------|----------|
-| **Chord** | All chord notes play simultaneously | Rhythm guitar, pads, comping |
-| **Strum** | Notes cascade with configurable timing | Guitar-style strumming, harp glissando, arpeggios |
+| Mode | Behavior |
+|------|----------|
+| **Chord** | All chord notes play simultaneously |
+| **Strum** | Notes cascade with configurable timing |
 
 ### 15 Chord Types
 
-Professional chord voicings spanning common to extended harmonies:
+Available chord voicings:
 
 | Category | Chord Types |
 |----------|-------------|
@@ -47,64 +45,51 @@ Professional chord voicings spanning common to extended harmonies:
 | **7th Chords** | Major7, Minor7, Dominant7 |
 | **Extended** | Major Add9, Minor Add9, Major6, Minor6, Major9 |
 
-All chords are voiced for musical balance and playability across the keyboard range.
+### 6 Strum Patterns
 
-### 8 Strum Patterns
-
-Pattern 0 plays the selected chord type, while Patterns 1-7 enable **pattern looping mode** with smooth root note transitions:
+Pattern 0 plays the selected chord type. Patterns 1-6 enable pattern looping mode with root note transitions:
 
 | Pattern | Name | Description |
 |---------|------|-------------|
 | **0** | Chord | Uses selected chord type (simultaneous or cascaded) |
-| **1** | Triad Up | Ascending 1-3-5 pattern |
-| **2** | Triad Down | Descending 5-3-1 pattern |
-| **3** | Pentatonic Run | 5-note scale-based pattern |
-| **4** | Octave Jump | Root-octave alternation |
-| **5** | Major 7th Run | 1-3-5-7 jazz voicing |
-| **6** | Blues Run | Blues scale phrase |
-| **7** | Custom | User-definable via BLE (modify note sequence) |
+| **1** | Up | Ascending pattern |
+| **2** | Down | Descending pattern |
+| **3** | Bounce | Back and forth pattern |
+| **4** | Inclusive | Center outward pattern |
+| **5** | Exclusive | Outward to center pattern |
+| **6** | Random | Random note order |
 
-**Pattern Looping Mode (Patterns 1-7):**
-- Monophonic looping playback that cycles through the pattern
-- Smooth transitions when changing root notes mid-pattern
-- Pattern continues from its current position when switching keys
-- Enables melodic sequencing and automatic phrase generation
+**Pattern Looping Mode (Patterns 1-6):**
+- Monophonic looping playback
+- Root note transitions while maintaining pattern
+- Pattern position tracking across note changes
 
 ### Advanced Musical Expression Controls
 
 #### Strum Speed
-- **Range:** 4-120ms delay between cascaded notes
-- **Effect:** Controls the "roll" speed from slow harp glissando to rapid guitar strum
-- **Pattern Mode:** Sets the tempo of looping patterns (Patterns 1-7)
+- Range: 4-120ms delay between cascaded notes
+- Controls roll speed in Strum mode
+- Sets tempo for pattern looping (Patterns 1-6)
 
 #### Velocity Spread
-- **Range:** 0-100% velocity reduction for upper chord notes
-- **Effect:** Creates natural dynamic contour in chords/strums
-- **Musical Use:** 
-  - 0% = all notes at equal velocity (mechanical)
-  - 50% = gentle taper (natural guitar strum)
-  - 100% = pronounced dynamic arc (expressive harp)
+- Range: 0-100% velocity reduction for upper chord notes
+- Creates dynamic contour in chords/strums
+- 0% = equal velocity, 100% = maximum reduction
 
 #### Strum Swing
-- **Range:** 0-100% swing/groove amount
-- **Effect:** Applies swing timing to odd-numbered notes in the pattern
-- **Musical Use:**
-  - 0% = straight timing (8th notes)
-  - 50% = moderate shuffle (triplet feel)
-  - 100% = heavy swing (dotted rhythms)
-- **Note:** Only affects patterns with 3+ notes
+- Range: 0-100% swing/groove amount
+- Applies swing timing to odd-numbered notes in the pattern
+- 0% = straight timing, 100% = heavy swing
+- Requires patterns with 3+ notes
 
 ### Preset System Integration
 
-All Chord Mode settings are now part of the preset system:
+Chord Mode settings stored in presets:
 - Mode selection (Scale/Chord)
 - Chord/Strum toggle
 - Selected chord type
-- Active pattern (0-7)
+- Active pattern (0-6)
 - Strum speed, velocity spread, swing amount
-- Custom pattern data (Pattern 7)
-
-**Benefit:** Save complete performance configurations including keyboard mode, chord voicings, and pattern settings for instant recall.
 
 ---
 
@@ -113,10 +98,10 @@ All Chord Mode settings are now part of the preset system:
 ### Keyboard Settings Panel
 - **Mode Selector:** Toggle between Scale Mode and Chord Mode
 - **Chord/Strum Toggle:** Switch playback behavior in Chord Mode
-- **Pattern Carousel:** Visual selector for 8 strum patterns with icons
-- **Pattern Name Display:** Shows active pattern name (e.g., "Triad Up", "Blues Run")
-- **Chord Type Dropdown:** Select from 15 chord types with visual representation
-- **Expression Controls:** Real-time sliders for strum speed, velocity spread, and swing
+- **Pattern Carousel:** Visual selector for strum patterns with icons
+- **Pattern Name Display:** Shows active pattern name
+- **Chord Type Dropdown:** Select from 15 chord types
+- **Expression Controls:** Sliders for strum speed, velocity spread, and swing
 
 ### Visual Feedback
 - Pattern icons provide instant recognition of strum pattern type
@@ -136,19 +121,18 @@ All Chord Mode settings are now part of the preset system:
 - Default values ensure musical playback out-of-the-box
 
 **Strum Pattern Engine** (`src/music/StrumPatterns.h`)
-- 8 pre-defined patterns with musical phrasing
-- Custom pattern support (Pattern 7) with BLE configuration
-- Velocity spread calculation for dynamic expression
-- Swing timing interpolation for groove control
+- 6 pre-defined patterns: Up, Down, Bounce, Inclusive, Exclusive, Random
+- Pattern 0 uses chord type intervals
+- Velocity spread and swing timing calculations
 
 **Pattern Looping Logic** (`src/controls/KeyboardControl.h`)
-- Monophonic looping with smooth root transitions
-- Pattern position tracking across note changes
-- Automatic note-off management for clean voice leading
-- Tempo-locked timing based on strum speed
+- Monophonic looping with root note transitions
+- Pattern position tracking
+- Automatic note-off management
+- Tempo-locked timing
 
 ### Modified Files
-- `src/controls/KeyboardControl.h` — Integrated chord logic, pattern looping engine, pattern playback
+- `src/controls/KeyboardControl.h` — Chord logic, pattern looping, pattern playback
 - `src/objects/Settings.h` — Added ChordSettings structure to PresetData
 - `src/bt/CharacteristicCallbacks.cpp` — BLE handlers for chord/strum parameters
 - `src/objects/Constants.h` — Version bump to `1.2.5`
@@ -158,44 +142,10 @@ All Chord Mode settings are now part of the preset system:
 - Keyboard Mode (Scale/Chord)
 - Chord/Strum toggle
 - Chord type selection
-- Strum pattern selection (0-7)
+- Strum pattern selection (0-6)
 - Strum speed (4-120ms)
 - Velocity spread (0-100%)
 - Strum swing (0-100%)
-- Custom pattern data (Pattern 7 note array)
-
----
-
-## Musical Use Cases
-
-### Rhythm Guitar Accompaniment
-- Chord Mode → Chord
-- Select chord progressions (e.g., Major, Minor, Dominant7)
-- Use velocity spread for natural strumming dynamics
-
-### Harp-Style Glissando
-- Chord Mode → Strum
-- Strum speed: 20-40ms
-- Velocity spread: 60-80%
-- Pattern 0 with extended chord (Major9, Major7)
-
-### Jazz Comping
-- Chord Mode → Chord
-- Extended voicings (Major7, Dominant7, Minor7)
-- Quick strum speed (4-8ms) for tight attacks
-
-### Melodic Sequencing (Pattern Looping)
-- Chord Mode → Strum
-- Pattern 1-7 (e.g., Triad Up, Pentatonic Run)
-- Strum speed sets tempo (40-80ms for 8th note feel)
-- Add swing for groove (50-70%)
-- Play different root notes — pattern continues smoothly
-
-### Blues Lead Lines
-- Pattern 6: Blues Run
-- Strum speed: 60-80ms
-- Swing: 60-70%
-- Change root notes for automatic blues phrasing
 
 ---
 
@@ -234,25 +184,24 @@ All Chord Mode settings are now part of the preset system:
    - Connect to web app
    - In Keyboard Settings, select "Chord Mode"
    - Toggle "Chord/Strum" and experiment with patterns
-   - Adjust strum speed, velocity spread, and swing to taste
+   - Adjust strum speed, velocity spread, and swing
 
 4. **Explore Presets:**
-   - Save your favorite chord configurations as presets
-   - Use community presets showcasing arpeggiator patterns
+   - Save chord configurations as presets
+   - Browse community presets
 
 ---
 
 ## Known Limitations
 
-- **Arpeggiator Polyphony:** Patterns 1-7 are monophonic (one note at a time)
-- **Pattern Length:** Fixed per pattern (cannot customize except Pattern 7)
-- **Swing Resolution:** Applied to odd-numbered notes only (standard swing behavior)
-- **Note-Off Timing:** Arpeggiator notes have fixed 80% note duration for clean articulation
+- **Pattern Polyphony:** Patterns 1-6 are monophonic (one note at a time)
+- **Swing Resolution:** Applied to odd-numbered notes only
+- **Note Duration:** Pattern notes have fixed 80% note duration
 
 ---
 
 ## Credits
 
-This release represents a significant evolution in the KB1's musical capabilities, transforming it from a scale-based controller into a versatile chord and arpeggiator powerhouse. Special thanks to the community for feedback on chord voicings and pattern design.
+Chord Mode adds versatile polyphonic playback and strum pattern capabilities to the KB1.
 
-**Next Steps:** Explore the [Chord/Arp Planning Document](CHORD_ARP_PLANNING_v2.0.md) for detailed implementation notes and future enhancement ideas.
+**Next Steps:** See [Chord/Arp Planning Document](CHORD_ARP_PLANNING_v2.0.md) for detailed implementation notes and future enhancements.
