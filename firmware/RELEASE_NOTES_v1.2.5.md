@@ -62,18 +62,14 @@ Patterns 1-6 enable pattern looping mode with root note transitions:
 - 0% = straight timing, 100% = heavy swing
 - Requires patterns with 3+ notes
 
-### KB1 Expression Category (Lever/Lever Push CC Mappings)
+### KB1 Expression Category (Lever/Lever Push Mappings)
 
-Special MIDI CC mappings for real-time hardware control of Chord Mode parameters:
-
-| CC Number | Parameter | Range | Description |
+ | Parameter | Range | Description |
 |-----------|-----------|-------|-------------|
-| **200** | Strum Speed | 4-120ms | Control strum/pattern tempo with levers |
-| **201** | Pattern Select | 1-6 | Switch between patterns 1-6 via hardware |
-| **202** | Swing | 0-100% | Adjust swing amount in real-time |
-| **203** | Velocity Spread | 8-100% | Control dynamic contour via levers |
-
-These CC mappings can be assigned to **Lever Controls** or **Lever Push Controls**, enabling hands-on performance control of Chord Mode expression without touching the web app.
+| Strum Speed | 4-120ms | Control strum/pattern tempo with levers |
+| Pattern Select | 1-6 | Switch between patterns 1-6 via hardware |
+| Swing | 0-100% | Adjust swing amount in real-time |
+| Velocity Spread | 8-100% | Control dynamic contour via levers |
 
 ### Preset System Integration
 
@@ -91,7 +87,6 @@ Chord Mode settings stored in presets:
 ### Keyboard Settings Panel
 - **Mode Selector:** Toggle between Scale Mode and Chord Mode
 - **Chord/Strum Toggle:** Switch playback behavior in Chord Mode
-- **Pattern Carousel:** Visual selector for strum patterns with icons
 - **Pattern Name Display:** Shows active pattern name
 - **Chord Type Dropdown:** Select from 15 chord types
 - **Expression Controls:** Sliders for strum speed, velocity spread, and swing
