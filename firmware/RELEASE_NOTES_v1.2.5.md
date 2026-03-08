@@ -2,7 +2,7 @@
 
 **Release Date:** March 7, 2026
 
-Version 1.2.5 adds Chord Mode with 15 chord types and 6 strum patterns with looping capabilities. Scale Mode functionality is unchanged.
+Version 1.2.5 adds more strum patterns with looping capabilities. Scale Mode functionality is unchanged.
 
 **Version Identification:**
 - Firmware version string: `1.2.5`
@@ -11,20 +11,6 @@ Version 1.2.5 adds Chord Mode with 15 chord types and 6 strum patterns with loop
 ---
 
 ## What's New
-
-### Dual Keyboard Modes
-
-Two keyboard modes, selectable via BLE:
-
-#### **Scale Mode**
-- Quantized note output with multiple scale types
-- Chromatic, Major, Minor, Pentatonic, Blues, and more
-- Natural/Compact key mapping options
-
-#### **Chord Mode**
-- Chromatic chord/strum playback
-- 15 chord types
-- Polyphonic or cascaded note output
 
 ### Chord Mode: Two Sub-Modes
 
@@ -47,22 +33,16 @@ Available chord voicings:
 
 ### 6 Strum Patterns
 
-Pattern 0 plays the selected chord type. Patterns 1-6 enable pattern looping mode with root note transitions:
+Patterns 1-6 enable pattern looping mode with root note transitions:
 
 | Pattern | Name | Description |
 |---------|------|-------------|
-| **0** | Chord | Uses selected chord type (simultaneous or cascaded) |
 | **1** | Up | Ascending pattern |
 | **2** | Down | Descending pattern |
 | **3** | Bounce | Back and forth pattern |
 | **4** | Inclusive | Center outward pattern |
 | **5** | Exclusive | Outward to center pattern |
 | **6** | Random | Random note order |
-
-**Pattern Looping Mode (Patterns 1-6):**
-- Monophonic looping playback
-- Root note transitions while maintaining pattern
-- Pattern position tracking across note changes
 
 ### Advanced Musical Expression Controls
 
@@ -81,6 +61,19 @@ Pattern 0 plays the selected chord type. Patterns 1-6 enable pattern looping mod
 - Applies swing timing to odd-numbered notes in the pattern
 - 0% = straight timing, 100% = heavy swing
 - Requires patterns with 3+ notes
+
+### KB1 Expression Category (Lever/Lever Push CC Mappings)
+
+Special MIDI CC mappings for real-time hardware control of Chord Mode parameters:
+
+| CC Number | Parameter | Range | Description |
+|-----------|-----------|-------|-------------|
+| **200** | Strum Speed | 4-120ms | Control strum/pattern tempo with levers |
+| **201** | Pattern Select | 1-6 | Switch between patterns 1-6 via hardware |
+| **202** | Swing | 0-100% | Adjust swing amount in real-time |
+| **203** | Velocity Spread | 8-100% | Control dynamic contour via levers |
+
+These CC mappings can be assigned to **Lever Controls** or **Lever Push Controls**, enabling hands-on performance control of Chord Mode expression without touching the web app.
 
 ### Preset System Integration
 
@@ -146,6 +139,12 @@ Chord Mode settings stored in presets:
 - Strum speed (4-120ms)
 - Velocity spread (0-100%)
 - Strum swing (0-100%)
+
+### Lever/Lever Push Enhancements
+- Added KB1 Expression CC category (CC 200-203)
+- Levers can now control strum speed, pattern selection, swing, and velocity spread
+- Real-time hardware control of Chord Mode parameters
+- CC assignments stored per lever in presets
 
 ---
 
