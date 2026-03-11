@@ -85,7 +85,26 @@ public:
                             _toggleState = currentState;
                             SERIAL_PRINT("TouchFunctionMode::HOLD :"); SERIAL_PRINTLN(_toggleState);
                             int sendVal = constrain(_toggleState ? _settings.maxCCValue : _settings.minCCValue, 0, 127);
-                            _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
+                            
+                            // Handle KB1 Expression parameters
+                            if (_settings.ccNumber == 200) {
+                                // 200 = KB1 Expression: Strum Speed (4-360ms)
+                                int strumSpeed = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 360, 4);
+                                _chordSettings.strumSpeed = constrain(strumSpeed, 4, 360);
+                                SERIAL_PRINT("KB1 Expression: Strum Speed set to "); SERIAL_PRINTLN(_chordSettings.strumSpeed);
+                            } else if (_settings.ccNumber == 202) {
+                                // 202 = KB1 Expression: Swing (0-100%)
+                                int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 100);
+                                _chordSettings.strumSwing = constrain(swing, 0, 100);
+                                SERIAL_PRINT("KB1 Expression: Swing set to "); SERIAL_PRINTLN(_chordSettings.strumSwing);
+                            } else if (_settings.ccNumber == 203) {
+                                // 203 = KB1 Expression: Velocity Spread (8-100%)
+                                int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 8, 100);
+                                _chordSettings.velocitySpread = constrain(velocitySpread, 8, 100);
+                                SERIAL_PRINT("KB1 Expression: Velocity Spread set to "); SERIAL_PRINTLN(_chordSettings.velocitySpread);
+                            } else {
+                                _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
+                            }
                         }
                 break;
             }
@@ -98,16 +117,8 @@ public:
                                 // Use discrete MIDI values for each pattern (0, 25, 51, 76, 102, 127)
                                 const int patternMidi[] = {0, 25, 51, 76, 102, 127};
                                 
-                                // Find current pattern by matching nearest MIDI value
-                                int currentPattern = 1;
-                                int minDiff = 127;
-                                for (int i = 0; i < 6; i++) {
-                                    int diff = abs(_lastCCTouchValue - patternMidi[i]);
-                                    if (diff < minDiff) {
-                                        minDiff = diff;
-                                        currentPattern = i + 1;
-                                    }
-                                }
+                                // Get current pattern from chord settings (shared state with other controls)
+                                int currentPattern = constrain(_chordSettings.strumPattern, 1, 6);
                                 
                                 // Get min/max from settings
                                 int minPattern = 1 + (_settings.minCCValue * 5 / 127);  // Map 0-127 to 0-5, add 1
@@ -132,17 +143,40 @@ public:
                                 _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
                                 _lastCCTouchValue = sendVal;
                                 
+                                // Update internal chord settings to match the pattern change
+                                _chordSettings.strumPattern = constrain(currentPattern, 1, 6);
+                                
                                 SERIAL_PRINT("Touch Pattern Cycle: "); SERIAL_PRINT(currentPattern);
                                 SERIAL_PRINT(" MIDI:"); SERIAL_PRINT(sendVal);
                                 SERIAL_PRINT(" (range: "); SERIAL_PRINT(minPattern); 
                                 SERIAL_PRINT("-"); SERIAL_PRINT(maxPattern); SERIAL_PRINTLN(")");
+                                SERIAL_PRINT("KB1 Expression: Pattern set to "); SERIAL_PRINTLN(_chordSettings.strumPattern);
                             } else {
                                 // Normal toggle behavior for other parameters
                                 _toggleState = !_toggleState;
                                 _lastTouchToggle = millis();
                                 SERIAL_PRINT("TouchFunctionMode::TOGGLE :"); SERIAL_PRINTLN(_toggleState);
                                 int sendVal = constrain(_toggleState ? _settings.maxCCValue : _settings.minCCValue, 0, 127);
-                                _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
+                                
+                                // Handle KB1 Expression parameters
+                                if (_settings.ccNumber == 200) {
+                                    // 200 = KB1 Expression: Strum Speed (4-360ms)
+                                    int strumSpeed = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 360, 4);
+                                    _chordSettings.strumSpeed = constrain(strumSpeed, 4, 360);
+                                    SERIAL_PRINT("KB1 Expression: Strum Speed set to "); SERIAL_PRINTLN(_chordSettings.strumSpeed);
+                                } else if (_settings.ccNumber == 202) {
+                                    // 202 = KB1 Expression: Swing (0-100%)
+                                    int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 100);
+                                    _chordSettings.strumSwing = constrain(swing, 0, 100);
+                                    SERIAL_PRINT("KB1 Expression: Swing set to "); SERIAL_PRINTLN(_chordSettings.strumSwing);
+                                } else if (_settings.ccNumber == 203) {
+                                    // 203 = KB1 Expression: Velocity Spread (8-100%)
+                                    int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 8, 100);
+                                    _chordSettings.velocitySpread = constrain(velocitySpread, 8, 100);
+                                    SERIAL_PRINT("KB1 Expression: Velocity Spread set to "); SERIAL_PRINTLN(_chordSettings.velocitySpread);
+                                } else {
+                                    _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
+                                }
                             }
                         }
                         // Update _wasPressed: true if smoothed value is above offThreshold
@@ -160,9 +194,28 @@ public:
 
                         if (_lastCCTouchValue != ccValue) {
                             int sendVal = constrain(ccValue, 0, 127);
-                            SERIAL_PRINT("Sending CC "); SERIAL_PRINT(_settings.ccNumber);
-                            SERIAL_PRINT(", Value: "); SERIAL_PRINTLN(sendVal);
-                            _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
+                            
+                            // Handle KB1 Expression parameters
+                            if (_settings.ccNumber == 200) {
+                                // 200 = KB1 Expression: Strum Speed (4-360ms)
+                                int strumSpeed = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 360, 4);
+                                _chordSettings.strumSpeed = constrain(strumSpeed, 4, 360);
+                                SERIAL_PRINT("KB1 Expression: Strum Speed set to "); SERIAL_PRINTLN(_chordSettings.strumSpeed);
+                            } else if (_settings.ccNumber == 202) {
+                                // 202 = KB1 Expression: Swing (0-100%)
+                                int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 100);
+                                _chordSettings.strumSwing = constrain(swing, 0, 100);
+                                SERIAL_PRINT("KB1 Expression: Swing set to "); SERIAL_PRINTLN(_chordSettings.strumSwing);
+                            } else if (_settings.ccNumber == 203) {
+                                // 203 = KB1 Expression: Velocity Spread (8-100%)
+                                int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 8, 100);
+                                _chordSettings.velocitySpread = constrain(velocitySpread, 8, 100);
+                                SERIAL_PRINT("KB1 Expression: Velocity Spread set to "); SERIAL_PRINTLN(_chordSettings.velocitySpread);
+                            } else {
+                                SERIAL_PRINT("Sending CC "); SERIAL_PRINT(_settings.ccNumber);
+                                SERIAL_PRINT(", Value: "); SERIAL_PRINTLN(sendVal);
+                                _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
+                            }
                             _lastCCTouchValue = sendVal;
                         }
                 break;
