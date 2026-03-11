@@ -47,7 +47,7 @@ Patterns 1-6 enable pattern looping mode with root note transitions:
 ### Advanced Musical Expression Controls
 
 #### Strum Speed
-- Range: 4-120ms delay between cascaded notes
+- Range: 4-360ms delay between cascaded notes
 - Controls roll speed in Strum mode
 - Sets tempo for pattern looping (Patterns 1-6)
 
@@ -66,7 +66,7 @@ Patterns 1-6 enable pattern looping mode with root note transitions:
 
  | Parameter | Range | Description |
 |-----------|-----------|-------|-------------|
-| Strum Speed | 4-120ms | Control strum/pattern tempo with levers |
+| Strum Speed | 4-360ms | Control strum/pattern tempo with levers |
 | Pattern Select | 1-6 | Switch between patterns 1-6 via hardware |
 | Swing | 0-100% | Adjust swing amount in real-time |
 | Velocity Spread | 8-100% | Control dynamic contour via levers |
@@ -131,7 +131,7 @@ Chord Mode settings stored in presets:
 - Chord/Strum toggle
 - Chord type selection
 - Strum pattern selection (0-6)
-- Strum speed (4-120ms)
+- Strum speed (4-360ms)
 - Velocity spread (0-100%)
 - Strum swing (0-100%)
 

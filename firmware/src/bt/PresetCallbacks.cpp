@@ -213,6 +213,12 @@ void PresetLoadCallback::onWrite(BLECharacteristic *pCharacteristic) {
     _preferences.putBytes("scale", &_scale, sizeof(ScaleSettings));
     _preferences.putBytes("system", &_system, sizeof(SystemSettings));
     
+    // Sync lever internal values after preset load
+    if (syncLever1Callback) syncLever1Callback();
+    if (syncLeverPush1Callback) syncLeverPush1Callback();
+    if (syncLever2Callback) syncLever2Callback();
+    if (syncLeverPush2Callback) syncLeverPush2Callback();
+    
     SERIAL_PRINT("Preset loaded from slot ");
     SERIAL_PRINT(slot);
     SERIAL_PRINT(": ");

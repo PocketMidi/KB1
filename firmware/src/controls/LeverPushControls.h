@@ -32,6 +32,7 @@ public:
     void setOffsetTime(unsigned long time);
     void setOnsetInterpolationType(InterpolationType type);
     void setOffsetInterpolationType(InterpolationType type);
+    void syncValue(); // Re-sync internal value when settings change
 
 private:
     Adafruit_MCP23X17* _mcp;
@@ -51,6 +52,7 @@ private:
 
     unsigned long _rampStartTime;
     int _rampStartValue;
+    int _previousCCNumber;
 
     void handleInput();
     void updateValue();
@@ -82,8 +84,21 @@ LeverPushControls<MidiTransport>::LeverPushControls(
     _currentValue(_settings.minCCValue),
     _targetValue(_settings.minCCValue),
     _rampStartValue(_settings.minCCValue),
-    _lastSentValue(_settings.minCCValue)
-    {}
+    _lastSentValue(_settings.minCCValue),
+    _previousCCNumber(-1)
+    {
+        // If this lever push controls strum speed (CC 200), initialize to current strum speed
+        // Map current speed (4-360ms) to MIDI value (127-0, inverted)
+        if (_settings.ccNumber == 200) {
+            int speedMs = _chordSettings.strumSpeed;
+            int midiValue = map(speedMs, 360, 4, 0, 127);
+            _currentValue = midiValue;
+            _targetValue = midiValue;
+            _rampStartValue = midiValue;
+            _lastSentValue = midiValue;
+            SERIAL_PRINT("LeverPush CC 200 initialized to: "); SERIAL_PRINTLN(midiValue);
+        }
+    }
 
 template<class MidiTransport>
 void LeverPushControls<MidiTransport>::update() {
@@ -108,7 +123,20 @@ void LeverPushControls<MidiTransport>::setOffsetTime(unsigned long time) {
 
 template<class MidiTransport>
 void LeverPushControls<MidiTransport>::setCCNumber(int number) {
+    int oldCC = _settings.ccNumber;
     _settings.ccNumber = number;
+    
+    // When CC number changes TO 200 (Strum Speed), sync strumSpeed from lever's current position
+    if (number == 200 && oldCC != 200) {
+        int strumSpeed = map(_currentValue, _settings.minCCValue, _settings.maxCCValue, 360, 4);
+        _chordSettings.strumSpeed = constrain(strumSpeed, 4, 360);
+        SERIAL_PRINT("LeverPush assigned to CC 200, syncing strumSpeed to: ");
+        SERIAL_PRINTLN(_chordSettings.strumSpeed);
+        // Notify BLE clients of the change
+        if (notifyChordSettingsCallback) {
+            notifyChordSettingsCallback();
+        }
+    }
 }
 
 template<class MidiTransport>
@@ -132,7 +160,48 @@ void LeverPushControls<MidiTransport>::setOffsetInterpolationType(InterpolationT
 }
 
 template<class MidiTransport>
+void LeverPushControls<MidiTransport>::syncValue() {
+    // Re-initialize value based on current settings (called after BLE updates)
+    // For lever push, sync to current strum speed if CC 200 is assigned
+    if (_settings.ccNumber == 200) {
+        int speedMs = _chordSettings.strumSpeed;
+        int midiValue = map(speedMs, 360, 4, 0, 127);
+        _currentValue = midiValue;
+        _targetValue = midiValue;
+        _rampStartValue = midiValue;
+        _lastSentValue = midiValue;
+    } else {
+        // Default to min value
+        _currentValue = _settings.minCCValue;
+        _targetValue = _settings.minCCValue;
+        _rampStartValue = _settings.minCCValue;
+        _lastSentValue = _settings.minCCValue;
+    }
+}
+
+template<class MidiTransport>
 void LeverPushControls<MidiTransport>::handleInput() {
+    // Reset pattern state if CC changed away from Pattern Selector (201)
+    if (_previousCCNumber == 201 && _settings.ccNumber != 201) {
+        _lastSentValue = _settings.minCCValue;
+        _currentValue = _settings.minCCValue;
+        _targetValue = _settings.minCCValue;
+        _isPressed = false;
+        SERIAL_PRINTLN("LeverPush: Exited Pattern Selector mode, state reset");
+    }
+    _previousCCNumber = _settings.ccNumber;
+
+    // Disable Pattern Selector (201) and Swing (202) when not in strum:shape mode
+    // Only active when playMode=CHORD AND strumEnabled=true AND strumPattern>0
+    bool isStrumShapeMode = (_chordSettings.playMode == PlayMode::CHORD && 
+                              _chordSettings.strumEnabled && 
+                              _chordSettings.strumPattern > 0);
+    bool isPatternOrSwing = (_settings.ccNumber == 201 || _settings.ccNumber == 202);
+    if (isPatternOrSwing && !isStrumShapeMode) {
+        // Silently ignore input when not in strum:shape mode
+        return;
+    }
+
     bool state = !_mcp->digitalRead(_centerPin);
     int oldTargetValue = _targetValue;
 
@@ -174,9 +243,16 @@ void LeverPushControls<MidiTransport>::handleInput() {
                 minPattern = constrain(minPattern, 1, 6);
                 maxPattern = constrain(maxPattern, 1, 6);
                 
-                // Increment pattern (wrap around from max to min)
-                currentPattern++;
-                if (currentPattern > maxPattern) currentPattern = minPattern;
+                // Cycle pattern based on offsetTime: 0=forward, >0=reverse
+                if (_settings.offsetTime == 0) {
+                    // Forward: increment pattern (wrap around from max to min)
+                    currentPattern++;
+                    if (currentPattern > maxPattern) currentPattern = minPattern;
+                } else {
+                    // Reverse: decrement pattern (wrap around from min to max)
+                    currentPattern--;
+                    if (currentPattern < minPattern) currentPattern = maxPattern;
+                }
                 currentPattern = constrain(currentPattern, 1, 6);
                 
                 // Set discrete MIDI value for the pattern
@@ -277,34 +353,56 @@ void LeverPushControls<MidiTransport>::updateValue() {
             SERIAL_PRINT("Velocity set: "); SERIAL_PRINTLN(sendVal);
             _keyboardControl.setVelocity(sendVal);
         } else if (_settings.ccNumber == 200) {
-            // 200 = KB1 Expression: Strum Speed (4-120ms)
-            // Map CC value (0-127) to speed: 0=slow(120ms), 127=fast(4ms) - inverted output
-            int strumSpeed = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 120, 4);
-            _chordSettings.strumSpeed = constrain(strumSpeed, 4, 120);
+            // 200 = KB1 Expression: Strum Speed (4-360ms)
+            // Map CC value (0-127) to speed: 0=slow(360ms), 127=fast(4ms) - inverted output
+            int strumSpeed = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 360, 4);
+            _chordSettings.strumSpeed = constrain(strumSpeed, 4, 360);
             SERIAL_PRINT("KB1 Expression: Strum Speed set to "); SERIAL_PRINTLN(_chordSettings.strumSpeed);
+            // Notify BLE clients of the change
+            if (notifyChordSettingsCallback) {
+                notifyChordSettingsCallback();
+            }
         } else if (_settings.ccNumber == 201) {
             // 201 = KB1 Expression: Pattern Selector (1-6)
-            // Use discrete MIDI values to avoid rounding errors
-            const int patternMidi[] = {0, 25, 51, 76, 102, 127};
-            
-            // Find pattern by matching nearest MIDI value
-            int pattern = 1;
-            int minDiff = 127;
-            for (int i = 0; i < 6; i++) {
-                int diff = abs(sendVal - patternMidi[i]);
-                if (diff < minDiff) {
-                    minDiff = diff;
-                    pattern = i + 1;
+            // Only active when in strum:shape mode
+            bool isStrumShapeMode = (_chordSettings.playMode == PlayMode::CHORD && 
+                                      _chordSettings.strumEnabled && 
+                                      _chordSettings.strumPattern > 0);
+            if (!isStrumShapeMode) {
+                // Silently ignore when not in strum:shape mode
+                SERIAL_PRINTLN("LeverPush CC 201: Ignored (not in strum:shape mode)");
+            } else {
+                // Use discrete MIDI values to avoid rounding errors
+                const int patternMidi[] = {0, 25, 51, 76, 102, 127};
+                
+                // Find pattern by matching nearest MIDI value
+                int pattern = 1;
+                int minDiff = 127;
+                for (int i = 0; i < 6; i++) {
+                    int diff = abs(sendVal - patternMidi[i]);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        pattern = i + 1;
+                    }
                 }
+                
+                _chordSettings.strumPattern = constrain(pattern, 1, 6);
+                SERIAL_PRINT("KB1 Expression: Pattern set to "); SERIAL_PRINTLN(_chordSettings.strumPattern);
             }
-            
-            _chordSettings.strumPattern = constrain(pattern, 1, 6);
-            SERIAL_PRINT("KB1 Expression: Pattern set to "); SERIAL_PRINTLN(_chordSettings.strumPattern);
         } else if (_settings.ccNumber == 202) {
             // 202 = KB1 Expression: Swing (0-100%)
-            int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 100);
-            _chordSettings.strumSwing = constrain(swing, 0, 100);
-            SERIAL_PRINT("KB1 Expression: Swing set to "); SERIAL_PRINTLN(_chordSettings.strumSwing);
+            // Only active when in strum:shape mode
+            bool isStrumShapeMode = (_chordSettings.playMode == PlayMode::CHORD && 
+                                      _chordSettings.strumEnabled && 
+                                      _chordSettings.strumPattern > 0);
+            if (!isStrumShapeMode) {
+                // Silently ignore when not in strum:shape mode
+                SERIAL_PRINTLN("LeverPush CC 202: Ignored (not in strum:shape mode)");
+            } else {
+                int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 100);
+                _chordSettings.strumSwing = constrain(swing, 0, 100);
+                SERIAL_PRINT("KB1 Expression: Swing set to "); SERIAL_PRINTLN(_chordSettings.strumSwing);
+            }
         } else if (_settings.ccNumber == 203) {
             // 203 = KB1 Expression: Velocity Spread (8-100%)
             int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 8, 100);

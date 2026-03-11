@@ -51,6 +51,18 @@ CustomPattern customPattern = {
 // Lever cooldown after BLE toggle (prevents MIDI output during lever release)
 unsigned long leverCooldownUntil = 0;
 
+// Callbacks for syncing lever values when settings change via BLE
+void (*syncLever1Callback)() = nullptr;
+void (*syncLeverPush1Callback)() = nullptr;
+void (*syncLever2Callback)() = nullptr;
+void (*syncLeverPush2Callback)() = nullptr;
+
+// Callback for notifying BLE when chord settings change from firmware
+void (*notifyChordSettingsCallback)() = nullptr;
+
+// Callback for resetting pattern controls when shape mode is disabled
+void (*resetPatternControlsCallback)() = nullptr;
+
 // I2C mutex for thread-safe access to MCP23017 chips
 static SemaphoreHandle_t i2cMutex = NULL;
 
@@ -155,7 +167,7 @@ ChordSettings chordSettings = {
     .chordType = ChordType::MAJOR,
     .strumEnabled = false,
     .velocitySpread = 8,
-    .strumSpeed = 30,   // 30ms default (range: 4-120ms)
+    .strumSpeed = 30,   // 30ms default (range: 4-360ms)
     .strumPattern = 0,  // Default to chord type
     .strumSwing = 0     // No swing by default
 };
@@ -285,13 +297,15 @@ TouchSettings touchSettings = {
     .maxCCValue = 127,
     .functionMode = TouchFunctionMode::CONTINUOUS,
     .threshold = 24000,
+    .offsetTime = 0,  // FWD mode (forward cycling for Pattern Selector)
 };
 TouchControl<decltype(MIDI)> touch(
     T1,
     touchSettings,
     24000,
     64000,
-    MIDI
+    MIDI,
+    chordSettings
 );
 
 SystemSettings systemSettings = {
@@ -515,6 +529,28 @@ void setup() {
         systemSettings
     );
 
+    // Set up callbacks for syncing lever values when settings change via BLE
+    syncLever1Callback = []() { lever1.syncValue(); };
+    syncLeverPush1Callback = []() { leverPush1.syncValue(); };
+    syncLever2Callback = []() { lever2.syncValue(); };
+    syncLeverPush2Callback = []() { leverPush2.syncValue(); };
+    
+    // Set up callback for notifying BLE when chord settings change from firmware
+    notifyChordSettingsCallback = []() { 
+        if (bluetoothControllerPtr) {
+            bluetoothControllerPtr->notifyChordSettings(); 
+        }
+    };
+
+    // Set up callback to stop arpeggiator when shape mode is disabled
+    resetPatternControlsCallback = []() {
+        // If shape mode is disabled (strumPattern = 0), stop the arpeggiator
+        if (chordSettings.strumPattern == 0) {
+            keyboardControl.stopArpeggiator();
+            SERIAL_PRINTLN("Arpeggiator stopped - shape mode disabled");
+        }
+    };
+
     // Initialize BLE gesture control (cross-lever activation)
     bleGestureControl = new BLEGestureControl(ledController, bluetoothControllerPtr);
 
@@ -621,7 +657,10 @@ void loop() {
         int basePushTarget = leverPushIsPressed ? (PWM_MAX / 2) : 0;
         int computedBlueTarget = max(baseLeftTarget, basePushTarget);
 
-        if (touchActive) {
+        // Disable LED cycling for Toggle mode (including Pattern Selector) to avoid blocking/distracting animation
+        bool isToggleMode = (touchSettings.functionMode == TouchFunctionMode::TOGGLE);
+        
+        if (touchActive && !isToggleMode) {
             if (!_touchPulseMode) {
                 _touchPulseMode = true;
                 _pulseStart = millis();

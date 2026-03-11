@@ -386,3 +386,11 @@ void BluetoothController::refreshKeepAlive() {
     _keepAliveActive = true;
     updateLastActivity();
 }
+
+void BluetoothController::notifyChordSettings() {
+    if (_isEnabled && _pChordSettingsCharacteristic && _deviceConnected) {
+        _pChordSettingsCharacteristic->setValue((uint8_t*)&_chordSettings, sizeof(ChordSettings));
+        _pChordSettingsCharacteristic->notify();
+        // SERIAL_PRINTLN("Notified chord settings to BLE client");
+    }
+}

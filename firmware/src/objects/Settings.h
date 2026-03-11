@@ -36,6 +36,7 @@ struct TouchSettings {
     int maxCCValue;
     TouchFunctionMode functionMode;
     int threshold; // touch sensor threshold (higher = less sensitive)
+    unsigned long offsetTime; // For pattern selector direction: 0=FWD, >0=REV
 };
 
 // Struct for Scale settings
@@ -51,7 +52,7 @@ struct ChordSettings {
     ChordType chordType;        // MAJOR, MINOR, etc.
     bool strumEnabled;          // false = chord (all notes together), true = strum (cascaded)
     int velocitySpread;         // 0-100 (percentage) - velocity variation for chord notes
-    int strumSpeed;             // 4-120 (milliseconds) - delay between notes in strum mode
+    int strumSpeed;             // 4-360 (milliseconds) - delay between notes in strum mode
     int strumPattern;           // 0-7 - pattern index (0 = use chord type, 1-7 = interval patterns)
     int strumSwing;             // 0-100 (percentage) - swing amount for strum timing
 };

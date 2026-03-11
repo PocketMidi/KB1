@@ -318,6 +318,30 @@ public:
         }
     }
 
+    // Stop arpeggiator and silence current note (clean cutoff)
+    void stopArpeggiator() {
+        if (!_arpActive) {
+            return;
+        }
+        
+        // Turn off current note if any
+        if (_arpCurrentNote >= 0) {
+            _midi.sendNoteOff(_arpCurrentNote, 0, 1);
+            SERIAL_PRINT("Arp stopped, Note Off: ");
+            SERIAL_PRINTLN(_arpCurrentNote);
+        }
+        
+        // Clear arp state
+        _arpActive = false;
+        _arpRootNote = 0;
+        _arpPattern = nullptr;
+        _arpPatternLength = 0;
+        _arpCurrentIndex = 0;
+        _arpCurrentNote = -1;
+        
+        SERIAL_PRINTLN("Arpeggiator stopped");
+    }
+
     void updateKeyboardState() {
         // Update arpeggiator (for advanced strum looping)
         updateArpeggiator();
@@ -403,43 +427,14 @@ public:
         _arpLastNoteTime = now;
         _arpCurrentIndex++;
         
-        // Loop with calculated gap
+        // Loop seamlessly back to start
         if (_arpCurrentIndex >= _arpPatternLength) {
             _arpCurrentIndex = 0;
-            // Add a gap between loops (20% of total pattern duration)
-            int patternDuration = baseDelay * _arpPatternLength;
-            int loopGap = patternDuration / 5;  // 20% gap
-            _arpLastNoteTime += loopGap;  // Extra delay before restarting
-            
             SERIAL_PRINTLN("Arp loop restart");
         }
     }
 
 private:
-    // Stop arpeggiator and silence current note (clean cutoff)
-    void stopArpeggiator() {
-        if (!_arpActive) {
-            return;
-        }
-        
-        // Turn off current note if any
-        if (_arpCurrentNote >= 0) {
-            _midi.sendNoteOff(_arpCurrentNote, 0, 1);
-            SERIAL_PRINT("Arp stopped, Note Off: ");
-            SERIAL_PRINTLN(_arpCurrentNote);
-        }
-        
-        // Clear arp state
-        _arpActive = false;
-        _arpRootNote = 0;
-        _arpPattern = nullptr;
-        _arpPatternLength = 0;
-        _arpCurrentIndex = 0;
-        _arpCurrentNote = -1;
-        
-        SERIAL_PRINTLN("Arpeggiator stopped");
-    }
-
     // Map key index to white key position (-1 if not a white key)
     // White keys are: SW1-SW12 (indices: 0,1,3,5,6,8,10,12,13,15,17,18)
     int getWhiteKeyPosition(int keyIndex) const {

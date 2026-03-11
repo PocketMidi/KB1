@@ -50,6 +50,28 @@ void GenericSettingsCallback::onWrite(BLECharacteristic *pCharacteristic) {
         _scaleManager->setScale(s->scaleType);
         _scaleManager->setRootNote(s->rootNote);
     }
+    
+    // Sync lever internal values when settings change
+    if (_prefKey == "lever1" && syncLever1Callback) {
+        syncLever1Callback();
+    } else if (_prefKey == "leverpush1" && syncLeverPush1Callback) {
+        syncLeverPush1Callback();
+    } else if (_prefKey == "lever2" && syncLever2Callback) {
+        syncLever2Callback();
+    } else if (_prefKey == "leverpush2" && syncLeverPush2Callback) {
+        syncLeverPush2Callback();
+    }
+    // When chord settings change (e.g., strumSpeed), sync all levers
+    // in case any are assigned to CC 200 (Strum Speed)
+    else if (_prefKey == "chord") {
+        if (syncLever1Callback) syncLever1Callback();
+        if (syncLeverPush1Callback) syncLeverPush1Callback();
+        if (syncLever2Callback) syncLever2Callback();
+        if (syncLeverPush2Callback) syncLeverPush2Callback();
+        
+        // Reset pattern controls if shape mode was disabled (strumPattern = 0)
+        if (resetPatternControlsCallback) resetPatternControlsCallback();
+    }
 
     // SERIAL_PRINT(_prefKey.c_str()); SERIAL_PRINTLN(" updated and saved.");
 }

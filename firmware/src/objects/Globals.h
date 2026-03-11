@@ -130,6 +130,18 @@ extern MIDI_NAMESPACE::MidiInterface<MIDI_NAMESPACE::SerialMIDI<HardwareSerial>>
 // Lever cooldown after BLE toggle (prevents MIDI output during lever release)
 extern unsigned long leverCooldownUntil;
 
+// Callbacks for syncing lever values when settings change via BLE
+extern void (*syncLever1Callback)();
+extern void (*syncLeverPush1Callback)();
+extern void (*syncLever2Callback)();
+extern void (*syncLeverPush2Callback)();
+
+// Callback for notifying BLE when chord settings change from firmware
+extern void (*notifyChordSettingsCallback)();
+
+// Callback for resetting pattern controls when shape mode is disabled
+extern void (*resetPatternControlsCallback)();
+
 // Helper macro for serial printing, depends on SERIAL_PRINT_ENABLED from Constants.h
 #ifdef SERIAL_PRINT_ENABLED
 #define SERIAL_BEGIN() Serial.begin(115200); delay(1000);
