@@ -52,7 +52,7 @@ public:
         // Abort gesture if keyboard is active (prevents accidental triggers during play)
         if (keyboardActive && _gestureActive && !_toggleTriggered) {
             abortGesture();
-            SERIAL_PRINTLN("BLE Gesture: Aborted - keyboard active");
+            SERIAL_PRINTLN("BLE:KbAbort");
             return false;
         }
 
@@ -69,7 +69,7 @@ public:
                 _ledController.set(LedColor::OCTAVE_UP, 255);
                 _ledController.set(LedColor::OCTAVE_DOWN, 255);
                 
-                SERIAL_PRINTLN("BLE Gesture: Cross-lever detected, hold for 3s...");
+                SERIAL_PRINTLN("BLE:Cross");
             }
 
             unsigned long holdDuration = now - _gestureStartTime;
@@ -96,7 +96,7 @@ public:
                     // Stop any ongoing pulse
                     _ledController.set(LedColor::PINK, 0);
                     _ledController.set(LedColor::BLUE, 0);
-                    SERIAL_PRINTLN("BLE Gesture: Released before activation");
+                    SERIAL_PRINTLN("BLE:Abort");
                 }
                 
                 _feedbackActive = false;
@@ -171,11 +171,8 @@ private:
             _ledController.pulse(LedColor::PINK, pulseSpeed, 0);
             _ledController.pulse(LedColor::BLUE, pulseSpeed, 0);
             
-            SERIAL_PRINT("BLE Gesture: Phase ");
-            SERIAL_PRINT(phase + 1);
-            SERIAL_PRINT("/3 - pulse speed ");
-            SERIAL_PRINT(pulseSpeed);
-            SERIAL_PRINTLN("ms");
+            SERIAL_PRINT("BLE:P");
+            SERIAL_PRINTLN(phase + 1);
         }
     }
 
@@ -190,15 +187,15 @@ private:
         // Set lever cooldown to prevent MIDI output during lever release
         leverCooldownUntil = millis() + 1500;  // 1.5 second cooldown
         
-        SERIAL_PRINTLN("BLE Gesture: Activation threshold reached!");
+        SERIAL_PRINTLN("BLE:On");
         
         if (_bluetoothController) {
             if (_bluetoothController->isEnabled()) {
                 _bluetoothController->disable();
-                SERIAL_PRINTLN("Bluetooth Disabled by Cross-Lever Gesture.");
+                SERIAL_PRINTLN("BLE:Disabled");
             } else {
                 _bluetoothController->enable();
-                SERIAL_PRINTLN("Bluetooth Enabled by Cross-Lever Gesture.");
+                SERIAL_PRINTLN("BLE:Enabled");
             }
         }
         // BluetoothController enable/disable handles its own LED feedback

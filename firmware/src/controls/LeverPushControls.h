@@ -96,7 +96,7 @@ LeverPushControls<MidiTransport>::LeverPushControls(
             _targetValue = midiValue;
             _rampStartValue = midiValue;
             _lastSentValue = midiValue;
-            SERIAL_PRINT("LeverPush CC 200 initialized to: "); SERIAL_PRINTLN(midiValue);
+            SERIAL_PRINT("LP200="); SERIAL_PRINTLN(midiValue);
         }
     }
 
@@ -259,10 +259,10 @@ void LeverPushControls<MidiTransport>::handleInput() {
                 _currentValue = patternMidi[currentPattern - 1];
                 _isPressed = true;
                 
-                SERIAL_PRINT("Pattern Cycle: "); SERIAL_PRINT(currentPattern);
-                SERIAL_PRINT(" MIDI:"); SERIAL_PRINT(_currentValue);
-                SERIAL_PRINT(" (range: "); SERIAL_PRINT(minPattern); 
-                SERIAL_PRINT("-"); SERIAL_PRINT(maxPattern); SERIAL_PRINTLN(")");
+                SERIAL_PRINT("P");
+                SERIAL_PRINT(currentPattern);
+                SERIAL_PRINT("=");
+                SERIAL_PRINTLN(_currentValue);
             } else if (!state && _isPressed) {
                 // Don't change value on release - keep current pattern
                 _isPressed = false;
@@ -272,11 +272,9 @@ void LeverPushControls<MidiTransport>::handleInput() {
             if (state && !_isPressed) {
                 _currentValue = _settings.maxCCValue;
                 _isPressed = true;
-                SERIAL_PRINT("LeverPushFunctionMode::STATIC :"); SERIAL_PRINTLN(_currentValue);
             } else if (!state && _isPressed) {
                 _currentValue = _settings.minCCValue;
                 _isPressed = false;
-                SERIAL_PRINT("LeverPushFunctionMode::STATIC :"); SERIAL_PRINTLN(_currentValue);
             }
         }
         _targetValue = _currentValue;
@@ -285,7 +283,6 @@ void LeverPushControls<MidiTransport>::handleInput() {
             _currentValue = _settings.maxCCValue;
             _targetValue = _settings.maxCCValue;
             _isPressed = true;
-            SERIAL_PRINT("LeverPushFunctionMode::JUMP_AND_INTERPOLATE :"); SERIAL_PRINTLN(_currentValue);
         } else if (!state && _isPressed) {
             _targetValue = _settings.minCCValue;
             _isPressed = false;
@@ -299,7 +296,6 @@ void LeverPushControls<MidiTransport>::handleInput() {
         if (state && !_isPressed) {
             _targetValue = _settings.maxCCValue;
             _isPressed = true;
-            SERIAL_PRINT("LeverPushFunctionMode::INTERPOLATED :"); SERIAL_PRINTLN(_currentValue);
         } else if (!state && _isPressed) {
             _targetValue = _settings.minCCValue;
             _isPressed = false;
@@ -386,8 +382,23 @@ void LeverPushControls<MidiTransport>::updateValue() {
                     }
                 }
                 
+                // Detect direction change and set LED (pink=forward, blue=reverse)
+                static int lastPattern = -1;
+                if (lastPattern != -1 && pattern != lastPattern) {
+                    // Handle wraparound: 6->1 is forward, 1->6 is reverse
+                    bool isForward = (pattern > lastPattern) || (lastPattern == 6 && pattern == 1);
+                    if (lastPattern == 1 && pattern == 6) isForward = false;  // 1->6 wraparound is reverse
+                    
+                    // Flash on instantly, then fade out over 300ms
+                    _ledController.set(isForward ? LedColor::PINK : LedColor::BLUE, 255);  // On immediately
+                    _ledController.set(isForward ? LedColor::BLUE : LedColor::PINK, 0);    // Off immediately
+                    // Queue the fade-out (will execute after the instant on)
+                    _ledController.set(isForward ? LedColor::PINK : LedColor::BLUE, 0, 300);
+                }
+                lastPattern = pattern;
+                
                 _chordSettings.strumPattern = constrain(pattern, 1, 6);
-                SERIAL_PRINT("KB1 Expression: Pattern set to "); SERIAL_PRINTLN(_chordSettings.strumPattern);
+                SERIAL_PRINT("P"); SERIAL_PRINTLN(_chordSettings.strumPattern);
             }
         } else if (_settings.ccNumber == 202) {
             // 202 = KB1 Expression: Swing (0-100%)
@@ -397,20 +408,28 @@ void LeverPushControls<MidiTransport>::updateValue() {
                                       _chordSettings.strumPattern > 0);
             if (!isStrumShapeMode) {
                 // Silently ignore when not in strum:shape mode
-                SERIAL_PRINTLN("LeverPush CC 202: Ignored (not in strum:shape mode)");
+                SERIAL_PRINTLN("LP202:Skip");
             } else {
                 int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 100);
                 _chordSettings.strumSwing = constrain(swing, 0, 100);
-                SERIAL_PRINT("KB1 Expression: Swing set to "); SERIAL_PRINTLN(_chordSettings.strumSwing);
+                SERIAL_PRINT("SW"); SERIAL_PRINTLN(_chordSettings.strumSwing);
             }
         } else if (_settings.ccNumber == 203) {
             // 203 = KB1 Expression: Velocity Spread (8-100%)
             int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 8, 100);
             _chordSettings.velocitySpread = constrain(velocitySpread, 8, 100);
-            SERIAL_PRINT("KB1 Expression: Velocity Spread set to "); SERIAL_PRINTLN(_chordSettings.velocitySpread);
+            SERIAL_PRINT("VS"); SERIAL_PRINTLN(_chordSettings.velocitySpread);
         } else {
-            SERIAL_PRINT("Sending CC "); SERIAL_PRINT(_settings.ccNumber);
-            SERIAL_PRINT(", Value: "); SERIAL_PRINTLN(sendVal);
+            // Throttle CC output (max once per 300ms to reduce interpolation spam)
+            static unsigned long lastPushCCPrint = 0;
+            unsigned long now = millis();
+            if (now - lastPushCCPrint >= 300) {
+                SERIAL_PRINT("C");
+                SERIAL_PRINT(_settings.ccNumber);
+                SERIAL_PRINT("=");
+                SERIAL_PRINTLN(sendVal);
+                lastPushCCPrint = now;
+            }
             _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
         }
         // _ledController.set(_ledColor, _currentValue);

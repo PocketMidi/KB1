@@ -25,7 +25,9 @@ public:
         if (!s3State && isS3Pressed) {
             isS3Pressed = false;
             shiftOctave(-1);
-            SERIAL_PRINTLN("S3 Released! Octave Down by 1");
+            char buf[8];
+            snprintf(buf, sizeof(buf), "O%+d", currentOctave);
+            SERIAL_PRINTLN(buf);
         } else if (s3State) {
             isS3Pressed = true;
         }
@@ -33,7 +35,9 @@ public:
         if (!s4State && isS4Pressed) {
             isS4Pressed = false;
             shiftOctave(1);
-            SERIAL_PRINTLN("S4 Released! Octave Up by 1");
+            char buf[8];
+            snprintf(buf, sizeof(buf), "O%+d", currentOctave);
+            SERIAL_PRINTLN(buf);
         } else if (s4State) {
             isS4Pressed = true;
         }

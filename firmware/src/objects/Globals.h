@@ -142,11 +142,12 @@ extern void (*notifyChordSettingsCallback)();
 // Callback for resetting pattern controls when shape mode is disabled
 extern void (*resetPatternControlsCallback)();
 
-// Helper macro for serial printing, depends on SERIAL_PRINT_ENABLED from Constants.h
+// Runtime serial detection - only print when USB CDC terminal is connected
 #ifdef SERIAL_PRINT_ENABLED
-#define SERIAL_BEGIN() Serial.begin(115200); delay(1000);
-#define SERIAL_PRINT(msg) Serial.print(msg);
-#define SERIAL_PRINTLN(msg) Serial.println(msg);
+extern bool serialConnected;  // Global flag updated periodically in main loop
+#define SERIAL_BEGIN() Serial.begin(115200); serialConnected = (bool)Serial;
+#define SERIAL_PRINT(msg) if (serialConnected) Serial.print(msg);
+#define SERIAL_PRINTLN(msg) if (serialConnected) Serial.println(msg);
 #else
 #define SERIAL_BEGIN()
 #define SERIAL_PRINT(msg)

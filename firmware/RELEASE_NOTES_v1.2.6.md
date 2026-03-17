@@ -15,8 +15,8 @@ Version 1.2.6 focuses on reliability improvements with critical bug fixes and sa
 ### Safeguards & Reliability
 
 #### Pattern Control Reset Safeguards
-- **Web App Pattern Control Management**: Pattern Selector (CC 201) and Swing (CC 202) reset logic now happens entirely in the web app before upload
-- **Automatic Reset on SHAPE Close**: When the SHAPE panel closes, any control assigned to Pattern Selector or Swing automatically resets to firmware defaults
+- **Web App Pattern Control Management**: Shape Selector (CC 201) and Swing (CC 202) reset logic now happens entirely in the web app before upload
+- **Automatic Reset on SHAPE Close**: When the SHAPE panel closes, any control assigned to Shape Selector or Swing automatically resets to firmware defaults
 - **UI/Firmware Sync**: Ensures web app UI always reflects actual control assignments after exiting pattern mode
 - **Simplified Firmware**: Firmware now only manages arpeggiator playback state, preventing control conflicts
 
@@ -44,7 +44,7 @@ Fixed comprehensive Vue reactivity issues affecting preset modification detectio
 - **Change Detection**: All 65+ direct mutations converted to object spread pattern for proper Vue reactivity
 
 ### Pattern Control Naming
-- **Consistent Terminology**: CC 201 referred to as "Pattern Selector", CC 202 as "Swing" throughout codebase for clarity
+- **Consistent Terminology**: CC 201 referred to as "Shape Selector", CC 202 as "Swing" throughout codebase for clarity
 
 ---
 
@@ -87,7 +87,7 @@ When SHAPE panel closes, controls reset to:
 1. Flash firmware v1.2.6 to your KB1 device
 2. Use the updated web app (clear browser cache if needed)
 3. Existing presets remain compatible
-4. Any presets with Pattern Selector/Swing assigned to controls will auto-reset when SHAPE panel closes
+4. Any presets with Shape Selector/Swing assigned to controls will auto-reset when SHAPE panel closes
 
 ### Breaking Changes
 - None - all changes are backward compatible

@@ -7,7 +7,7 @@ ServerCallbacks::ServerCallbacks(BluetoothController* controller) : _controller(
 
 void ServerCallbacks::onConnect(BLEServer* pServer) {
     _controller->setDeviceConnected(true);
-    SERIAL_PRINTLN("BLE Client Connected!");
+    SERIAL_PRINTLN("BLE+");
     _controller->getAdvertising()->stop();
     
     // Double-blink pink LED to confirm connection
@@ -16,7 +16,7 @@ void ServerCallbacks::onConnect(BLEServer* pServer) {
 
 void ServerCallbacks::onDisconnect(BLEServer* pServer) {
     _controller->setDeviceConnected(false);
-    SERIAL_PRINTLN("BLE Client Disconnected!");
+    SERIAL_PRINTLN("BLE-");
     _controller->getAdvertising()->start();
     
     // Single blink blue LED to confirm disconnection

@@ -40,6 +40,11 @@
 Adafruit_MCP23X17 mcp_U1;
 Adafruit_MCP23X17 mcp_U2;
 
+// Global flag for serial connection detection
+#ifdef SERIAL_PRINT_ENABLED
+bool serialConnected = false;
+#endif
+
 LEDController ledController;
 
 // Custom strum pattern storage (pattern 7 - modifiable via BLE)
@@ -305,7 +310,8 @@ TouchControl<decltype(MIDI)> touch(
     24000,
     64000,
     MIDI,
-    chordSettings
+    chordSettings,
+    ledController
 );
 
 SystemSettings systemSettings = {
@@ -431,17 +437,7 @@ void startupPulseSequence() {
 //
 //---------------------------------------------------
 void setup() {
-    SERIAL_BEGIN();
-    delay(100); // Brief delay for USB CDC to stabilize (reduced from 2000ms)
-    unsigned long serialWaitStart = millis();
-    while (!Serial && (millis() - serialWaitStart < 500)) { 
-        delay(10); 
-    } // Wait max 500ms for serial (reduced from 3000ms)
-    SERIAL_PRINTLN("Serial monitor started.");
-    SERIAL_PRINTLN("===========================================");
-    SERIAL_PRINTLN("KB1 FIRMWARE v" FIRMWARE_VERSION " - WITH CHORD MODE");
-    SERIAL_PRINTLN("Build Date: " __DATE__ " " __TIME__);
-    SERIAL_PRINTLN("===========================================");
+    SERIAL_BEGIN();  // Instant check, no waiting
 
     pinMode(LED_BUILTIN, OUTPUT);
     digitalWrite(LED_BUILTIN, LOW); // Keep LED on
@@ -452,8 +448,38 @@ void setup() {
     } else {
         SERIAL_PRINTLN("Preferences initialized successfully.");
     }
+    
+    // Track boots without serial terminal
+    #ifdef SERIAL_PRINT_ENABLED
+    if (serialConnected) {
+        // Terminal connected at startup - show boot count and reset
+        unsigned int bootsWithoutSerial = preferences.getUInt("bootsNoSerial", 0);
+        
+        SERIAL_PRINTLN("Serial monitor started.");
+        SERIAL_PRINTLN("===========================================");
+        SERIAL_PRINTLN("KB1 FIRMWARE v" FIRMWARE_VERSION " - WITH CHORD MODE");
+        SERIAL_PRINTLN("Build Date: " __DATE__ " " __TIME__);
+        if (bootsWithoutSerial > 0) {
+            SERIAL_PRINT("Boots without serial since last connection: ");
+            SERIAL_PRINTLN(bootsWithoutSerial);
+        }
+        SERIAL_PRINTLN("===========================================");
+        
+        // Reset counter
+        preferences.putUInt("bootsNoSerial", 0);
+    } else {
+        // No terminal - increment boot counter
+        unsigned int bootsWithoutSerial = preferences.getUInt("bootsNoSerial", 0);
+        preferences.putUInt("bootsNoSerial", bootsWithoutSerial + 1);
+    }
+    #endif
 
     loadSettings();
+
+    // Set I2C speed BEFORE initializing I2C devices
+    Wire.setClock(400000);  // 400kHz fast mode
+    delay(50);  // Brief stabilization delay
+    SERIAL_PRINTLN("I2C bus speed: 400kHz");
 
     if (!mcp_U1.begin_I2C(0x20)) {
         SERIAL_PRINTLN("Error initializing U1.");
@@ -481,7 +507,10 @@ void setup() {
         while (true) {}
     }
 
-    xTaskCreatePinnedToCore(readInputs, "readInputs", 4096, nullptr, 1, nullptr, 1);
+    // Create I/O input reading task on Core 1 (Protocol CPU)
+    // Touch sensor requires Core 1 access (hardware peripheral affinity)
+    // Priority 2 (higher than LED task) for minimal input latency
+    xTaskCreatePinnedToCore(readInputs, "readInputs", 4096, nullptr, 2, nullptr, 1);
 
     MIDI.begin(1);
 
@@ -502,12 +531,14 @@ void setup() {
     pinMode(PINK_LED_PWM_PIN, OUTPUT); // Ensure PWM pin is set
     pinMode(BLUE_LED_PWM_PIN, OUTPUT); // Ensure PWM pin is set
 
-    // Create LED command queue and start LED task on core 0
+    // Create LED command queue and start LED task on core 1
     ledQueue = xQueueCreate(16, sizeof(LedCommand));
     if (ledQueue == NULL) {
         SERIAL_PRINTLN("Warning: failed to create LED queue");
     }
-    // Run ledTask on the same core as readInputs to avoid cross-core I2C access
+    // Create LED update task on Core 1 (same as inputs)
+    // CRITICAL: I2C devices (MCP23017 LEDs) require same core to avoid mutex race conditions
+    // Moving to Core 0 causes "Unfinished Repeated Start transaction!" assertion failures
     xTaskCreatePinnedToCore(ledTask, "ledTask", 4096, nullptr, 1, nullptr, 1);
 
     // Run LED startup sequence
@@ -564,6 +595,38 @@ void setup() {
 //
 //---------------------------------------------------
 void loop() {
+    // Periodically check if USB CDC terminal is connected (every 5 seconds)
+    #ifdef SERIAL_PRINT_ENABLED
+    static unsigned long lastSerialCheck = 0;
+    static bool wasConnected = false;
+    
+    if (millis() - lastSerialCheck > 5000) {
+        bool nowConnected = (bool)Serial;
+        
+        // Report when terminal first connects (for verification)
+        if (nowConnected && !wasConnected) {
+            unsigned long uptimeMs = millis();
+            unsigned int bootsWithoutSerial = preferences.getUInt("bootsNoSerial", 0);
+            
+            Serial.println("=== Serial Connected ===");
+            Serial.print("Firmware: v"); Serial.println(FIRMWARE_VERSION);
+            Serial.print("Uptime: "); Serial.print(uptimeMs / 1000); Serial.println("s");
+            if (bootsWithoutSerial > 0) {
+                Serial.print("Boots without serial: "); Serial.println(bootsWithoutSerial);
+            }
+            Serial.println("Serial auto-detect: Active");
+            Serial.println("========================");
+            
+            // Reset counter when terminal connects during runtime
+            preferences.putUInt("bootsNoSerial", 0);
+        }
+        
+        serialConnected = nowConnected;
+        wasConnected = nowConnected;
+        lastSerialCheck = millis();
+    }
+    #endif
+    
     // Check BLE idle and enter modem sleep if needed
     // BLE radio turns off 10 seconds before entering light sleep (DEEP_SLEEP_IDLE_MS: 330 sec - 10 sec = 320 sec)
     if (bluetoothControllerPtr) {

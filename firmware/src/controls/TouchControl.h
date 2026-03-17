@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <objects/Settings.h>
+#include <led/LEDController.h>
 
 template<typename MidiTransport>
 class TouchControl {
@@ -13,7 +14,8 @@ public:
         int sensorMin,
         int sensorMax,
         MidiTransport& midi,
-        ChordSettings& chordSettings
+        ChordSettings& chordSettings,
+        LEDController& ledController
     ) :
         _touchPin(touchPin),
         _settings(settings),
@@ -21,6 +23,7 @@ public:
         _sensorMax(sensorMax),
         _midi(midi),
         _chordSettings(chordSettings),
+        _ledController(ledController),
         _lastCCTouchValue(-1),
         _lastTouchToggle(0),
         _touchDebounceTime(250),
@@ -91,17 +94,17 @@ public:
                                 // 200 = KB1 Expression: Strum Speed (4-360ms)
                                 int strumSpeed = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 360, 4);
                                 _chordSettings.strumSpeed = constrain(strumSpeed, 4, 360);
-                                SERIAL_PRINT("KB1 Expression: Strum Speed set to "); SERIAL_PRINTLN(_chordSettings.strumSpeed);
+                                SERIAL_PRINT("SS"); SERIAL_PRINTLN(_chordSettings.strumSpeed);
                             } else if (_settings.ccNumber == 202) {
                                 // 202 = KB1 Expression: Swing (0-100%)
                                 int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 100);
                                 _chordSettings.strumSwing = constrain(swing, 0, 100);
-                                SERIAL_PRINT("KB1 Expression: Swing set to "); SERIAL_PRINTLN(_chordSettings.strumSwing);
+                                SERIAL_PRINT("SW"); SERIAL_PRINTLN(_chordSettings.strumSwing);
                             } else if (_settings.ccNumber == 203) {
                                 // 203 = KB1 Expression: Velocity Spread (8-100%)
                                 int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 8, 100);
                                 _chordSettings.velocitySpread = constrain(velocitySpread, 8, 100);
-                                SERIAL_PRINT("KB1 Expression: Velocity Spread set to "); SERIAL_PRINTLN(_chordSettings.velocitySpread);
+                                SERIAL_PRINT("VS"); SERIAL_PRINTLN(_chordSettings.velocitySpread);
                             } else {
                                 _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
                             }
@@ -114,6 +117,14 @@ public:
                         if (isPressed && !_wasPressed) {
                             // Special handling for Pattern Selector (CC 201): cycle through patterns
                             if (_settings.ccNumber == 201) {
+                                // Rate limiting: prevent rapid Pattern Selector changes
+                                static unsigned long lastPatternChange = 0;
+                                unsigned long now = millis();
+                                if (now - lastPatternChange < 150) {
+                                    _wasPressed = isPressed;  // Update state to prevent re-trigger
+                                    break;
+                                }
+                                lastPatternChange = now;
                                 // Use discrete MIDI values for each pattern (0, 25, 51, 76, 102, 127)
                                 const int patternMidi[] = {0, 25, 51, 76, 102, 127};
                                 
@@ -127,16 +138,26 @@ public:
                                 maxPattern = constrain(maxPattern, 1, 6);
                                 
                                 // Cycle pattern based on offsetTime: 0=forward, >0=reverse
+                                bool isForward = false;
                                 if (_settings.offsetTime == 0) {
                                     // Forward: increment pattern (wrap around from max to min)
                                     currentPattern++;
                                     if (currentPattern > maxPattern) currentPattern = minPattern;
+                                    isForward = true;
                                 } else {
                                     // Reverse: decrement pattern (wrap around from min to max)
                                     currentPattern--;
                                     if (currentPattern < minPattern) currentPattern = maxPattern;
+                                    isForward = false;
                                 }
                                 currentPattern = constrain(currentPattern, 1, 6);
+                                
+                                // Set LED color based on direction (override default behavior)
+                                // Flash on instantly, then fade out over 300ms
+                                _ledController.set(isForward ? LedColor::PINK : LedColor::BLUE, 255);  // On immediately
+                                _ledController.set(isForward ? LedColor::BLUE : LedColor::PINK, 0);    // Off immediately
+                                // Queue the fade-out (will execute after the instant on)
+                                _ledController.set(isForward ? LedColor::PINK : LedColor::BLUE, 0, 300);
                                 
                                 // Set discrete MIDI value for the pattern
                                 int sendVal = patternMidi[currentPattern - 1];
@@ -146,11 +167,10 @@ public:
                                 // Update internal chord settings to match the pattern change
                                 _chordSettings.strumPattern = constrain(currentPattern, 1, 6);
                                 
-                                SERIAL_PRINT("Touch Pattern Cycle: "); SERIAL_PRINT(currentPattern);
-                                SERIAL_PRINT(" MIDI:"); SERIAL_PRINT(sendVal);
-                                SERIAL_PRINT(" (range: "); SERIAL_PRINT(minPattern); 
-                                SERIAL_PRINT("-"); SERIAL_PRINT(maxPattern); SERIAL_PRINTLN(")");
-                                SERIAL_PRINT("KB1 Expression: Pattern set to "); SERIAL_PRINTLN(_chordSettings.strumPattern);
+                                // Minimal logging (1 line only for speed)
+                                char buf[8];
+                                snprintf(buf, sizeof(buf), "P%d", _chordSettings.strumPattern);
+                                SERIAL_PRINTLN(buf);
                             } else {
                                 // Normal toggle behavior for other parameters
                                 _toggleState = !_toggleState;
@@ -163,17 +183,17 @@ public:
                                     // 200 = KB1 Expression: Strum Speed (4-360ms)
                                     int strumSpeed = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 360, 4);
                                     _chordSettings.strumSpeed = constrain(strumSpeed, 4, 360);
-                                    SERIAL_PRINT("KB1 Expression: Strum Speed set to "); SERIAL_PRINTLN(_chordSettings.strumSpeed);
+                                    SERIAL_PRINT("SS"); SERIAL_PRINTLN(_chordSettings.strumSpeed);
                                 } else if (_settings.ccNumber == 202) {
                                     // 202 = KB1 Expression: Swing (0-100%)
                                     int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 100);
                                     _chordSettings.strumSwing = constrain(swing, 0, 100);
-                                    SERIAL_PRINT("KB1 Expression: Swing set to "); SERIAL_PRINTLN(_chordSettings.strumSwing);
+                                    SERIAL_PRINT("SW"); SERIAL_PRINTLN(_chordSettings.strumSwing);
                                 } else if (_settings.ccNumber == 203) {
                                     // 203 = KB1 Expression: Velocity Spread (8-100%)
                                     int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 8, 100);
                                     _chordSettings.velocitySpread = constrain(velocitySpread, 8, 100);
-                                    SERIAL_PRINT("KB1 Expression: Velocity Spread set to "); SERIAL_PRINTLN(_chordSettings.velocitySpread);
+                                    SERIAL_PRINT("VS"); SERIAL_PRINTLN(_chordSettings.velocitySpread);
                                 } else {
                                     _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
                                 }
@@ -200,20 +220,26 @@ public:
                                 // 200 = KB1 Expression: Strum Speed (4-360ms)
                                 int strumSpeed = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 360, 4);
                                 _chordSettings.strumSpeed = constrain(strumSpeed, 4, 360);
-                                SERIAL_PRINT("KB1 Expression: Strum Speed set to "); SERIAL_PRINTLN(_chordSettings.strumSpeed);
+                                SERIAL_PRINT("SS"); SERIAL_PRINTLN(_chordSettings.strumSpeed);
                             } else if (_settings.ccNumber == 202) {
                                 // 202 = KB1 Expression: Swing (0-100%)
                                 int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 100);
                                 _chordSettings.strumSwing = constrain(swing, 0, 100);
-                                SERIAL_PRINT("KB1 Expression: Swing set to "); SERIAL_PRINTLN(_chordSettings.strumSwing);
+                                SERIAL_PRINT("SW"); SERIAL_PRINTLN(_chordSettings.strumSwing);
                             } else if (_settings.ccNumber == 203) {
                                 // 203 = KB1 Expression: Velocity Spread (8-100%)
                                 int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 8, 100);
                                 _chordSettings.velocitySpread = constrain(velocitySpread, 8, 100);
-                                SERIAL_PRINT("KB1 Expression: Velocity Spread set to "); SERIAL_PRINTLN(_chordSettings.velocitySpread);
+                                SERIAL_PRINT("VS"); SERIAL_PRINTLN(_chordSettings.velocitySpread);
                             } else {
-                                SERIAL_PRINT("Sending CC "); SERIAL_PRINT(_settings.ccNumber);
-                                SERIAL_PRINT(", Value: "); SERIAL_PRINTLN(sendVal);
+                                // Throttled serial output for continuous mode (print every 500ms max)
+                                static unsigned long lastContinuousPrint = 0;
+                                unsigned long now = millis();
+                                if (now - lastContinuousPrint >= 500) {
+                                    SERIAL_PRINT("Touch CC"); SERIAL_PRINT(_settings.ccNumber);
+                                    SERIAL_PRINT("="); SERIAL_PRINTLN(sendVal);
+                                    lastContinuousPrint = now;
+                                }
                                 _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
                             }
                             _lastCCTouchValue = sendVal;
@@ -249,6 +275,7 @@ private:
     // threshold now comes from `_settings.threshold` so no local copy needed
     MidiTransport& _midi;
     ChordSettings& _chordSettings;
+    LEDController& _ledController;
 
     int _lastCCTouchValue;
     unsigned long _lastTouchToggle;

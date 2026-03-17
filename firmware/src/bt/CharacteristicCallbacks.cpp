@@ -161,7 +161,6 @@ void StrumIntervalsCallback::onWrite(BLECharacteristic *pCharacteristic) {
     // Persist to preferences
     _preferences.putBytes("customStrum", &customPattern, sizeof(CustomPattern));
 
-    SERIAL_PRINT("Custom strum pattern updated: ");
-    SERIAL_PRINT(length);
-    SERIAL_PRINTLN(" intervals");
+    SERIAL_PRINT("Strum:CustP");
+    SERIAL_PRINTLN(length);
 }

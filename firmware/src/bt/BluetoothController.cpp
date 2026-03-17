@@ -65,7 +65,7 @@ BluetoothController::BluetoothController(
 
 void BluetoothController::enable() {
     if (!_isEnabled) {
-        SERIAL_PRINTLN("Enabling Bluetooth...");
+        SERIAL_PRINTLN("BLE:Init");
 
         BLEDevice::init("KB1");
         BLEDevice::setSecurityCallbacks(new SecurityCallbacks());
@@ -228,21 +228,16 @@ void BluetoothController::enable() {
         _pMidiCharacteristic->addDescriptor(new BLE2902());
         _pMidiCharacteristic->setCallbacks(new MidiSettingsCallback(this));
 
-        SERIAL_PRINTLN("Creating Keep-Alive Characteristic...");
         _pKeepAliveCharacteristic = _pService->createCharacteristic(
             KEEPALIVE_UUID,
             BLECharacteristic::PROPERTY_READ |
             BLECharacteristic::PROPERTY_WRITE |
             BLECharacteristic::PROPERTY_WRITE_NR
         );
-        SERIAL_PRINTLN("Adding descriptor to Keep-Alive...");
         _pKeepAliveCharacteristic->addDescriptor(new BLE2902());
-        SERIAL_PRINTLN("Setting Keep-Alive callback...");
         _pKeepAliveCharacteristic->setCallbacks(new KeepAliveCallback(this));
-        SERIAL_PRINTLN("✓ Keep-Alive Characteristic created");
 
         // Firmware Version Characteristic (Read-only)
-        SERIAL_PRINTLN("Creating Firmware Version Characteristic...");
         _pFirmwareVersionCharacteristic = _pService->createCharacteristic(
             FIRMWARE_VERSION_UUID,
             BLECharacteristic::PROPERTY_READ
@@ -251,25 +246,20 @@ void BluetoothController::enable() {
         
         // Set version as string in format "major.minor.patch"
         _pFirmwareVersionCharacteristic->setValue(FIRMWARE_VERSION);
-        SERIAL_PRINTLN("✓ Firmware Version Characteristic created");
 
         // Preset Save Characteristic (Write)
-        SERIAL_PRINTLN("Creating Preset Save Characteristic...");
         _pPresetSaveCharacteristic = _pService->createCharacteristic(
             PRESET_SAVE_UUID,
             BLECharacteristic::PROPERTY_READ |
             BLECharacteristic::PROPERTY_WRITE |
             BLECharacteristic::PROPERTY_WRITE_NR
         );
-        SERIAL_PRINTLN("Adding BLE2902 descriptor...");
         _pPresetSaveCharacteristic->addDescriptor(new BLE2902());
-        SERIAL_PRINTLN("Setting callback...");
         _pPresetSaveCharacteristic->setCallbacks(new PresetSaveCallback(
             this, _preferences, _lever1Settings, _leverPush1Settings,
             _lever2Settings, _leverPush2Settings, _touchSettings,
             _scaleSettings, _chordSettings, _systemSettings
         ));
-        SERIAL_PRINTLN("✓ Preset Save Characteristic created");
         // Preset Load Characteristic (Write)
         _pPresetLoadCharacteristic = _pService->createCharacteristic(
             PRESET_LOAD_UUID,
@@ -311,18 +301,17 @@ void BluetoothController::enable() {
         _pAdvertising->setMinPreferred(0x06);
         _pAdvertising->setMinPreferred(0x12);
         BLEDevice::startAdvertising();
-        SERIAL_PRINTLN("Waiting for a BLE client connection...");
+        SERIAL_PRINTLN("BLE:Ready");
         _isEnabled = true;
         _lastToggleTime = millis();
         _lastActivity = millis();
         _modemSleeping = false;
-        SERIAL_PRINTLN("Exiting modem sleep due to Bluetooth enable.");
     }
 }
 
 void BluetoothController::disable() {
     if (_isEnabled) {
-        SERIAL_PRINTLN("Disabling Bluetooth...");
+        SERIAL_PRINTLN("BLE:Shutdown");
         if (_deviceConnected) {
             _pServer->disconnect(0);
         }
@@ -331,18 +320,12 @@ void BluetoothController::disable() {
         _lastToggleTime = millis();
         _lastActivity = millis();
         _modemSleeping = false;
-        SERIAL_PRINTLN("Bluetooth Disabled.");
-        SERIAL_PRINTLN("Exiting modem sleep due to Bluetooth disable.");
+        SERIAL_PRINTLN("BLE:Off");
     }
 }
 
 void BluetoothController::setDeviceConnected(bool connected) {
     _deviceConnected = connected;
-    if (connected) {
-        SERIAL_PRINTLN("BLE client connected.");
-    } else {
-        SERIAL_PRINTLN("BLE client disconnected.");
-    }
     // Treat connection event as activity (will still allow sleep after idleThreshold)
     updateLastActivity();
 }

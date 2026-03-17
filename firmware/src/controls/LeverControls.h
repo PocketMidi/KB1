@@ -106,7 +106,7 @@ LeverControls<MidiTransport>::LeverControls(
             _currentValue = vel;
             _targetValue = vel;
             _rampStartValue = vel;
-            SERIAL_PRINT("Lever CC 128 initialized to: "); SERIAL_PRINTLN(vel);
+            SERIAL_PRINT("L128="); SERIAL_PRINTLN(vel);
         }
         // If this lever controls strum speed (CC 200), initialize to current strum speed
         // Map current speed (4-360ms) to MIDI value (127-0, inverted)
@@ -116,7 +116,7 @@ LeverControls<MidiTransport>::LeverControls(
             _currentValue = midiValue;
             _targetValue = midiValue;
             _rampStartValue = midiValue;
-            SERIAL_PRINT("Lever CC 200 initialized to: "); SERIAL_PRINTLN(midiValue);
+            SERIAL_PRINT("L200="); SERIAL_PRINTLN(midiValue);
         }
 
         _lastSentValue = _currentValue;
@@ -249,16 +249,16 @@ void LeverControls<MidiTransport>::handleInput() {
             int oldValue = _currentValue;
             _currentValue = max(_settings.minCCValue, _currentValue - _settings.stepSize);
             _isPressed = true;
-            SERIAL_PRINT("INCREMENTAL: "); SERIAL_PRINT(oldValue); 
-            SERIAL_PRINT(" -> "); SERIAL_PRINT(_currentValue);
-            SERIAL_PRINT(" (stepSize: "); SERIAL_PRINT(_settings.stepSize); SERIAL_PRINTLN(")");
+            SERIAL_PRINT("L");
+            SERIAL_PRINT(_currentValue);
+            SERIAL_PRINTLN("<");
         } else if (rightState && !_isPressed) {
             int oldValue = _currentValue;
             _currentValue = min(_settings.maxCCValue, _currentValue + _settings.stepSize);
             _isPressed = true;
-            SERIAL_PRINT("INCREMENTAL: "); SERIAL_PRINT(oldValue);
-            SERIAL_PRINT(" -> "); SERIAL_PRINT(_currentValue);
-            SERIAL_PRINT(" (stepSize: "); SERIAL_PRINT(_settings.stepSize); SERIAL_PRINTLN(")");
+            SERIAL_PRINT("L");
+            SERIAL_PRINT(_currentValue);
+            SERIAL_PRINTLN(">");
         } else if (!leftState && !rightState && _isPressed) {
             _isPressed = false;
         }
@@ -355,14 +355,15 @@ void LeverControls<MidiTransport>::updateValue() {
             // Do NOT send a Control Change for velocity — velocity is part
             // of Note On messages. Instead update the keyboard's velocity
             // and update the cached sent value to avoid repeats.
-            SERIAL_PRINT("Velocity set: "); SERIAL_PRINTLN(sendVal);
+            SERIAL_PRINT("V");
+            SERIAL_PRINTLN(sendVal);
             _keyboardControl.setVelocity(sendVal);
         } else if (_settings.ccNumber == 200) {
             // 200 = KB1 Expression: Strum Speed (4-360ms)
             // Map CC value (0-127) to speed: 0=slow(360ms), 127=fast(4ms) - inverted output
             int strumSpeed = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 360, 4);
             _chordSettings.strumSpeed = constrain(strumSpeed, 4, 360);
-            SERIAL_PRINT("KB1 Expression: Strum Speed set to "); SERIAL_PRINTLN(_chordSettings.strumSpeed);
+            SERIAL_PRINT("SS"); SERIAL_PRINTLN(_chordSettings.strumSpeed);
             // Notify BLE clients of the change
             if (notifyChordSettingsCallback) {
                 notifyChordSettingsCallback();
@@ -375,12 +376,12 @@ void LeverControls<MidiTransport>::updateValue() {
                                       _chordSettings.strumPattern > 0);
             if (!isStrumShapeMode) {
                 // Silently ignore when not in strum:shape mode
-                SERIAL_PRINTLN("Lever CC 201: Ignored (not in strum:shape mode)");
+                SERIAL_PRINTLN("L201:Skip");
             } else {
                 // Map CC value (0-127) to pattern range (1-6)
                 int pattern = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 1, 6);
                 _chordSettings.strumPattern = constrain(pattern, 1, 6);
-                SERIAL_PRINT("KB1 Expression: Pattern set to "); SERIAL_PRINTLN(_chordSettings.strumPattern);
+                SERIAL_PRINT("P"); SERIAL_PRINTLN(_chordSettings.strumPattern);
             }
         } else if (_settings.ccNumber == 202) {
             // 202 = KB1 Expression: Swing (0-100%)
@@ -390,22 +391,30 @@ void LeverControls<MidiTransport>::updateValue() {
                                       _chordSettings.strumPattern > 0);
             if (!isStrumShapeMode) {
                 // Silently ignore when not in strum:shape mode
-                SERIAL_PRINTLN("Lever CC 202: Ignored (not in strum:shape mode)");
+                SERIAL_PRINTLN("L202:Skip");
             } else {
                 // Map CC value (0-127) to swing range (0-100)
                 int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 100);
                 _chordSettings.strumSwing = constrain(swing, 0, 100);
-                SERIAL_PRINT("KB1 Expression: Swing set to "); SERIAL_PRINTLN(_chordSettings.strumSwing);
+                SERIAL_PRINT("SW"); SERIAL_PRINTLN(_chordSettings.strumSwing);
             }
         } else if (_settings.ccNumber == 203) {
             // 203 = KB1 Expression: Velocity Spread (8-100%)
             // Map CC value (0-127) to velocity spread range (8-100)
             int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 8, 100);
             _chordSettings.velocitySpread = constrain(velocitySpread, 8, 100);
-            SERIAL_PRINT("KB1 Expression: Velocity Spread set to "); SERIAL_PRINTLN(_chordSettings.velocitySpread);
+            SERIAL_PRINT("VS"); SERIAL_PRINTLN(_chordSettings.velocitySpread);
         } else {
-            SERIAL_PRINT("Sending CC "); SERIAL_PRINT(_settings.ccNumber);
-            SERIAL_PRINT(", Value: "); SERIAL_PRINTLN(sendVal);
+            // Throttle CC output (max once per 300ms to reduce interpolation spam)
+            static unsigned long lastLeverCCPrint = 0;
+            unsigned long now = millis();
+            if (now - lastLeverCCPrint >= 300) {
+                SERIAL_PRINT("C");
+                SERIAL_PRINT(_settings.ccNumber);
+                SERIAL_PRINT("=");
+                SERIAL_PRINTLN(sendVal);
+                lastLeverCCPrint = now;
+            }
             _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
         }
 

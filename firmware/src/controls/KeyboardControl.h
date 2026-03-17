@@ -94,10 +94,9 @@ public:
             }
             
             _midi.sendNoteOn(quantizedNote, _currentVelocity, channel);
-            SERIAL_PRINT("Note On: ");
-            SERIAL_PRINT(quantizedNote);
-            SERIAL_PRINT(", Velocity: ");
-            SERIAL_PRINTLN(_currentVelocity);
+            char buf[16];
+            snprintf(buf, sizeof(buf), "N%dv%d", quantizedNote, _currentVelocity);
+            SERIAL_PRINTLN(buf);
             _isNoteOn[note] = true;
         } else {
             // Chord mode - use chromatic notes (no scale quantization)
@@ -137,21 +136,17 @@ public:
                 if (!wasAlreadyRunning) {
                     _arpCurrentIndex = 0;
                     _arpLastNoteTime = millis();
-                    SERIAL_PRINT("Advanced Strum Arp Started: Root=");
-                    SERIAL_PRINT(rootNote);
-                    SERIAL_PRINT(", Pattern=");
-                    SERIAL_PRINT(_chordSettings.strumPattern);
-                    SERIAL_PRINT(", Length=");
-                    SERIAL_PRINTLN(intervalCount);
+                    char buf[16];
+                    snprintf(buf, sizeof(buf), "Arp:R%dP%d", rootNote, _chordSettings.strumPattern);
+                    SERIAL_PRINTLN(buf);
                 } else {
                     // Continue from current position, adjust if pattern length changed
                     if (_arpCurrentIndex >= intervalCount) {
                         _arpCurrentIndex = 0;
                     }
-                    SERIAL_PRINT("Advanced Strum Root Changed: New Root=");
-                    SERIAL_PRINT(rootNote);
-                    SERIAL_PRINT(", Continuing at index ");
-                    SERIAL_PRINTLN(_arpCurrentIndex);
+                    char buf[20];
+                    snprintf(buf, sizeof(buf), "ArpRoot:%d@%d", rootNote, _arpCurrentIndex);
+                    SERIAL_PRINTLN(buf);
                 }
                 
                 _arpCurrentNote = -1;
@@ -184,12 +179,9 @@ public:
                         }
                         
                         _midi.sendNoteOn(chordNote, velocity, channel);
-                        SERIAL_PRINT("Strum Note ");
-                        SERIAL_PRINT(i);
-                        SERIAL_PRINT(" On: ");
-                        SERIAL_PRINT(chordNote);
-                        SERIAL_PRINT(", Velocity: ");
-                        SERIAL_PRINTLN(velocity);
+                        char buf[24];
+                        snprintf(buf, sizeof(buf), "S%d:N%dv%d", i, chordNote, velocity);
+                        SERIAL_PRINTLN(buf);
                     }
                 } else {
                     // Chord mode: send all notes immediately
@@ -259,19 +251,18 @@ public:
                 }
                 
                 _midi.sendNoteOff(quantizedNote, 0, channel);
-                SERIAL_PRINT("Note Off: ");
-                SERIAL_PRINT(quantizedNote);
-                SERIAL_PRINTLN(", Velocity: 0");
+                char buf[16];
+                snprintf(buf, sizeof(buf), "N%d-", quantizedNote);
+                SERIAL_PRINTLN(buf);
             } else {
                 // Chord mode - use chromatic notes (no scale quantization)
                 // Stop all chord notes
                 for (int i = 0; i < _activeChordCount[note]; i++) {
                     int chordNote = _activeChordNotes[note][i];
                     _midi.sendNoteOff(chordNote, 0, channel);
-                    SERIAL_PRINT("Chord Note ");
-                    SERIAL_PRINT(i);
-                    SERIAL_PRINT(" Off: ");
-                    SERIAL_PRINTLN(chordNote);
+                    char buf[16];
+                    snprintf(buf, sizeof(buf), "C%d-", chordNote);
+                    SERIAL_PRINTLN(buf);
                 }
                 _activeChordCount[note] = 0;
             }
@@ -327,8 +318,9 @@ public:
         // Turn off current note if any
         if (_arpCurrentNote >= 0) {
             _midi.sendNoteOff(_arpCurrentNote, 0, 1);
-            SERIAL_PRINT("Arp stopped, Note Off: ");
-            SERIAL_PRINTLN(_arpCurrentNote);
+            char buf[16];
+            snprintf(buf, sizeof(buf), "Arp:Stop%d", _arpCurrentNote);
+            SERIAL_PRINTLN(buf);
         }
         
         // Clear arp state
@@ -338,8 +330,6 @@ public:
         _arpPatternLength = 0;
         _arpCurrentIndex = 0;
         _arpCurrentNote = -1;
-        
-        SERIAL_PRINTLN("Arpeggiator stopped");
     }
 
     void updateKeyboardState() {
@@ -360,8 +350,6 @@ public:
                     key.debouncedState = raw;
                     if (key.debouncedState) {
                         playMidiNote(key.midi, i);  // Pass key index
-                        SERIAL_PRINT(key.name);
-                        SERIAL_PRINTLN(" Pressed!");
                     } else {
                         stopMidiNote(key.midi, i);  // Pass key index
                     }
@@ -407,8 +395,9 @@ public:
         // Turn off previous note
         if (_arpCurrentNote >= 0) {
             _midi.sendNoteOff(_arpCurrentNote, 0, 1);
-            SERIAL_PRINT("Arp Note Off: ");
-            SERIAL_PRINTLN(_arpCurrentNote);
+            char buf[16];
+            snprintf(buf, sizeof(buf), "Arp-%d", _arpCurrentNote);
+            SERIAL_PRINTLN(buf);
         }
         
         // Play next note in pattern
@@ -417,12 +406,9 @@ public:
         int velocity = calculateChordVelocity(_arpCurrentIndex, _arpPatternLength);
         
         _midi.sendNoteOn(_arpCurrentNote, velocity, 1);
-        SERIAL_PRINT("Arp Note ");
-        SERIAL_PRINT(_arpCurrentIndex);
-        SERIAL_PRINT(" On: ");
-        SERIAL_PRINT(_arpCurrentNote);
-        SERIAL_PRINT(", Velocity: ");
-        SERIAL_PRINTLN(velocity);
+        char buf[24];
+        snprintf(buf, sizeof(buf), "Arp%d:N%dv%d", _arpCurrentIndex, _arpCurrentNote, velocity);
+        SERIAL_PRINTLN(buf);
         
         _arpLastNoteTime = now;
         _arpCurrentIndex++;
@@ -430,7 +416,7 @@ public:
         // Loop seamlessly back to start
         if (_arpCurrentIndex >= _arpPatternLength) {
             _arpCurrentIndex = 0;
-            SERIAL_PRINTLN("Arp loop restart");
+            SERIAL_PRINTLN("Arp:Loop");
         }
     }
 
