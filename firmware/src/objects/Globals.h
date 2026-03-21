@@ -154,4 +154,25 @@ extern bool serialConnected;  // Global flag updated periodically in main loop
 #define SERIAL_PRINTLN(msg)
 #endif
 
+// Battery state tracking
+struct BatteryState {
+    uint32_t accumulatedDischargeMs;  // Total time on battery since last full charge
+    uint32_t lastUpdateMs;            // Last time battery was updated
+    uint32_t accumulatedChargeMs;     // Total accumulated charge time (persists in NVS)
+    uint32_t chargeSessionStartMs;    // When current charge session started (RAM only, 0 = not charging)
+    uint32_t lastSaveMs;              // Last time battery state was saved to NVS
+    uint32_t calibrationTimestamp;    // Unix timestamp when last calibrated (0 = never)
+    bool lastUsbState;                // Previous USB connection state
+    bool isFullyCharged;              // True if battery considered 100%
+    bool isChargingMode;              // True only if valid sequence: boot on battery -> plug USB
+    uint8_t estimatedPercentage;      // Current battery estimate (0-100, 254=uncalibrated, 255=usb/charging)
+    
+    // Power state tracking for accurate drain calculation
+    uint32_t activeTimeMs;            // Time in active mode since last save
+    uint32_t lightSleepTimeMs;        // Time in light sleep since last save
+    uint32_t deepSleepTimeMs;         // Time in deep sleep since last save
+};
+
+extern BatteryState batteryState;
+
 #endif

@@ -45,6 +45,8 @@ public:
     BLECharacteristic* getMidiCharacteristic() { return _pMidiCharacteristic; }
     BLECharacteristic* getKeepAliveCharacteristic() { return _pKeepAliveCharacteristic; }
     BLECharacteristic* getFirmwareVersionCharacteristic() { return _pFirmwareVersionCharacteristic; }
+    BLECharacteristic* getBatteryStatusCharacteristic() { return _pBatteryStatusCharacteristic; }
+    BLECharacteristic* getBatteryControlCharacteristic() { return _pBatteryControlCharacteristic; }
     
     // Preset characteristic getters
     BLECharacteristic* getPresetSaveCharacteristic() { return _pPresetSaveCharacteristic; }
@@ -71,6 +73,7 @@ public:
     
     // Notify BLE clients when settings change from firmware
     void notifyChordSettings();
+    void updateBatteryStatus();  // Update battery status characteristic
     bool isKeepAliveActive() const { return _keepAliveActive; }
     unsigned long getLastKeepAlivePing() const { return _lastKeepAlivePing; }
     unsigned long getKeepAliveGracePeriod() const { return _keepAliveGracePeriod; }
@@ -98,6 +101,8 @@ private:
     BLECharacteristic* _pMidiCharacteristic;
     BLECharacteristic* _pKeepAliveCharacteristic;
     BLECharacteristic* _pFirmwareVersionCharacteristic;
+    BLECharacteristic* _pBatteryStatusCharacteristic;
+    BLECharacteristic* _pBatteryControlCharacteristic;  // For commands like reset/recalibrate
     
     // Preset management characteristics
     BLECharacteristic* _pPresetSaveCharacteristic;

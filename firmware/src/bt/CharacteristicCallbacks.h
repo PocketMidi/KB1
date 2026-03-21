@@ -57,4 +57,14 @@ private:
     Preferences& _preferences;
 };
 
+// Battery control callback for commands (reset/recalibrate)
+class BatteryControlCallback final : public BLECharacteristicCallbacks {
+public:
+    BatteryControlCallback(BluetoothController* controller, Preferences& preferences);
+    void onWrite(BLECharacteristic *pCharacteristic) override;
+private:
+    BluetoothController* _controller;
+    Preferences& _preferences;
+};
+
 #endif

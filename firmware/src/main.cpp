@@ -22,6 +22,8 @@
 #include <esp_bt_main.h>
 #include <esp_sleep.h>
 #include <driver/gpio.h>
+#include <soc/usb_serial_jtag_reg.h>
+#include <soc/usb_serial_jtag_struct.h>
 #include <bt/BluetoothController.h>
 #include <objects/Constants.h>
 #include <objects/Globals.h>
@@ -43,6 +45,7 @@ Adafruit_MCP23X17 mcp_U2;
 // Global flag for serial connection detection
 #ifdef SERIAL_PRINT_ENABLED
 bool serialConnected = false;
+bool cpuStatsEnabled = false;  // Toggle CPU profiling output
 #endif
 
 LEDController ledController;
@@ -315,9 +318,9 @@ TouchControl<decltype(MIDI)> touch(
 );
 
 SystemSettings systemSettings = {
-    .lightSleepTimeout = 300,   // 300 seconds (5 minutes)
-    .deepSleepTimeout = 390,    // 390 seconds (6.5 minutes)
-    .bleTimeout = 600,          // 600 seconds (10 minutes)
+    .lightSleepTimeout = 300,   // 5 minutes
+    .deepSleepTimeout = 120,    // 2 minutes
+    .bleTimeout = 600,          // 10 minutes
     .idleConfirmTimeout = 2,    // 2 seconds
 };
 
@@ -327,11 +330,32 @@ BluetoothController* bluetoothControllerPtr = nullptr;
 // BLE Gesture Control - cross-lever gesture to toggle BLE
 BLEGestureControl* bleGestureControl = nullptr;
 
+// Battery state tracking
+BatteryState batteryState = {
+    .accumulatedDischargeMs = 0,
+    .lastUpdateMs = 0,
+    .accumulatedChargeMs = 0,
+    .chargeSessionStartMs = 0,
+    .lastSaveMs = 0,
+    .calibrationTimestamp = 0,  // 0 = never calibrated
+    .lastUsbState = false,
+    .isFullyCharged = false,
+    .isChargingMode = false,  // true only if valid sequence: boot on battery -> plug USB
+    .estimatedPercentage = 254,  // 254 = uncalibrated (needs full charge)
+    .activeTimeMs = 0,
+    .lightSleepTimeMs = 0,
+    .deepSleepTimeMs = 0
+};
+
+// Track if USB was connected at boot (bypass mode - no charging)
+bool usbConnectedAtBoot = false;
+bool firstBatteryUpdate = true;  // Flag to detect USB at boot on first update
+
 //----------------------------------
 // Sleep / Deep Sleep Management
 //----------------------------------
 unsigned long lastActivityMillis = 0;
-unsigned long lightSleepIdleMs = 300000; // Default: 5 minutes, updated from systemSettings
+unsigned long lightSleepIdleMs = 300000; // Default: 5 minutes
 bool deepSleepTriggered = false;
 
 // Require a short, confirmed quiet window before starting the deep-sleep countdown
@@ -356,6 +380,430 @@ void IRAM_ATTR touchWakeCallback() {
 }
 
 void readInputs(void *pvParameters);
+
+// USB Power Detection (uses USB peripheral, not Serial CDC)
+// Returns true if USB VBUS power is connected (works with computer or wall charger)
+bool isUsbPowered() {
+    // ESP32-S3 XIAO doesn't expose VBUS sensing, so we use multiple detection methods
+    
+    static uint32_t lastFrameCount = 0;
+    static unsigned long lastCheckMs = 0;
+    static bool lastState = false;
+    
+    unsigned long now = millis();
+    
+    // Check every 100ms to avoid excessive polling
+    if (now - lastCheckMs < 100) {
+        return lastState;
+    }
+    
+    uint32_t currentFrame = USB_SERIAL_JTAG.fram_num.sof_frame_index;
+    
+    // Method 1: USB frame counter (works when connected to computer)
+    bool frameActive = (currentFrame != lastFrameCount);
+    
+    // Method 2: Serial CDC available (also indicates USB connection to computer)
+    bool serialActive = (bool)Serial;
+    
+    // Method 3: Check if we recently detected USB (sticky detection for wall chargers)
+    // Once USB is detected, assume it stays connected until explicitly unplugged
+    // This handles wall chargers that don't enumerate as USB devices
+    static bool stickyUsb = false;
+    if (frameActive || serialActive) {
+        stickyUsb = true;  // USB detected, remember it
+    }
+    
+    // For wall charger detection: if we've never seen USB frames/serial, but device is running,
+    // we might be on wall charger. But we can't distinguish from battery power this way.
+    // Solution: Use user-initiated detection at boot (check immediately after power-on)
+    
+    bool connected = frameActive || serialActive || stickyUsb;
+    
+    lastFrameCount = currentFrame;
+    lastCheckMs = now;
+    lastState = connected;
+    
+    return connected;
+}
+
+//---------------------------------------------------
+// Battery Monitoring Functions
+//---------------------------------------------------
+
+// Load battery state from NVS
+void loadBatteryState() {
+    batteryState.accumulatedDischargeMs = preferences.getUInt("batDischMs", 0);
+    batteryState.isFullyCharged = preferences.getBool("batFull", false);
+    batteryState.estimatedPercentage = preferences.getUChar("batPct", 254);  // Default: uncalibrated
+    batteryState.calibrationTimestamp = preferences.getUInt("batCalTime", 0);  // 0 = never
+    batteryState.accumulatedChargeMs = preferences.getULong("batAccChgMs", 0);  // Resume accumulated charge time
+    
+    if (batteryState.estimatedPercentage == 254) {
+        SERIAL_PRINTLN("Battery uncalibrated - charge fully to establish baseline");
+    } else {
+        SERIAL_PRINT("Battery state loaded: ");
+        SERIAL_PRINT(batteryState.estimatedPercentage);
+        SERIAL_PRINTLN("%");
+    }
+    
+    if (batteryState.accumulatedChargeMs > 0) {
+        SERIAL_PRINT("Accumulated charge time: ");
+        SERIAL_PRINT(batteryState.accumulatedChargeMs / 1000);
+        SERIAL_PRINT("s / ");
+        SERIAL_PRINT(BATTERY_FULL_CHARGE_MS / 1000);
+        SERIAL_PRINTLN("s");
+    }
+}
+
+// Save battery state to NVS
+void saveBatteryState() {
+    preferences.putUInt("batDischMs", batteryState.accumulatedDischargeMs);
+    preferences.putBool("batFull", batteryState.isFullyCharged);
+    preferences.putUChar("batPct", batteryState.estimatedPercentage);
+    preferences.putUInt("batCalTime", batteryState.calibrationTimestamp);
+    preferences.putULong("batAccChgMs", batteryState.accumulatedChargeMs);  // Persist accumulated charge time
+    batteryState.lastSaveMs = millis();
+    
+    SERIAL_PRINTLN("Saved");
+}
+
+// Debug: Save charging debug info to NVS
+void saveChargingDebug(const char* event, bool usbDetected, bool chargingMode, bool sleepPrevented) {
+    static uint8_t debugIndex = 0;
+    
+    // Store last 5 debug events in circular buffer
+    char key[16];
+    snprintf(key, sizeof(key), "dbg%d_evt", debugIndex);
+    preferences.putString(key, event);
+    
+    snprintf(key, sizeof(key), "dbg%d_time", debugIndex);
+    preferences.putUInt(key, millis() / 1000);  // Seconds since boot
+    
+    snprintf(key, sizeof(key), "dbg%d_usb", debugIndex);
+    preferences.putBool(key, usbDetected);
+    
+    snprintf(key, sizeof(key), "dbg%d_chrg", debugIndex);
+    preferences.putBool(key, chargingMode);
+    
+    snprintf(key, sizeof(key), "dbg%d_slp", debugIndex);
+    preferences.putBool(key, sleepPrevented);
+    
+    debugIndex = (debugIndex + 1) % 5;  // Circular buffer of 5 entries
+    
+    // Minimal event logging
+    SERIAL_PRINT(event);
+    SERIAL_PRINT(" | USB:");
+    SERIAL_PRINT(usbDetected);
+    SERIAL_PRINT(" | Chg:");
+    SERIAL_PRINT(chargingMode);
+    SERIAL_PRINT(" | Slp:");
+    SERIAL_PRINTLN(sleepPrevented);
+}
+
+// Debug: Print charging debug log from NVS
+void printChargingDebug() {
+    SERIAL_PRINTLN("=== CHARGING DEBUG LOG ===");
+    for (int i = 0; i < 5; i++) {
+        char key[16];
+        
+        snprintf(key, sizeof(key), "dbg%d_evt", i);
+        String event = preferences.getString(key, "");
+        if (event.length() == 0) continue;
+        
+        snprintf(key, sizeof(key), "dbg%d_time", i);
+        uint32_t time = preferences.getUInt(key, 0);
+        
+        snprintf(key, sizeof(key), "dbg%d_usb", i);
+        bool usb = preferences.getBool(key, false);
+        
+        snprintf(key, sizeof(key), "dbg%d_chrg", i);
+        bool chrg = preferences.getBool(key, false);
+        
+        snprintf(key, sizeof(key), "dbg%d_slp", i);
+        bool slp = preferences.getBool(key, false);
+        
+        SERIAL_PRINT("[");
+        SERIAL_PRINT(i);
+        SERIAL_PRINT("] ");
+        SERIAL_PRINT(time);
+        SERIAL_PRINT("s: ");
+        SERIAL_PRINT(event);
+        SERIAL_PRINT(" | USB:");
+        SERIAL_PRINT(usb);
+        SERIAL_PRINT(" | Chrg:");
+        SERIAL_PRINT(chrg);
+        SERIAL_PRINT(" | SlpPrev:");
+        SERIAL_PRINTLN(slp);
+    }
+    SERIAL_PRINTLN("==========================");
+}
+
+// Calculate battery percentage based on accumulated discharge
+// Uses actual power consumption measurements:
+// - Active mode: 95mA
+// - Light sleep: 2mA  
+// - Deep sleep: 0.014mA
+uint8_t calculateBatteryPercentage() {
+    // Calculate total mAh consumed
+    float activeHours = batteryState.activeTimeMs / 3600000.0f;
+    float lightSleepHours = batteryState.lightSleepTimeMs / 3600000.0f;
+    float deepSleepHours = batteryState.deepSleepTimeMs / 3600000.0f;
+    
+    float consumedMah = (activeHours * BATTERY_ACTIVE_DRAIN_MA) +
+                        (lightSleepHours * BATTERY_LIGHT_SLEEP_DRAIN_MA) +
+                        (deepSleepHours * BATTERY_DEEP_SLEEP_DRAIN_MA);
+    
+    float remainingMah = BATTERY_CAPACITY_MAH - consumedMah;
+    
+    if (remainingMah <= 0) return 0;
+    if (remainingMah >= BATTERY_CAPACITY_MAH) return 100;
+    
+    return (uint8_t)((remainingMah / BATTERY_CAPACITY_MAH) * 100.0f);
+}
+
+// Update battery monitoring (call from main loop)
+void updateBatteryMonitoring() {
+    unsigned long now = millis();
+    bool usbNow = isUsbPowered();  // Detect USB power (not serial terminal)
+    bool wasUsbConnected = batteryState.lastUsbState;
+    
+    // Detect USB plug/unplug events
+    bool usbJustPlugged = usbNow && !wasUsbConnected;
+    bool usbJustUnplugged = !usbNow && wasUsbConnected;
+    
+    if (usbJustPlugged) {
+        // USB just connected - check if valid charging sequence
+        SERIAL_PRINT("USB plug detected - usbAtBoot=");
+        SERIAL_PRINTLN(usbConnectedAtBoot);
+        if (!usbConnectedAtBoot) {
+            // Valid sequence: Device was on battery, now USB plugged in
+            batteryState.isChargingMode = true;
+            
+            // Start new charging session (accumulated time already loaded from NVS)
+            batteryState.chargeSessionStartMs = now;
+            
+            unsigned long totalChargeDuration = batteryState.accumulatedChargeMs;
+            unsigned long remainingMs = BATTERY_FULL_CHARGE_MS > totalChargeDuration ? 
+                                       BATTERY_FULL_CHARGE_MS - totalChargeDuration : 0;
+            
+            if (totalChargeDuration == 0) {
+                SERIAL_PRINTLN("USB connected - charging started (valid sequence)");
+            } else {
+                SERIAL_PRINTLN("USB connected - charging resumed");
+            }
+            
+            SERIAL_PRINT("Chg: ");
+            SERIAL_PRINT(totalChargeDuration / 1000);
+            SERIAL_PRINT("/");
+            SERIAL_PRINT(BATTERY_FULL_CHARGE_MS / 1000);
+            SERIAL_PRINTLN("s");
+            
+            saveChargingDebug("USB_PLUG", true, true, true);
+        } else {
+            // Invalid sequence: USB was connected at boot (bypass mode)
+            batteryState.isChargingMode = false;
+            // NOTE: Preserve accumulatedChargeMs across bypass mode - allows resume after proper sequence
+            SERIAL_PRINTLN("USB detected (bypass mode - NOT charging)");
+            SERIAL_PRINTLN("Unplug USB, power cycle device, then plug USB to charge");
+            saveChargingDebug("USB_BYPASS", true, false, false);
+        }
+    }
+    
+    if (usbJustUnplugged) {
+        // USB just disconnected - save accumulated charge time
+        if (batteryState.isChargingMode && batteryState.chargeSessionStartMs > 0) {
+            // Add current session time to accumulated total
+            unsigned long sessionDuration = now - batteryState.chargeSessionStartMs;
+            batteryState.accumulatedChargeMs += sessionDuration;
+            unsigned long totalChargeDuration = batteryState.accumulatedChargeMs;
+            
+            // Calculate mAh gained from total charge time (charge current = 100mA)
+            float chargeHours = totalChargeDuration / 3600000.0f;
+            float mAhGained = chargeHours * BATTERY_CHARGE_CURRENT_MA;
+            
+            if (totalChargeDuration >= BATTERY_FULL_CHARGE_MS) {
+                // Full charge cycle complete - calibrate to 100%
+                batteryState.isFullyCharged = true;
+                batteryState.accumulatedDischargeMs = 0;
+                batteryState.activeTimeMs = 0;
+                batteryState.lightSleepTimeMs = 0;
+                batteryState.deepSleepTimeMs = 0;
+                batteryState.estimatedPercentage = 100;
+                batteryState.calibrationTimestamp = now / 1000;
+                batteryState.accumulatedChargeMs = 0;  // Clear accumulated time (calibration complete)
+                
+                SERIAL_PRINT("Full charge complete! ");
+                SERIAL_PRINT(mAhGained);
+                SERIAL_PRINTLN("mAh added (calibrated to 100%)");
+            } else if (batteryState.isFullyCharged) {
+                // Partial charge on calibrated battery - add capacity incrementally
+                // Convert mAh gained to equivalent discharge time (use active mode rate for conservative estimate)
+                float equivalentActiveHours = mAhGained / BATTERY_ACTIVE_DRAIN_MA;
+                unsigned long equivalentActiveMs = equivalentActiveHours * 3600000.0f;
+                
+                // Subtract from accumulated discharge (capped at 0)
+                if (batteryState.accumulatedDischargeMs > equivalentActiveMs) {
+                    batteryState.accumulatedDischargeMs -= equivalentActiveMs;
+                } else {
+                    batteryState.accumulatedDischargeMs = 0;
+                }
+                
+                // Also reduce activeTimeMs proportionally (since we track both)
+                if (batteryState.activeTimeMs > equivalentActiveMs) {
+                    batteryState.activeTimeMs -= equivalentActiveMs;
+                } else {
+                    batteryState.activeTimeMs = 0;
+                }
+                
+                // Recalculate percentage (cap at 100%)
+                batteryState.estimatedPercentage = calculateBatteryPercentage();
+                if (batteryState.estimatedPercentage > 100) {
+                    batteryState.estimatedPercentage = 100;
+                }
+                
+                // Clear accumulated charge time after applying to calibrated battery
+                batteryState.accumulatedChargeMs = 0;
+                
+                SERIAL_PRINT("Partial charge: ");
+                SERIAL_PRINT(totalChargeDuration / 1000);
+                SERIAL_PRINT("s, +");
+                SERIAL_PRINT(mAhGained);
+                SERIAL_PRINT("mAh → ");
+                SERIAL_PRINT(batteryState.estimatedPercentage);
+                SERIAL_PRINTLN("%");
+            } else {
+                // Partial charge, never calibrated - keep accumulated time for next session
+                SERIAL_PRINT("Partial charge: ");
+                SERIAL_PRINT(totalChargeDuration / 1000);
+                SERIAL_PRINT("s / ");
+                SERIAL_PRINT(BATTERY_FULL_CHARGE_MS / 1000);
+                SERIAL_PRINT("s - ");
+                unsigned long remaining = BATTERY_FULL_CHARGE_MS - totalChargeDuration;
+                SERIAL_PRINT(remaining / 1000);
+                SERIAL_PRINTLN("s remaining for calibration");
+                batteryState.estimatedPercentage = 254;
+                // Don't clear accumulatedChargeMs - let it persist for next charge session
+            }
+            
+            batteryState.chargeSessionStartMs = 0;  // Clear session timer (charge session ended)
+            saveBatteryState();  // Persist updated accumulated time
+        }
+        
+        batteryState.isChargingMode = false;
+    }
+    
+    // Update battery state
+    if (usbNow) {
+        if (batteryState.isChargingMode && batteryState.chargeSessionStartMs > 0) {
+            // Valid charging mode - calculate total charge time
+            unsigned long sessionDuration = now - batteryState.chargeSessionStartMs;
+            unsigned long totalChargeDuration = batteryState.accumulatedChargeMs + sessionDuration;
+            
+            if (totalChargeDuration >= BATTERY_FULL_CHARGE_MS) {
+                // Charging complete - always exit charging mode (stops LEDs, allows sleep)
+                if (!batteryState.isFullyCharged) {
+                    // First time reaching full charge - update battery state
+                    batteryState.isFullyCharged = true;
+                    batteryState.accumulatedDischargeMs = 0;
+                    batteryState.activeTimeMs = 0;
+                    batteryState.lightSleepTimeMs = 0;
+                    batteryState.deepSleepTimeMs = 0;
+                    batteryState.estimatedPercentage = 100;
+                    batteryState.calibrationTimestamp = now / 1000;  // Store as seconds since boot (approximation)
+                    batteryState.accumulatedChargeMs = 0;  // Clear accumulated time (calibration complete)
+                    
+                    SERIAL_PRINTLN("Battery fully charged! Calibration complete.");
+                    saveBatteryState();
+                }
+                
+                // Always exit charging mode when time completes (even if already fully charged)
+                batteryState.isChargingMode = false;
+                batteryState.chargeSessionStartMs = 0;
+                SERIAL_PRINTLN("Charging mode ended - LEDs off, sleep enabled");
+            } else {
+                // Show charging progress every 30s and save state
+                static unsigned long lastProgressPrint = 0;
+                if (now - lastProgressPrint >= 30000) {
+                    SERIAL_PRINT("Chg: ");
+                    SERIAL_PRINT(totalChargeDuration / 1000);
+                    SERIAL_PRINT("/");
+                    SERIAL_PRINT(BATTERY_FULL_CHARGE_MS / 1000);
+                    SERIAL_PRINTLN("s");
+                    lastProgressPrint = now;
+                    
+                    // Save accumulated time periodically (resume from here if power lost)
+                    batteryState.accumulatedChargeMs += sessionDuration;
+                    batteryState.chargeSessionStartMs = now;  // Reset session timer
+                    saveBatteryState();
+                }
+                
+                // Calculate current charge progress for BLE reporting (if battery is calibrated)
+                if (batteryState.isFullyCharged) {
+                    // Calculate mAh gained so far
+                    float chargeHours = totalChargeDuration / 3600000.0f;
+                    float mAhGained = chargeHours * BATTERY_CHARGE_CURRENT_MA;
+                    
+                    // Convert to equivalent discharge time (use active mode rate)
+                    float equivalentActiveHours = mAhGained / BATTERY_ACTIVE_DRAIN_MA;
+                    unsigned long equivalentActiveMs = equivalentActiveHours * 3600000.0f;
+                    
+                    // Calculate what the percentage would be with this charge
+                    // Start from the snapshot values at charge start
+                    unsigned long tempActiveMs = batteryState.activeTimeMs;
+                    if (tempActiveMs > equivalentActiveMs) {
+                        tempActiveMs -= equivalentActiveMs;
+                    } else {
+                        tempActiveMs = 0;
+                    }
+                    
+                    // Calculate percentage using temporary reduced discharge time
+                    float activeHours = tempActiveMs / 3600000.0f;
+                    float lightSleepHours = batteryState.lightSleepTimeMs / 3600000.0f;
+                    float deepSleepHours = batteryState.deepSleepTimeMs / 3600000.0f;
+                    
+                    float consumedMah = (activeHours * BATTERY_ACTIVE_DRAIN_MA) +
+                                       (lightSleepHours * BATTERY_LIGHT_SLEEP_DRAIN_MA) +
+                                       (deepSleepHours * BATTERY_DEEP_SLEEP_DRAIN_MA);
+                    
+                    float remainingMah = BATTERY_CAPACITY_MAH - consumedMah;
+                    uint8_t currentPercentage = (uint8_t)((remainingMah / BATTERY_CAPACITY_MAH) * 100.0f);
+                    
+                    if (currentPercentage > 100) currentPercentage = 100;
+                    if (currentPercentage < 0) currentPercentage = 0;
+                    
+                    batteryState.estimatedPercentage = currentPercentage;
+                } else {
+                    // Uncalibrated - stay at 254 during charging
+                    batteryState.estimatedPercentage = 254;
+                }
+            }
+        } else {
+            // Bypass mode - show last known percentage (not charging, just powered by USB)
+            // Percentage stays as loaded from NVS (254 if uncalibrated, or last known %)
+        }
+    } else {
+        // On battery power - accumulate discharge
+        if (batteryState.lastUpdateMs > 0 && batteryState.estimatedPercentage != 254) {
+            unsigned long elapsedMs = now - batteryState.lastUpdateMs;
+            
+            // For now, assume active mode (could be enhanced with sleep state tracking)
+            batteryState.activeTimeMs += elapsedMs;
+            batteryState.accumulatedDischargeMs += elapsedMs;
+            
+            // Recalculate percentage (skip if uncalibrated)
+            batteryState.estimatedPercentage = calculateBatteryPercentage();
+        }
+        
+        // Save to NVS every 5 minutes to reduce wear (preserves uncalibrated state)
+        if (now - batteryState.lastSaveMs >= 300000) {  // 5 minutes
+            saveBatteryState();
+        }
+    }
+    
+    batteryState.lastUsbState = usbNow;
+    batteryState.lastUpdateMs = now;
+}
+
 void loadSettings() {
     preferences.getBytes("lever1", &lever1Settings, sizeof(LeverSettings));
     preferences.getBytes("leverpush1", &leverPush1Settings, sizeof(LeverPushSettings));
@@ -428,6 +876,49 @@ void startupPulseSequence() {
     delay(100);
 }
 
+//---------------------------------------------------
+// Charging LED breathing (very slow ambient)
+// Simple alternating: Pink ↔ Blue (repeat)
+// Non-blocking state machine with fading for continuous loop during charging
+//---------------------------------------------------
+// Charging pattern state
+enum ChargePatternState {
+    CHARGE_PINK,
+    CHARGE_BLUE
+};
+
+ChargePatternState chargePatternState = CHARGE_PINK;
+unsigned long lastChargePatternUpdate = 0;
+const unsigned long CHARGE_LED_DURATION = 1200; // 1200ms per LED (slow breathing)
+const unsigned long CHARGE_FADE_DURATION = 1200; // 1200ms fade - matches duration for continuous breathing
+const int CHARGE_BRIGHTNESS_PINK = PINK_PWM_MAX / 3; // ~33% of pink max
+const int CHARGE_BRIGHTNESS_NORMAL = PWM_MAX / 3;    // ~33% of normal max
+
+void updateChargingLEDPattern() {
+    unsigned long currentTime = millis();
+    
+    // Update pattern every CHARGE_LED_DURATION ms
+    if (currentTime - lastChargePatternUpdate < CHARGE_LED_DURATION) {
+        return; // Not time to advance yet
+    }
+    
+    lastChargePatternUpdate = currentTime;
+    
+    // Simple alternating pattern Pink <-> Blue
+    switch (chargePatternState) {
+        case CHARGE_PINK:
+            ledSetRamp(LedColor::PINK, CHARGE_BRIGHTNESS_PINK, CHARGE_FADE_DURATION);
+            ledSetRamp(LedColor::BLUE, 0, CHARGE_FADE_DURATION);
+            chargePatternState = CHARGE_BLUE;
+            break;
+        case CHARGE_BLUE:
+            ledSetRamp(LedColor::BLUE, CHARGE_BRIGHTNESS_NORMAL, CHARGE_FADE_DURATION);
+            ledSetRamp(LedColor::PINK, 0, CHARGE_FADE_DURATION);
+            chargePatternState = CHARGE_PINK;
+            break;
+    }
+}
+
 // sleep helpers implemented in controls/SleepControl.h
 
 
@@ -441,6 +932,12 @@ void setup() {
 
     pinMode(LED_BUILTIN, OUTPUT);
     digitalWrite(LED_BUILTIN, LOW); // Keep LED on
+    
+    // Check USB status immediately at boot (for bypass mode detection)
+    // Do this BEFORE any delays or other initialization
+    delay(50);  // Brief delay for USB hardware to stabilize
+    usbConnectedAtBoot = isUsbPowered();
+    firstBatteryUpdate = false;  // No longer needed since we check at boot
 
     if (!preferences.begin("kb1-settings", false)) {
         SERIAL_PRINTLN("Error initializing Preferences. Rebooting...");
@@ -448,6 +945,11 @@ void setup() {
     } else {
         SERIAL_PRINTLN("Preferences initialized successfully.");
     }
+    
+    // Print charging debug log from previous session
+    #ifdef SERIAL_PRINT_ENABLED
+    printChargingDebug();
+    #endif
     
     // Track boots without serial terminal
     #ifdef SERIAL_PRINT_ENABLED
@@ -475,6 +977,10 @@ void setup() {
     #endif
 
     loadSettings();
+    loadBatteryState();
+    
+    // Initialize USB state (will be properly checked on first updateBatteryMonitoring call)
+    batteryState.lastUsbState = false;
 
     // Set I2C speed BEFORE initializing I2C devices
     Wire.setClock(400000);  // 400kHz fast mode
@@ -587,6 +1093,27 @@ void setup() {
 
     // Initialize activity timer
     lastActivityMillis = millis();
+    
+    // Initialize battery monitoring and check for boot state
+    // Check USB multiple times with delays to allow CDC initialization
+    batteryState.lastUpdateMs = millis();
+    for (int i = 0; i < 20; i++) {  // 20 checks × 50ms = 1 second total
+        if ((bool)Serial) {
+            usbConnectedAtBoot = true;
+            SERIAL_PRINTLN("USB detected at boot - bypass mode (NOT charging)");
+            SERIAL_PRINTLN("For charging: Power on device first, THEN plug USB");
+            batteryState.estimatedPercentage = 254;
+            batteryState.lastUsbState = true;
+            firstBatteryUpdate = false;  // Don't check again in updateBatteryMonitoring
+            break;
+        }
+        delay(50);  // Wait 50ms between checks
+    }
+    
+    // Call updateBatteryMonitoring to establish baseline if USB wasn't detected in loop
+    if (!usbConnectedAtBoot) {
+        updateBatteryMonitoring();
+    }
 }
 
 //---------------------------------------------------
@@ -595,6 +1122,95 @@ void setup() {
 //
 //---------------------------------------------------
 void loop() {
+    // Update battery monitoring (tracks USB connection and discharge)
+    static unsigned long lastBatteryUpdate = 0;
+    
+    // Fast polling (1s) for first 60 seconds for responsive USB detection, then slow down to 30s
+    unsigned long pollInterval = (millis() < 60000) ? 1000 : 30000;
+    
+    if (millis() - lastBatteryUpdate > pollInterval) {
+        updateBatteryMonitoring();
+        
+        // Update BLE characteristic if enabled
+        if (bluetoothControllerPtr) {
+            bluetoothControllerPtr->updateBatteryStatus();
+        }
+        
+        lastBatteryUpdate = millis();
+    }
+    
+    // Update charging LED pattern when actively charging
+    // Check both isChargingMode AND current USB state for immediate response
+    static bool wasCharging = false;
+    static bool chargingLEDsEnabled = false; // Guard flag
+    static uint32_t lastUsbFrameCheck = 0;
+    static uint8_t usbDisconnectCount = 0;  // Debounce counter for USB disconnect
+    const uint8_t USB_DISCONNECT_THRESHOLD = 3;  // Require 3 consecutive misses before stopping
+    
+    // Real-time USB check using frame counter (same method as battery monitoring)
+    uint32_t currentFrame = USB_SERIAL_JTAG.fram_num.sof_frame_index;
+    bool frameActive = (currentFrame != lastUsbFrameCheck);
+    bool serialActive = (bool)Serial;
+    bool usbCurrentlyConnected = frameActive || serialActive;
+    lastUsbFrameCheck = currentFrame;
+    
+    // Debounce USB disconnect detection to prevent false negatives during blocking operations
+    if (!usbCurrentlyConnected) {
+        usbDisconnectCount++;
+    } else {
+        usbDisconnectCount = 0;  // Reset counter if USB detected
+    }
+    
+    bool usbActuallyDisconnected = (usbDisconnectCount >= USB_DISCONNECT_THRESHOLD);
+    
+    if (batteryState.isChargingMode && !usbActuallyDisconnected) {
+        if (!chargingLEDsEnabled) {
+            // Just started charging pattern
+            chargingLEDsEnabled = true;
+            usbDisconnectCount = 0;  // Reset disconnect counter when starting
+            SERIAL_PRINT("Charging LEDs started - usbAtBoot=");
+            SERIAL_PRINT(usbConnectedAtBoot);
+            SERIAL_PRINT(" isChargingMode=");
+            SERIAL_PRINT(batteryState.isChargingMode);
+            SERIAL_PRINT(" usbConnected=");
+            SERIAL_PRINTLN(!usbActuallyDisconnected);
+        }
+        updateChargingLEDPattern();
+        wasCharging = true;
+    } else {
+        // Stop immediately when USB disconnects OR charging mode exits
+        if (wasCharging || chargingLEDsEnabled) {
+            // Disable pattern FIRST to prevent any new ramp commands
+            chargingLEDsEnabled = false;
+            usbDisconnectCount = 0;  // Reset counter on intentional stop
+            chargePatternState = CHARGE_PINK; // Reset state machine
+            lastChargePatternUpdate = 0; // Reset timing
+            
+            // Force clear all LEDs immediately (override any pending ramps)
+            ledSet(LedColor::PINK, 0);
+            ledSet(LedColor::BLUE, 0);
+            ledSet(LedColor::OCTAVE_DOWN, 0);
+            ledSet(LedColor::OCTAVE_UP, 0);
+            delay(10); // Brief delay to let queued commands process
+            // Send again to ensure they're cleared
+            ledSet(LedColor::PINK, 0);
+            ledSet(LedColor::BLUE, 0);
+            ledSet(LedColor::OCTAVE_DOWN, 0);
+            ledSet(LedColor::OCTAVE_UP, 0);
+            delay(10); // Another delay
+            // Third clear for stubborn ramps
+            ledSet(LedColor::PINK, 0);
+            ledSet(LedColor::BLUE, 0);
+            
+            SERIAL_PRINT("Charging LEDs stopped - isChargingMode=");
+            SERIAL_PRINT(batteryState.isChargingMode);
+            SERIAL_PRINT(" usbConnected=");
+            SERIAL_PRINTLN(!usbActuallyDisconnected);
+            wasCharging = false;
+            SERIAL_PRINTLN("Charging LEDs stopped");
+        }
+    }
+    
     // Periodically check if USB CDC terminal is connected (every 5 seconds)
     #ifdef SERIAL_PRINT_ENABLED
     static unsigned long lastSerialCheck = 0;
@@ -615,6 +1231,29 @@ void loop() {
                 Serial.print("Boots without serial: "); Serial.println(bootsWithoutSerial);
             }
             Serial.println("Serial auto-detect: Active");
+            
+            // Battery status
+            Serial.print("Battery: ");
+            if (batteryState.estimatedPercentage == 254) {
+                Serial.println("Uncalibrated (needs full 5.5hr charge)");
+                if (usbConnectedAtBoot) {
+                    Serial.println("⚠️  USB at boot = bypass mode (NOT charging)");
+                    Serial.println("⚠️  For charging: Power on FIRST, then plug USB");
+                }
+            } else if (batteryState.estimatedPercentage == 255) {
+                if (batteryState.isChargingMode) {
+                    Serial.println("USB powered (charging)");
+                } else {
+                    Serial.println("USB powered (bypass - NOT charging)");
+                    Serial.println("⚠️  USB at boot = bypass mode");
+                    Serial.println("⚠️  For charging: Unplug USB, power cycle, then plug USB");
+                }
+            } else {
+                Serial.print(batteryState.estimatedPercentage);
+                Serial.print("%, USB: ");
+                Serial.println(batteryState.lastUsbState ? "Connected" : "Disconnected");
+            }
+            
             Serial.println("========================");
             
             // Reset counter when terminal connects during runtime
@@ -626,6 +1265,41 @@ void loop() {
         lastSerialCheck = millis();
     }
     #endif
+    
+    // Periodically print CPU usage stats (every 10 seconds)
+    // NOTE: Disabled due to linker issues with vTaskGetRunTimeStats on ESP32-S3
+    // #ifdef SERIAL_PRINT_ENABLED
+    // if (cpuStatsEnabled && serialConnected) {
+    //     static unsigned long lastStatsTime = 0;
+    //     if (millis() - lastStatsTime > 10000) {
+    //         char statsBuffer[1024];
+    //         vTaskGetRunTimeStats(statsBuffer);
+    //         
+    //         Serial.println("\n========== CPU STATS ==========");
+    //         Serial.println("Task            Abs Time    %Time");
+    //         Serial.println("-------------------------------");
+    //         Serial.println(statsBuffer);
+    //         Serial.println("===============================\n");
+    //         
+    //         lastStatsTime = millis();
+    //     }
+    // }
+    // 
+    // // Check for serial commands (toggle CPU stats on/off)
+    // if (serialConnected && Serial.available()) {
+    //     String cmd = Serial.readStringUntil('\n');
+    //     cmd.trim();
+    //     if (cmd == "cpu") {
+    //         cpuStatsEnabled = !cpuStatsEnabled;
+    //         Serial.print("CPU stats ");
+    //         Serial.println(cpuStatsEnabled ? "ENABLED (10s interval)" : "DISABLED");
+    //     } else if (cmd == "help") {
+    //         Serial.println("Commands:");
+    //         Serial.println("  cpu  - Toggle CPU profiling stats");
+    //         Serial.println("  help - Show this message");
+    //     }
+    // }
+    // #endif
     
     // Check BLE idle and enter modem sleep if needed
     // BLE radio turns off 10 seconds before entering light sleep (DEEP_SLEEP_IDLE_MS: 330 sec - 10 sec = 320 sec)
@@ -783,7 +1457,11 @@ void loop() {
         // Determine activity: touch active, any keyboard key, any pressed switch, or BLE keep-alive active
         bool keyboardActive = keyboardControl.anyKeyActive();
         bool bleKeepAliveActive = bluetoothControllerPtr && bluetoothControllerPtr->isKeepAliveActive();
-        activityDetected = touchActive || keyboardActive || pinkLedPressed || blueLeftPressed || leverPushIsPressed || bleKeepAliveActive;
+        
+        // Prevent sleep during charging
+        bool activelyCharging = batteryState.isChargingMode && (batteryState.chargeSessionStartMs > 0);
+        
+        activityDetected = touchActive || keyboardActive || pinkLedPressed || blueLeftPressed || leverPushIsPressed || bleKeepAliveActive || activelyCharging;
 
         if (activityDetected) {
             // Reset idle confirmation and mark last activity time
@@ -804,10 +1482,22 @@ void loop() {
             } else {
                 // idleConfirmed true => count towards deep sleep timeout
                 if (!deepSleepTriggered && (millis() - idleConfirmTime >= lightSleepIdleMs)) {
+                    // Log debug info before entering sleep
+                    bool usbNow = isUsbPowered();
+                    saveChargingDebug("ENTER_SLEEP", usbNow, batteryState.isChargingMode, activelyCharging);
+                    
                     deepSleepTriggered = true;
                     enterLightSleep(touch, keyboardControl, ledController, bluetoothControllerPtr, touchSettings, lastActivityMillis, PINK_LED_PWM_PIN, BLUE_LED_PWM_PIN, PINK_PWM_MAX, PWM_MAX, PINK_RAMP_UP_MS, PINK_RAMP_DOWN_MS, BLUE_RAMP_UP_MS, BLUE_RAMP_DOWN_MS);
                 }
             }
+        }
+        
+        // Periodic debug logging (every 60s) to track charging state
+        static unsigned long lastDebugLog = 0;
+        if (batteryState.isChargingMode && (millis() - lastDebugLog > 60000)) {
+            bool usbNow = isUsbPowered();
+            saveChargingDebug("CHARGE_60S", usbNow, batteryState.isChargingMode, activelyCharging);
+            lastDebugLog = millis();
         }
 
         vTaskDelay(10 / portTICK_PERIOD_MS);

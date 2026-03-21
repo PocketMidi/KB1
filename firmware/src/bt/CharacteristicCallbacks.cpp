@@ -164,3 +164,64 @@ void StrumIntervalsCallback::onWrite(BLECharacteristic *pCharacteristic) {
     SERIAL_PRINT("Strum:CustP");
     SERIAL_PRINTLN(length);
 }
+
+BatteryControlCallback::BatteryControlCallback(BluetoothController* controller, Preferences& preferences)
+    : _controller(controller), _preferences(preferences)
+{
+}
+
+void BatteryControlCallback::onWrite(BLECharacteristic *pCharacteristic) {
+    const std::string rxValue = pCharacteristic->getValue();
+
+    if (_controller) {
+        _controller->updateLastActivity();
+    }
+
+    if (rxValue.length() != 1) {
+        SERIAL_PRINTLN("Invalid battery control command length");
+        return;
+    }
+
+    uint8_t command = static_cast<uint8_t>(rxValue[0]);
+    
+    if (command == 0x01) {  // Reset/recalibrate command
+        // Reset battery state to uncalibrated
+        batteryState.estimatedPercentage = 254;  // Uncalibrated
+        batteryState.isFullyCharged = false;
+        batteryState.isChargingMode = false;  // Exit charging mode
+        batteryState.accumulatedDischargeMs = 0;
+        batteryState.activeTimeMs = 0;
+        batteryState.lightSleepTimeMs = 0;
+        batteryState.deepSleepTimeMs = 0;
+        batteryState.accumulatedChargeMs = 0;  // Clear accumulated charge time
+        batteryState.chargeSessionStartMs = 0;  // Clear session timer
+        batteryState.calibrationTimestamp = 0;  // Never calibrated
+        
+        // Save to NVS (must save all fields for consistency)
+        _preferences.putUInt("batDischMs", 0);
+        _preferences.putBool("batFull", false);
+        _preferences.putUChar("batPct", 254);
+        _preferences.putUInt("batCalTime", 0);
+        _preferences.putULong("batAccChgMs", 0);  // Clear accumulated charge time in NVS
+        batteryState.lastSaveMs = millis();  // Update save timestamp
+        
+        SERIAL_PRINTLN("Battery reset to uncalibrated - ready for recalibration");
+        
+        // If USB is connected, restart charging mode immediately
+        // This allows LEDs to start if user resets battery while USB is plugged in
+        if (batteryState.lastUsbState) {
+            SERIAL_PRINTLN("USB connected - restarting charging mode after reset");
+            batteryState.isChargingMode = true;
+            batteryState.chargeSessionStartMs = millis();
+        }
+        
+        // Notify UI of battery status change
+        if (_controller) {
+            _controller->updateBatteryStatus();
+        }
+    } else {
+        SERIAL_PRINT("Unknown battery control command: ");
+        SERIAL_PRINTLN(command);
+    }
+}
+

@@ -48,6 +48,7 @@ BluetoothController::BluetoothController(
     _pMidiCharacteristic(nullptr),
     _pKeepAliveCharacteristic(nullptr),
     _pFirmwareVersionCharacteristic(nullptr),
+    _pBatteryStatusCharacteristic(nullptr),
     _pPresetSaveCharacteristic(nullptr),
     _pPresetLoadCharacteristic(nullptr),
     _pPresetListCharacteristic(nullptr),
@@ -247,6 +248,32 @@ void BluetoothController::enable() {
         // Set version as string in format "major.minor.patch"
         _pFirmwareVersionCharacteristic->setValue(FIRMWARE_VERSION);
 
+        // Battery Status Characteristic (Read-only with notifications)
+        _pBatteryStatusCharacteristic = _pService->createCharacteristic(
+            BATTERY_STATUS_UUID,
+            BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_NOTIFY
+        );
+        _pBatteryStatusCharacteristic->addDescriptor(new BLE2902());
+        
+        // Initialize with current battery state
+        // Format: [percentage(1), remainingSeconds(4 LE), usbConnected(1), calibrationTimestamp(4 LE)] = 10 bytes
+        uint8_t batteryData[10];
+        batteryData[0] = batteryState.estimatedPercentage;
+        uint32_t remainingSeconds = 0;  // Will be calculated properly on each update
+        memcpy(&batteryData[1], &remainingSeconds, 4);
+        batteryData[5] = batteryState.lastUsbState ? 1 : 0;
+        memcpy(&batteryData[6], &batteryState.calibrationTimestamp, 4);
+        _pBatteryStatusCharacteristic->setValue(batteryData, 10);
+
+        // Battery Control Characteristic (Write - for commands like reset/recalibrate)
+        _pBatteryControlCharacteristic = _pService->createCharacteristic(
+            BATTERY_CONTROL_UUID,
+            BLECharacteristic::PROPERTY_WRITE |
+            BLECharacteristic::PROPERTY_WRITE_NR
+        );
+        _pBatteryControlCharacteristic->setCallbacks(new BatteryControlCallback(this, _preferences));
+
         // Preset Save Characteristic (Write)
         _pPresetSaveCharacteristic = _pService->createCharacteristic(
             PRESET_SAVE_UUID,
@@ -375,5 +402,33 @@ void BluetoothController::notifyChordSettings() {
         _pChordSettingsCharacteristic->setValue((uint8_t*)&_chordSettings, sizeof(ChordSettings));
         _pChordSettingsCharacteristic->notify();
         // SERIAL_PRINTLN("Notified chord settings to BLE client");
+    }
+}
+
+void BluetoothController::updateBatteryStatus() {
+    if (_isEnabled && _pBatteryStatusCharacteristic) {
+        // Calculate remaining runtime in seconds
+        uint32_t remainingSeconds = 0;
+        
+        if (batteryState.estimatedPercentage < 255) {  // Not charging
+            // Estimate remaining runtime based on current percentage and active drain
+            float remainingMah = (batteryState.estimatedPercentage / 100.0f) * BATTERY_CAPACITY_MAH;
+            float remainingHours = remainingMah / BATTERY_ACTIVE_DRAIN_MA;  // Conservative estimate using active drain
+            remainingSeconds = (uint32_t)(remainingHours * 3600.0f);
+        }
+        
+        // Format: [percentage(1), remainingSeconds(4 LE), usbConnected(1), calibrationTimestamp(4 LE)] = 10 bytes
+        uint8_t batteryData[10];
+        batteryData[0] = batteryState.estimatedPercentage;  // 0-100, 254 (uncalibrated), or 255 (charging)
+        memcpy(&batteryData[1], &remainingSeconds, 4);       // Remaining seconds (little-endian)
+        batteryData[5] = batteryState.lastUsbState ? 1 : 0;  // USB connection status
+        memcpy(&batteryData[6], &batteryState.calibrationTimestamp, 4);  // Calibration timestamp (little-endian)
+        
+        _pBatteryStatusCharacteristic->setValue(batteryData, 10);
+        
+        // Notify if device is connected
+        if (_deviceConnected) {
+            _pBatteryStatusCharacteristic->notify();
+        }
     }
 }

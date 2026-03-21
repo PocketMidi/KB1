@@ -132,6 +132,33 @@ After flashing firmware, you must enable Bluetooth to connect with the configura
 
 Without enabling Bluetooth, the web configuration app will not detect your device.
 
+### ⚠️ Battery Calibration Required
+
+**IMPORTANT:** After flashing new firmware, the battery meter will show "uncalibrated" (gray `?` icon) until you complete a **full charge cycle**.
+
+**Why?** The firmware cannot measure battery voltage directly—it estimates battery life by tracking usage time. A fresh firmware install doesn't know if your battery is at 100%, 50%, or 20%.
+
+**How to Calibrate:**
+1. Connect USB cable to your KB1 device
+2. Leave charging for **ONE continuous 5.5+ hour session**
+3. **Do NOT unplug during this time!**
+4. Battery meter will automatically mark as "calibrated" and show accurate percentage
+5. From this point forward, the meter tracks discharge accurately
+
+**⚠️ CRITICAL - All-or-Nothing Calibration:**
+- The 5.5 hour charge **MUST be continuous** in ONE session
+- If you unplug before 5.5 hours, the timer **resets to ZERO**
+- Partial charges **do NOT accumulate** (3hrs + 2.5hrs ≠ calibrated)
+- This is **intentional** to ensure genuine full charge and accurate baseline
+- **Only needs to happen ONCE** - future USB connections just pause discharge tracking
+
+**Until Calibrated:** The battery meter will display a gray `?` icon and "Needs Calibration" message. Ignore battery percentage estimates until you've completed a full charge cycle.
+
+**After Calibration:** The battery meter provides accurate estimates based on measured power consumption:
+- Active mode: 95mA drain
+- Light sleep: 2mA drain  
+- Deep sleep: 0.014mA drain
+
 ### Configuration
 
 Edit `platformio.ini` to customize build settings, upload port, or target board.

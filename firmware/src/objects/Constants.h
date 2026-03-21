@@ -2,9 +2,9 @@
 #define CONSTANTS_H
 
 // Firmware version
-#define FIRMWARE_VERSION "1.3.0"
+#define FIRMWARE_VERSION "1.4.0"
 #define FIRMWARE_VERSION_MAJOR 1
-#define FIRMWARE_VERSION_MINOR 3
+#define FIRMWARE_VERSION_MINOR 4
 #define FIRMWARE_VERSION_PATCH 0
 
 // Uncomment following line to enable Serial Printing
@@ -44,5 +44,19 @@
 
 // Keep-alive timing constants (in milliseconds)
 #define KEEPALIVE_GRACE_PERIOD_MS 600000  // 10 minutes
+
+// Battery Status UUID (read-only)
+#define BATTERY_STATUS_UUID      "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
+// Battery Control UUID (write - for commands like reset/recalibrate)
+#define BATTERY_CONTROL_UUID     "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6e"
+
+// Battery monitoring constants
+#define BATTERY_CAPACITY_MAH 420          // Battery capacity in mAh
+#define BATTERY_CHARGE_CURRENT_MA 100     // Charging current in mA
+#define BATTERY_FULL_CHARGE_MS 19800000   // 5.5 hours (19800000ms)
+
+#define BATTERY_ACTIVE_DRAIN_MA 95        // Active mode current draw
+#define BATTERY_LIGHT_SLEEP_DRAIN_MA 2    // Light sleep current draw
+#define BATTERY_DEEP_SLEEP_DRAIN_MA 0.014 // Deep sleep current draw (14µA)
 
 #endif
