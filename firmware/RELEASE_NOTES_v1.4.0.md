@@ -177,19 +177,16 @@ Mode end:       Charging mode ended - LEDs off, sleep enabled
 ## ⚠️ Known Limitations
 
 ### Charging Requirements
-- Must use computer USB or power bank (5V 100-500mA)
-- Device must be powered ON before plugging USB
-- Total 5.5 hours charging required for initial calibration
-- Charging LEDs require valid power-on sequence (not bypass mode)
-
-### Speaker Compensation
+ Must use a computer USB port or a charger that provides valid USB data signaling (not just 5V power)
+ Device must be powered ON before plugging USB
+ Total 5.5 hours charging required for initial calibration
+ Charging LEDs require valid power-on sequence (not bypass mode)
+ **Host-agnostic charging** - works with Mac, PC, Android, iOS, or any USB port that provides valid USB data signaling (not just power)
+ **Cross-device compatible** - start charging on Mac, continue on PC, finish on any computer USB port
 - Speaker usage is analog and cannot be auto-detected
 - User must manually report speaker minutes in web app
+ 5. Next day, plug into another computer USB port → completes remaining 1.5 hours
 - Compensation range: 0-120 minutes maximum
-- Resets to 0 when battery calibration is cleared
-
-### Battery Monitoring Toggle
-- Defaults to OFF - user must enable in System Settings
 - Toggle only controls UI visibility (icon + modal)
 - Battery tracking always runs in background
 - Web app connection required to view battery status
