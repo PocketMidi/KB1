@@ -5,7 +5,7 @@
 
 ### Battery Monitoring System
 - **Automatic battery tracking** with USB charging calibration
-- **5.5 hour USB charging** required for initial calibration (one-time)
+- **5 hour USB charging** required for initial calibration (one-time)
 - **Real-time battery percentage** and remaining runtime estimates
 - **Multi-session charging** - charge progress persists across power cycles
 - **Host-agnostic charging** - works with Mac, PC, Android, iOS, power banks, or any USB power source
@@ -14,7 +14,7 @@
 
 ### Multi-Session Charging Intelligence
 The charging system is designed for real-world usage:
-- **Charge anywhere, anytime** - progress accumulates toward 5.5hr goal
+- **Charge anywhere, anytime** - progress accumulates toward 5hr goal
 - **Unplug freely** - charging time persists in flash memory
 - **Resume seamlessly** - plug back in hours or days later, continues from where it left off
 - **Cross-device compatible** - start charging on Mac, continue on PC, finish on power bank
@@ -26,7 +26,7 @@ The charging system is designed for real-world usage:
 3. Return home, plug into desktop → continues from 2 hours
 4. Unplug for the night
 5. Next day, plug into power bank → completes remaining 1.5 hours
-6. Total accumulated: 5.5 hours → calibration complete! ✓
+6. Total accumulated: 5 hours → calibration complete! ✓
 
 ### Speaker Compensation (Web App)
 - **Manual usage reporter** - estimate battery drain from speaker amp
@@ -52,9 +52,9 @@ The charging system is designed for real-world usage:
 
 ### Charging Mode
 - **Pink ↔ Blue breathing LEDs** (1200ms pink, 600ms blue cycle)
-- **Sleep prevented** during charging to allow full 5.5hr calibration
-- **30-second progress updates** via serial (e.g., `Chg: 476/19800s`)
-- **Automatic completion** - exits charging mode when 5.5hr reached
+- **Sleep prevented** during charging to allow full 5hr calibration
+- **30-second progress updates** via serial (e.g., `Chg: 476/18000s`)
+- **Automatic completion** - exits charging mode when 5hr reached
 - **Top-up charging supported** - partial charges on calibrated battery update percentage
 
 ### Power Management
@@ -64,7 +64,7 @@ The charging system is designed for real-world usage:
 - **135mA speaker amp** - PAM8406 average during playback
 
 ### Battery States
-- **254 = Uncalibrated** (?) - needs full 5.5hr charge
+- **254 = Uncalibrated** (?) - needs full 5hr charge
 - **0-100 = Calibrated** (%) - shows accurate percentage and runtime
 
 ### Charging Sequence Requirements
@@ -98,7 +98,7 @@ Battery state saved to flash every 30 seconds during charging:
 - **Never clears** except on: calibration complete, partial charge on calibrated battery, or manual reset
 
 ### Charging Progress Calculation
-- **Uncalibrated battery**: Tracks time toward 5.5hr goal, no percentage shown
+- **Uncalibrated battery**: Tracks time toward 5hr goal, no percentage shown
 - **Calibrated battery charging**: Updates percentage based on mAh gained (100mA * time)
 - **Calibrated battery discharging**: Real-time tracking based on active/sleep drain rates
 - **Speaker compensation**: Subtracts user-reported speaker minutes from runtime estimate
@@ -106,7 +106,7 @@ Battery state saved to flash every 30 seconds during charging:
 ### Serial Output Format (Compact)
 ```
 USB plug:       USB connected - charging started (valid sequence)
-Charging:       Chg: 476/19800s
+Charging:       Chg: 476/18000s
 Save:           Saved
 Event marker:   CHARGE_60S | USB:1 | Chg:1 | Slp:1
 Completion:     Battery fully charged! Calibration complete.
@@ -117,8 +117,8 @@ Mode end:       Charging mode ended - LEDs off, sleep enabled
 
 ### Serial Output Optimization
 - Battery messages use compact format consistent with v1.3.0 philosophy
-- **Before**: `Charging: 476s / 19800s (19323s remaining)` + `Battery state saved: Uncalibrated`
-- **After**: `Chg: 476/19800s` + `Saved`
+- **Before**: `Charging: 476s / 18000s (17524s remaining)` + `Battery state saved: Uncalibrated`
+- **After**: `Chg: 476/18000s` + `Saved`
 - **Impact**: ~40ms saved per update (every 30s) = <0.01% overhead
 - **Zero overhead for end users**: Serial output only active when terminal connected
 
@@ -138,7 +138,7 @@ Mode end:       Charging mode ended - LEDs off, sleep enabled
 ### From v1.3.0 or earlier:
 - Flash v1.4.0 firmware
 - Battery starts in uncalibrated state (254)
-- Charge for 5.5 hours total (can be split across multiple sessions)
+- Charge for 5 hours total (can be split across multiple sessions)
 - After calibration, battery percentage and runtime estimates available
 
 ### Recalibration:
@@ -179,7 +179,7 @@ Mode end:       Charging mode ended - LEDs off, sleep enabled
 ### Charging Requirements
  Must use a computer USB port or a charger that provides valid USB data signaling (not just 5V power)
  Device must be powered ON before plugging USB
- Total 5.5 hours charging required for initial calibration
+ Total 5 hours charging required for initial calibration
  Charging LEDs require valid power-on sequence (not bypass mode)
  **Host-agnostic charging** - works with Mac, PC, Android, iOS, or any USB port that provides valid USB data signaling (not just power)
  **Cross-device compatible** - start charging on Mac, continue on PC, finish on any computer USB port

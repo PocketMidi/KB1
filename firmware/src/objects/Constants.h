@@ -2,7 +2,7 @@
 #define CONSTANTS_H
 
 // Firmware version
-#define FIRMWARE_VERSION "1.4.0"
+#define FIRMWARE_VERSION "1.4.1"
 #define FIRMWARE_VERSION_MAJOR 1
 #define FIRMWARE_VERSION_MINOR 4
 #define FIRMWARE_VERSION_PATCH 0
@@ -53,7 +53,7 @@
 // Battery monitoring constants
 #define BATTERY_CAPACITY_MAH 420          // Battery capacity in mAh
 #define BATTERY_CHARGE_CURRENT_MA 100     // Charging current in mA
-#define BATTERY_FULL_CHARGE_MS 19800000   // 5.5 hours (19800000ms)
+#define BATTERY_FULL_CHARGE_MS 18000000   // 5 hours (18000000ms)
 
 #define BATTERY_ACTIVE_DRAIN_MA 95        // Active mode current draw
 #define BATTERY_LIGHT_SLEEP_DRAIN_MA 2    // Light sleep current draw

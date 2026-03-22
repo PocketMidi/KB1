@@ -1235,7 +1235,7 @@ void loop() {
             // Battery status
             Serial.print("Battery: ");
             if (batteryState.estimatedPercentage == 254) {
-                Serial.println("Uncalibrated (needs full 5.5hr charge)");
+                Serial.println("Uncalibrated (needs full 5hr charge)");
                 if (usbConnectedAtBoot) {
                     Serial.println("⚠️  USB at boot = bypass mode (NOT charging)");
                     Serial.println("⚠️  For charging: Power on FIRST, then plug USB");

@@ -146,8 +146,8 @@ Without enabling Bluetooth, the web configuration app will not detect your devic
 5. From this point forward, the meter tracks discharge accurately
 
 **⚠️ CRITICAL - All-or-Nothing Calibration:**
-- The 5.5 hour charge **MUST be continuous** in ONE session
-- If you unplug before 5.5 hours, the timer **resets to ZERO**
+- The 5 hour charge **MUST be continuous** in ONE session
+- If you unplug before 5 hours, the timer **resets to ZERO**
 - Partial charges **do NOT accumulate** (3hrs + 2.5hrs ≠ calibrated)
 - This is **intentional** to ensure genuine full charge and accurate baseline
 - **Only needs to happen ONCE** - future USB connections just pause discharge tracking
