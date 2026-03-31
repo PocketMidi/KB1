@@ -25,9 +25,17 @@ public:
           _arpPatternLength(0),
           _arpCurrentIndex(0),
           _arpLastNoteTime(0),
-          _arpCurrentNote(-1)
+          _arpCurrentNote(-1),
+          _strumActive(false),
+          _activeStrumKey(0),
+          _strumInProgress(false),
+          _strumCount(0),
+          _strumCurrentIndex(0),
+          _strumLastNoteTime(0)
     {
         memset(_isNoteOn, false, sizeof(_isNoteOn));
+        memset(_strumNotes, 0, sizeof(_strumNotes));
+        memset(_strumVelocities, 0, sizeof(_strumVelocities));
         memset(_activeChordNotes, 0, sizeof(_activeChordNotes));
         memset(_activeChordCount, 0, sizeof(_activeChordCount));
 
@@ -54,7 +62,7 @@ public:
     }
 
     static constexpr unsigned long KEY_DEBOUNCE_MS = 10; // ms
-    static constexpr int MAX_CHORD_NOTES = 4;
+    static constexpr int MAX_CHORD_NOTES = 16;  // Support 3x voicing (5 notes × 3 octaves = 15)
 
     void begin() {
         for (auto & key : _keys) {
@@ -102,10 +110,10 @@ public:
             // Chord mode - use chromatic notes (no scale quantization)
             int rootNote = note + (_octaveControl.getOctave() * 12);
             
-            // Get chord intervals
+            // Get chord intervals (expanded based on voicing setting)
             const int8_t* intervals;
             int intervalCount;
-            getChordIntervals(intervals, intervalCount);
+            getExpandedIntervals(intervals, intervalCount);
             
             // Check if this is advanced strum mode (pattern > 0)
             // Advanced mode works independently of chord/strum toggle
@@ -153,37 +161,68 @@ public:
                 _isNoteOn[note] = true;
                 
             } else {
-                // BASIC STRUM or CHORD: Play once (polyphonic)
-                // Store chord notes for this key
-                _activeChordCount[note] = intervalCount;
-            
+                // BASIC STRUM or CHORD: Play once
+                
                 if (_chordSettings.strumEnabled) {
-                    // Strum mode: cascade note-on messages with delay
-                    for (int i = 0; i < intervalCount; i++) {
-                        int chordNote = rootNote + intervals[i];
-                        int velocity = calculateChordVelocity(i, intervalCount);
-                        _activeChordNotes[note][i] = chordNote;
-                        
-                        // Apply strum delay with swing
-                        if (i > 0) {
-                            int delayTime = _chordSettings.strumSpeed;
-                            
-                            // Apply swing to odd-indexed notes (every other note)
-                            if (_chordSettings.strumSwing > 0 && (i % 2) == 1) {
-                                // Swing adds extra delay to odd notes (0-100% swing = 0-50% extra delay)
-                                int swingDelay = (delayTime * _chordSettings.strumSwing) / 200;
-                                delayTime += swingDelay;
-                            }
-                            
-                            delay(delayTime);
-                        }
-                        
-                        _midi.sendNoteOn(chordNote, velocity, channel);
-                        char buf[24];
-                        snprintf(buf, sizeof(buf), "S%d:N%dv%d", i, chordNote, velocity);
-                        SERIAL_PRINTLN(buf);
+                    // BASIC STRUM MODE: Non-blocking monophonic strum
+                    // Stop previous strum if one is in progress (immediate interrupt)
+                    if (_strumInProgress) {
+                        stopStrum();
                     }
+                    
+                    // Mark this strum as active
+                    _strumActive = true;
+                    _activeStrumKey = note;
+                    _activeChordCount[note] = intervalCount;
+                    
+                    // Prepare strum notes (non-blocking - will play over time)
+                    // Determine direction based on speed sign (negative = reverse)
+                    bool reverse = _chordSettings.strumSpeed < 0;
+                    
+                    // Build list of notes and velocities to play
+                    _strumCount = intervalCount;
+                    for (int i = 0; i < intervalCount; i++) {
+                        // Get note index (reverse order if speed is negative)
+                        int noteIndex = reverse ? (intervalCount - 1 - i) : i;
+                        int chordNote = rootNote + intervals[noteIndex];
+                        int velocity = calculateChordVelocity(noteIndex, intervalCount);
+                        
+                        _strumNotes[i] = chordNote;
+                        _strumVelocities[i] = velocity;
+                        _activeChordNotes[note][noteIndex] = chordNote;
+                    }
+                    
+                    // Start strum playback (first note plays immediately)
+                    _strumInProgress = true;
+                    _strumCurrentIndex = 0;
+                    _strumLastNoteTime = millis();
+                    
+                    // Play first note immediately
+                    _midi.sendNoteOn(_strumNotes[0], _strumVelocities[0], channel);
+                    char buf[24];
+                    snprintf(buf, sizeof(buf), "S0:N%dv%d", _strumNotes[0], _strumVelocities[0]);
+                    SERIAL_PRINTLN(buf);
+                    
+                    _strumCurrentIndex = 1;  // Next note to play
                 } else {
+                    // CHORD MODE: Monophonic (like strum mode)
+                    // Stop previous chord if one is active
+                    if (_strumActive && _activeStrumKey != note) {
+                        // Kill all notes from previous chord
+                        for (int i = 0; i < _activeChordCount[_activeStrumKey]; i++) {
+                            _midi.sendNoteOff(_activeChordNotes[_activeStrumKey][i], 0, 1);
+                        }
+                        _activeChordCount[_activeStrumKey] = 0;
+                        _isNoteOn[_activeStrumKey] = false;
+                    }
+                    
+                    // Mark this chord as active (reuse strum tracking for both modes)
+                    _strumActive = true;
+                    _activeStrumKey = note;
+                    
+                    // Store chord notes for this key
+                    _activeChordCount[note] = intervalCount;
+                    
                     // Chord mode: send all notes immediately
                     for (int i = 0; i < intervalCount; i++) {
                         int chordNote = rootNote + intervals[i];
@@ -256,6 +295,12 @@ public:
                 SERIAL_PRINTLN(buf);
             } else {
                 // Chord mode - use chromatic notes (no scale quantization)
+                
+                // If this is the active strum key and strum is in progress, stop cascade
+                if (_strumActive && _activeStrumKey == note && _strumInProgress) {
+                    stopStrum();
+                }
+                
                 // Stop all chord notes
                 for (int i = 0; i < _activeChordCount[note]; i++) {
                     int chordNote = _activeChordNotes[note][i];
@@ -265,6 +310,11 @@ public:
                     SERIAL_PRINTLN(buf);
                 }
                 _activeChordCount[note] = 0;
+                
+                // Clear strum active flag if this was the active strum key
+                if (_strumActive && _activeStrumKey == note) {
+                    _strumActive = false;
+                }
             }
             
             _isNoteOn[note] = false;
@@ -336,6 +386,9 @@ public:
         // Update arpeggiator (for advanced strum looping)
         updateArpeggiator();
         
+        // Update basic strum (non-blocking cascade)
+        updateStrum();
+        
         // Debounced key scanning
         for (int i = 0; i < MAX_KEYS; ++i) {
             auto & key = _keys[i];
@@ -369,6 +422,59 @@ public:
         return false;
     }
 
+    // Stop current strum in progress (for immediate interrupt)
+    void stopStrum() {
+        if (!_strumInProgress) {
+            return;
+        }
+        
+        // No note-offs needed - we let notes ring until key release
+        // Just stop the cascade
+        _strumInProgress = false;
+        _strumCurrentIndex = 0;
+        _strumCount = 0;
+    }
+    
+    // Update basic strum state (non-blocking cascade playback)
+    void updateStrum() {
+        if (!_strumInProgress || _strumCurrentIndex >= _strumCount) {
+            if (_strumInProgress) {
+                _strumInProgress = false;  // Strum complete
+            }
+            return;
+        }
+        
+        unsigned long now = millis();
+        
+        // Calculate delay for this note
+        int baseDelay = abs(_chordSettings.strumSpeed);
+        int noteDelay = baseDelay;
+        
+        // Apply swing to odd-indexed notes (every other note)
+        if (_chordSettings.strumSwing > 0 && (_strumCurrentIndex % 2) == 1) {
+            int swingDelay = (baseDelay * _chordSettings.strumSwing) / 200;
+            noteDelay += swingDelay;
+        }
+        
+        // Check if enough time has passed to play next note
+        if (now - _strumLastNoteTime >= (unsigned long)noteDelay) {
+            // Play current note
+            _midi.sendNoteOn(_strumNotes[_strumCurrentIndex], _strumVelocities[_strumCurrentIndex], 1);
+            char buf[24];
+            snprintf(buf, sizeof(buf), "S%d:N%dv%d", _strumCurrentIndex, _strumNotes[_strumCurrentIndex], _strumVelocities[_strumCurrentIndex]);
+            SERIAL_PRINTLN(buf);
+            
+            // Move to next note
+            _strumCurrentIndex++;
+            _strumLastNoteTime = now;
+            
+            // Check if strum is complete
+            if (_strumCurrentIndex >= _strumCount) {
+                _strumInProgress = false;
+            }
+        }
+    }
+    
     // Update arpeggiator state (called from updateKeyboardState)
     void updateArpeggiator() {
         if (!_arpActive || !_arpPattern || _arpPatternLength == 0) {
@@ -377,8 +483,8 @@ public:
 
         unsigned long now = millis();
         
-        // Calculate note duration based on strum speed and swing
-        int baseDelay = _chordSettings.strumSpeed;
+        // Calculate note duration based on strum speed and swing (use absolute value for timing)
+        int baseDelay = abs(_chordSettings.strumSpeed);
         int noteDelay = baseDelay;
         
         // Apply swing to odd-indexed notes
@@ -541,6 +647,41 @@ private:
         }
     }
 
+    // Expand chord intervals across octaves based on voicing setting
+    void getExpandedIntervals(const int8_t*& intervals, int& count) const {
+        // Get base chord intervals
+        const int8_t* baseIntervals;
+        int baseCount;
+        getChordIntervals(baseIntervals, baseCount);
+        
+        // Get voicing multiplier (1-3)
+        int voicing = constrain(_chordSettings.voicing, 1, 3);
+        
+        if (voicing == 1) {
+            // No expansion needed
+            intervals = baseIntervals;
+            count = baseCount;
+            return;
+        }
+        
+        // Expand intervals across octaves
+        static int8_t expandedIntervals[MAX_CHORD_NOTES];
+        int expandedCount = 0;
+        
+        // Build root-forward voicing (repeat chord pattern at +12, +24 semitones)
+        for (int octave = 0; octave < voicing; octave++) {
+            int octaveOffset = octave * 12;
+            for (int i = 0; i < baseCount; i++) {
+                if (expandedCount < MAX_CHORD_NOTES) {
+                    expandedIntervals[expandedCount++] = baseIntervals[i] + octaveOffset;
+                }
+            }
+        }
+        
+        intervals = expandedIntervals;
+        count = expandedCount;
+    }
+
     // Calculate velocity for chord note based on velocity spread setting (exponential)
     int calculateChordVelocity(int noteIndex, int totalNotes) const {
         if (_chordSettings.velocitySpread == 0 || noteIndex == 0) {
@@ -590,6 +731,18 @@ private:
     int _arpCurrentIndex;               // Current position in pattern
     unsigned long _arpLastNoteTime;     // Timestamp of last note
     int _arpCurrentNote;                // Currently playing MIDI note (-1 if none)
+    
+    // Basic strum state (for monophonic strum behavior)
+    bool _strumActive;                  // Is a basic strum/chord currently held
+    byte _activeStrumKey;               // Which key is currently active
+    
+    // Basic strum cascade state (non-blocking playback)
+    bool _strumInProgress;              // Is strum cascade currently playing
+    int _strumNotes[MAX_CHORD_NOTES];   // MIDI notes to play in strum
+    int _strumVelocities[MAX_CHORD_NOTES]; // Velocities for each note
+    int _strumCount;                    // Number of notes in strum
+    int _strumCurrentIndex;             // Current position in cascade
+    unsigned long _strumLastNoteTime;   // Timestamp of last note played
 };
 
 #endif

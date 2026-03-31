@@ -2,7 +2,7 @@
 
 The KB1 firmware is a feature-rich, production-ready embedded system for the PocketMidi KB1 MIDI controller. This release delivers a comprehensive suite of musical capabilities including dual-mode keyboard operation (Scale/Chord modes with chord/strum options), flexible lever controls with advanced interpolation, customizable touch sensing, intelligent power management, and 12-channel performance sliders—all controllable wirelessly via Bluetooth Low Energy.
 
-**Latest Release:** v1.2.5 — [Release Notes](RELEASE_NOTES_v1.2.5.md) | [v1.2.0](RELEASE_NOTES_v1.2.0.md) | [v1.1.4](RELEASE_NOTES_v1.1.4.md) | [v1.1.3](RELEASE_NOTES_v1.1.3.md) | [v1.1.2](RELEASE_NOTES_v1.1.2.md) | [v1.1.1](RELEASE_NOTES_v1.1.1.md)
+**Latest Release:** v1.5.0 — [Release Notes](RELEASE_NOTES_v1.5.0.md) | [v1.4.1](RELEASE_NOTES_v1.4.1.md) | [v1.4.0](RELEASE_NOTES_v1.4.0.md) | [v1.3.0](RELEASE_NOTES_v1.3.0.md) | [v1.2.6](RELEASE_NOTES_v1.2.6.md) | [v1.2.5](RELEASE_NOTES_v1.2.5.md)
 
 ## Features
 

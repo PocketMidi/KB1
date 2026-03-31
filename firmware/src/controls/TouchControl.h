@@ -101,9 +101,9 @@ public:
                                 _chordSettings.strumSwing = constrain(swing, 0, 100);
                                 SERIAL_PRINT("SW"); SERIAL_PRINTLN(_chordSettings.strumSwing);
                             } else if (_settings.ccNumber == 203) {
-                                // 203 = KB1 Expression: Velocity Spread (8-100%)
-                                int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 8, 100);
-                                _chordSettings.velocitySpread = constrain(velocitySpread, 8, 100);
+                                // 203 = KB1 Expression: Velocity Spread (10-100%)
+                                int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 10, 100);
+                                _chordSettings.velocitySpread = constrain(velocitySpread, 10, 100);
                                 SERIAL_PRINT("VS"); SERIAL_PRINTLN(_chordSettings.velocitySpread);
                             } else {
                                 _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
@@ -191,8 +191,8 @@ public:
                                     SERIAL_PRINT("SW"); SERIAL_PRINTLN(_chordSettings.strumSwing);
                                 } else if (_settings.ccNumber == 203) {
                                     // 203 = KB1 Expression: Velocity Spread (8-100%)
-                                    int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 8, 100);
-                                    _chordSettings.velocitySpread = constrain(velocitySpread, 8, 100);
+                                    int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 10, 100);
+                                    _chordSettings.velocitySpread = constrain(velocitySpread, 10, 100);
                                     SERIAL_PRINT("VS"); SERIAL_PRINTLN(_chordSettings.velocitySpread);
                                 } else {
                                     _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
@@ -227,9 +227,9 @@ public:
                                 _chordSettings.strumSwing = constrain(swing, 0, 100);
                                 SERIAL_PRINT("SW"); SERIAL_PRINTLN(_chordSettings.strumSwing);
                             } else if (_settings.ccNumber == 203) {
-                                // 203 = KB1 Expression: Velocity Spread (8-100%)
-                                int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 8, 100);
-                                _chordSettings.velocitySpread = constrain(velocitySpread, 8, 100);
+                                // 203 = KB1 Expression: Velocity Spread (10-100%)
+                                int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 10, 100);
+                                _chordSettings.velocitySpread = constrain(velocitySpread, 10, 100);
                                 SERIAL_PRINT("VS"); SERIAL_PRINTLN(_chordSettings.velocitySpread);
                             } else {
                                 // Throttled serial output for continuous mode (print every 500ms max)

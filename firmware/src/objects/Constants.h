@@ -2,9 +2,9 @@
 #define CONSTANTS_H
 
 // Firmware version
-#define FIRMWARE_VERSION "1.4.1"
+#define FIRMWARE_VERSION "1.5.0"
 #define FIRMWARE_VERSION_MAJOR 1
-#define FIRMWARE_VERSION_MINOR 4
+#define FIRMWARE_VERSION_MINOR 5
 #define FIRMWARE_VERSION_PATCH 0
 
 // Uncomment following line to enable Serial Printing

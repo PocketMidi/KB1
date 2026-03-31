@@ -401,8 +401,8 @@ void LeverControls<MidiTransport>::updateValue() {
         } else if (_settings.ccNumber == 203) {
             // 203 = KB1 Expression: Velocity Spread (8-100%)
             // Map CC value (0-127) to velocity spread range (8-100)
-            int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 8, 100);
-            _chordSettings.velocitySpread = constrain(velocitySpread, 8, 100);
+            int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 10, 100);
+            _chordSettings.velocitySpread = constrain(velocitySpread, 10, 100);
             SERIAL_PRINT("VS"); SERIAL_PRINTLN(_chordSettings.velocitySpread);
         } else {
             // Throttle CC output (max once per 300ms to reduce interpolation spam)

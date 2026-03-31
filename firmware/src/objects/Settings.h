@@ -51,10 +51,11 @@ struct ChordSettings {
     PlayMode playMode;          // SCALE or CHORD
     ChordType chordType;        // MAJOR, MINOR, etc.
     bool strumEnabled;          // false = chord (all notes together), true = strum (cascaded)
-    int velocitySpread;         // 0-100 (percentage) - velocity variation for chord notes
+    int velocitySpread;         // 10-100 (percentage) - velocity variation for chord notes
     int strumSpeed;             // 4-360 (milliseconds) - delay between notes in strum mode
     int strumPattern;           // 0-7 - pattern index (0 = use chord type, 1-7 = interval patterns)
     int strumSwing;             // 0-100 (percentage) - swing amount for strum timing
+    int voicing;                // 1-3 (octave range: 1x, 2x, 3x)
 };
 
 // Struct for System/Power settings

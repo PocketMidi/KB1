@@ -21,6 +21,7 @@
 #include <BLEDevice.h>
 #include <esp_bt_main.h>
 #include <esp_sleep.h>
+#include <esp_system.h>
 #include <driver/gpio.h>
 #include <soc/usb_serial_jtag_reg.h>
 #include <soc/usb_serial_jtag_struct.h>
@@ -174,10 +175,11 @@ ChordSettings chordSettings = {
     .playMode = PlayMode::SCALE,
     .chordType = ChordType::MAJOR,
     .strumEnabled = false,
-    .velocitySpread = 8,
-    .strumSpeed = 30,   // 30ms default (range: 4-360ms)
+    .velocitySpread = 10,
+    .strumSpeed = 80,   // 80ms default (moderate-fast, range: ±5ms=fast at edges, ±360ms=slow at center)
     .strumPattern = 0,  // Default to chord type
-    .strumSwing = 0     // No swing by default
+    .strumSwing = 0,    // No swing by default
+    .voicing = 1        // 1x octave range by default
 };
 
 //----------------------------------
@@ -304,13 +306,13 @@ TouchSettings touchSettings = {
     .minCCValue = 64,
     .maxCCValue = 127,
     .functionMode = TouchFunctionMode::CONTINUOUS,
-    .threshold = 24000,
+    .threshold = 36800,  // 20% (range: 30000-64000 maps to 0-100%)
     .offsetTime = 0,  // FWD mode (forward cycling for Pattern Selector)
 };
 TouchControl<decltype(MIDI)> touch(
     T1,
     touchSettings,
-    24000,
+    30000,
     64000,
     MIDI,
     chordSettings,
@@ -437,6 +439,8 @@ void loadBatteryState() {
     batteryState.estimatedPercentage = preferences.getUChar("batPct", 254);  // Default: uncalibrated
     batteryState.calibrationTimestamp = preferences.getUInt("batCalTime", 0);  // 0 = never
     batteryState.accumulatedChargeMs = preferences.getULong("batAccChgMs", 0);  // Resume accumulated charge time
+    batteryState.lastUsbState = preferences.getBool("lastUsbState", false);  // Track USB state across reboots
+    usbConnectedAtBoot = preferences.getBool("usbAtBoot", false);  // Preserve bypass mode flag across sleep/wake
     
     if (batteryState.estimatedPercentage == 254) {
         SERIAL_PRINTLN("Battery uncalibrated - charge fully to establish baseline");
@@ -462,6 +466,8 @@ void saveBatteryState() {
     preferences.putUChar("batPct", batteryState.estimatedPercentage);
     preferences.putUInt("batCalTime", batteryState.calibrationTimestamp);
     preferences.putULong("batAccChgMs", batteryState.accumulatedChargeMs);  // Persist accumulated charge time
+    preferences.putBool("lastUsbState", batteryState.lastUsbState);  // Track USB state across reboots
+    preferences.putBool("usbAtBoot", usbConnectedAtBoot);  // Preserve bypass mode flag across sleep/wake
     batteryState.lastSaveMs = millis();
     
     SERIAL_PRINTLN("Saved");
@@ -977,10 +983,19 @@ void setup() {
     #endif
 
     loadSettings();
-    loadBatteryState();
+    loadBatteryState();  // Restores lastUsbState and usbConnectedAtBoot from NVS
     
-    // Initialize USB state (will be properly checked on first updateBatteryMonitoring call)
-    batteryState.lastUsbState = false;
+    // Only restore usbConnectedAtBoot if waking from deep sleep
+    // On fresh power-on, detect USB fresh to enable proper charging detection
+    esp_reset_reason_t resetReason = esp_reset_reason();
+    if (resetReason != ESP_RST_DEEPSLEEP) {
+        // Fresh boot (not wake from sleep) - clear flag and detect USB fresh
+        usbConnectedAtBoot = false;
+        batteryState.lastUsbState = false;
+        SERIAL_PRINTLN("Fresh boot - USB state will be detected");
+    } else {
+        SERIAL_PRINTLN("Wake from sleep - USB state restored from NVS");
+    }
 
     // Set I2C speed BEFORE initializing I2C devices
     Wire.setClock(400000);  // 400kHz fast mode
@@ -1105,6 +1120,9 @@ void setup() {
             batteryState.estimatedPercentage = 254;
             batteryState.lastUsbState = true;
             firstBatteryUpdate = false;  // Don't check again in updateBatteryMonitoring
+            
+            // Save to NVS immediately so sleep/wake preserves bypass mode
+            saveBatteryState();
             break;
         }
         delay(50);  // Wait 50ms between checks
