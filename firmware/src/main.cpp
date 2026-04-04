@@ -442,6 +442,11 @@ void loadBatteryState() {
     batteryState.lastUsbState = preferences.getBool("lastUsbState", false);  // Track USB state across reboots
     usbConnectedAtBoot = preferences.getBool("usbAtBoot", false);  // Preserve bypass mode flag across sleep/wake
     
+    // Load power state tracking (added in v1.5.0-patch to fix calibration persistence)
+    batteryState.activeTimeMs = preferences.getUInt("batActiveMs", 0);
+    batteryState.lightSleepTimeMs = preferences.getUInt("batLightMs", 0);
+    batteryState.deepSleepTimeMs = preferences.getUInt("batDeepMs", 0);
+    
     if (batteryState.estimatedPercentage == 254) {
         SERIAL_PRINTLN("Battery uncalibrated - charge fully to establish baseline");
     } else {
@@ -468,6 +473,12 @@ void saveBatteryState() {
     preferences.putULong("batAccChgMs", batteryState.accumulatedChargeMs);  // Persist accumulated charge time
     preferences.putBool("lastUsbState", batteryState.lastUsbState);  // Track USB state across reboots
     preferences.putBool("usbAtBoot", usbConnectedAtBoot);  // Preserve bypass mode flag across sleep/wake
+    
+    // Save power state tracking (added in v1.5.0-patch to fix calibration persistence)
+    preferences.putUInt("batActiveMs", batteryState.activeTimeMs);
+    preferences.putUInt("batLightMs", batteryState.lightSleepTimeMs);
+    preferences.putUInt("batDeepMs", batteryState.deepSleepTimeMs);
+    
     batteryState.lastSaveMs = millis();
     
     SERIAL_PRINTLN("Saved");
@@ -1117,7 +1128,7 @@ void setup() {
             usbConnectedAtBoot = true;
             SERIAL_PRINTLN("USB detected at boot - bypass mode (NOT charging)");
             SERIAL_PRINTLN("For charging: Power on device first, THEN plug USB");
-            batteryState.estimatedPercentage = 254;
+            // DO NOT reset estimatedPercentage - preserve calibration in bypass mode
             batteryState.lastUsbState = true;
             firstBatteryUpdate = false;  // Don't check again in updateBatteryMonitoring
             
