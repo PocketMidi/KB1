@@ -1,5 +1,6 @@
 # KB1 Firmware v1.1.1 Release Notes
-
+# HOTFIX UNDERWAY !
+## DO NOT select 'ERASE ENTIRE FLASH' for this version if you want to keep your battery level data from being lost. - v1.6 will address this
 ## Overview
 
 This is the first production-ready release of KB1 firmware, delivering a complete embedded MIDI controller system for the ESP32-S3 hardware platform. The firmware implements dual-mode keyboard operation, comprehensive analog control processing, wireless BLE MIDI communication, and full device configuration via Bluetooth Low Energy.
