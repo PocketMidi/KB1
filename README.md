@@ -34,45 +34,23 @@ The KB1 system consists of three integrated components working together to provi
 
 ### 1. Flash Firmware to Your Device
 
-**Download the firmware:** Get the latest firmware from [Releases](https://github.com/PocketMidi/KB1/releases) (e.g., `KB1-firmware-v1.2.0.bin`)
-
-**Flash using ESPConnect (Recommended - No Tools Required):**
+**Flash using the KB1 Web Flash Tool (Recommended — No Tools Required):**
 
 1. **Connect KB1** to your computer via USB-C
-2. **Open ESPConnect** in Chrome/Edge: [https://thelastoutpostworkshop.github.io/ESPConnect/](https://thelastoutpostworkshop.github.io/ESPConnect/)
+2. **Open the flash tool** in Chrome or Edge: [https://pocketmidi.github.io/KB1-flash/](https://pocketmidi.github.io/KB1-flash/)
 3. **Click CONNECT** and select your KB1 device from the serial port dialog
 
-4. **Backup Your Flash (Important!):**
-   - Click **Flash Tools** in the left sidebar
-   - Click **DOWNLOAD FLASH BACKUP**
-   - Save the backup file somewhere safe
-   
-   ![Flash Tools and Backup](assets/installation/espconnect-step-1.png)
-   ![Download Flash Backup](assets/installation/espconnect-step-2.png)
+   ![KB1 Flash Tool — Connected](assets/installation/connected.png)
 
-5. **Load Firmware File:**
-   - Click the firmware file upload field
-   - Select the `KB1-firmware-v1.2.0.bin` file you downloaded
-   - Flash offset should remain at `0x0`
-   
-   ![Load Firmware](assets/installation/espconnect-step-3.png)
+4. **Select a firmware version** from the Latest Releases list (the newest is pre-selected) and click **Flash Selected Version**
+   - The tool automatically backs up your NVS settings before flashing and restores them after
+   - You can also drag and drop a custom `.bin` file if needed
 
-6. **Flash the Firmware:**
-   - Check the box for **"Erase entire flash before writing"**
-   - Click the **FLASH FIRMWARE** button
-   - Wait for the flashing process to complete (~30-60 seconds)
-   
-   ![Flash Firmware](assets/installation/espconnect-step-4.png)
-   ![Flash in Progress](assets/installation/espconnect-step-5.png)
+   ![KB1 Flash Tool — Flashing in progress](assets/installation/progress.png)
 
-7. **Verify (Optional):**
-   - Click **Serial Monitor** in the left sidebar
-   - Click **START** to view real-time output
-   - Press keys on your KB1 to see MIDI note events
-   
-   ![Serial Monitor](assets/installation/espconnect-step-6.png)
+5. **Wait for completion** — all four steps (Connect → Backup NVS → Flash → Restore NVS) will turn green
 
-**Video Tutorial:** [ESPConnect guide](https://youtu.be/-nhDKzBxHiI)
+   ![KB1 Flash Tool — Update complete](assets/installation/complete.png)
 
 ### 2. Enable Bluetooth on Your KB1
 
