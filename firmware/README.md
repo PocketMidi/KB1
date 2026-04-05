@@ -2,7 +2,7 @@
 
 The KB1 firmware is a feature-rich, production-ready embedded system for the PocketMidi KB1 MIDI controller. This release delivers a comprehensive suite of musical capabilities including dual-mode keyboard operation (Scale/Chord modes with chord/strum options), flexible lever controls with advanced interpolation, customizable touch sensing, intelligent power management, and 12-channel performance sliders—all controllable wirelessly via Bluetooth Low Energy.
 
-**Latest Release:** v1.5.0 — [Release Notes](RELEASE_NOTES_v1.5.0.md) | [v1.4.1](RELEASE_NOTES_v1.4.1.md) | [v1.4.0](RELEASE_NOTES_v1.4.0.md) | [v1.3.0](RELEASE_NOTES_v1.3.0.md) | [v1.2.6](RELEASE_NOTES_v1.2.6.md) | [v1.2.5](RELEASE_NOTES_v1.2.5.md)
+**Latest Release:** v1.6.0 — [Release Notes](RELEASE_NOTES_v1.6.0.md) | [v1.5.0](RELEASE_NOTES_v1.5.0.md) | [v1.4.1](RELEASE_NOTES_v1.4.1.md) | [v1.4.0](RELEASE_NOTES_v1.4.0.md) | [v1.3.0](RELEASE_NOTES_v1.3.0.md) | [v1.2.6](RELEASE_NOTES_v1.2.6.md)
 
 ## Features
 
@@ -163,9 +163,32 @@ Without enabling Bluetooth, the web configuration app will not detect your devic
 
 Edit `platformio.ini` to customize build settings, upload port, or target board.
 
+## Flashing Firmware
+
+The easiest way to flash KB1 firmware is the **[KB1 Web Flash Tool](https://pocketmidi.github.io/KB1-flash/)** — no software installation required.
+
+### Web Flash Tool (Recommended)
+
+1. Connect your KB1 to your computer via USB-C
+2. Open **[pocketmidi.github.io/KB1-flash](https://pocketmidi.github.io/KB1-flash/)** in Chrome (Web Serial required)
+3. Select your firmware version from the list
+4. Click **Flash Firmware** and follow the on-screen prompts
+5. The tool will back up your NVS settings before flashing and restore them automatically
+
+> **Note:** Web Serial API requires Chrome or Edge on desktop. Not supported in Safari or Firefox.
+
+### Command Line (Advanced)
+
+```bash
+esptool.py --chip esp32s3 --port /dev/cu.usbmodem* write_flash \
+  0x0 KB1-firmware-v1.6.0.bin
+```
+
+See [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md) for building from source.
+
 ## Companion Web App
 
-The firmware is designed to work seamlessly with the [KB1-config](../KB1-config) web application, which provides wireless configuration of all parameters via Web Bluetooth API. The companion app offers an intuitive interface for:
+The firmware is designed to work seamlessly with the **[KB1 Configurator](https://pocketmidi.com)** web application, which provides wireless configuration of all parameters via Bluetooth Low Energy. The companion app offers an intuitive interface for:
 
 - Keyboard mode selection and chord/scale configuration
 - Lever and control parameter tuning
