@@ -1,0 +1,34 @@
+name: Notify Flash Tool on Release
+
+# When a new release is published in the KB1 firmware repo, trigger
+# the sync workflow in PocketMidi/KB1-flash so the binary is automatically
+# copied there and the web flash tool is updated.
+#
+# Requires: a repo secret named FLASH_TOOL_PAT
+#   GitHub → KB1 repo → Settings → Secrets → Actions → New repository secret
+#   Name : FLASH_TOOL_PAT
+#   Value: a Personal Access Token with "repo" scope on PocketMidi/KB1-flash
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify-flash-tool:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch firmware-released event to KB1-flash
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.FLASH_TOOL_PAT }}
+          script: |
+            await github.rest.repos.createDispatchEvent({
+              owner: 'PocketMidi',
+              repo: 'KB1-flash',
+              event_type: 'firmware-released',
+              client_payload: {
+                tag:  context.payload.release.tag_name,
+                name: context.payload.release.name
+              }
+            });
+            console.log(`Dispatched firmware-released for ${context.payload.release.tag_name}`);
