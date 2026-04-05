@@ -52,6 +52,11 @@ The KB1 system consists of three integrated components working together to provi
 
    ![KB1 Flash Tool — Update complete](assets/installation/complete.png)
 
+**The flash tool also includes:**
+
+- **Device Info** — view your device's current firmware version, BLE name, battery status, and NVS settings at a glance without opening the full configurator
+- **Serial Monitor** — a built-in serial console for watching live debug output from your KB1, useful for diagnosing MIDI events, battery readings, and connection state in real time
+
 ### 2. Enable Bluetooth on Your KB1
 
 **IMPORTANT**: Before connecting, ensure Bluetooth is enabled on your device.
