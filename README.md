@@ -43,7 +43,7 @@ The KB1 system consists of three integrated components working together to provi
    ![KB1 Flash Tool — Connected](assets/installation/connected.png)
 
 4. **Select a firmware version** from the Latest Releases list (the newest is pre-selected) and click **Flash Selected Version**
-   - The tool automatically backs up your NVS settings before flashing and restores them after
+   - The tool automatically backs up your NVS (Non-Volatile Storage data) settings before flashing and restores them after
    - You can also drag and drop a custom `.bin` file if needed
 
    ![KB1 Flash Tool — Flashing in progress](assets/installation/progress.png)
