@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "KB1-config"
+		},
+		{
+			"path": "kb1-flash"
 		}
 	],
 	"settings": {}
