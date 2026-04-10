@@ -953,7 +953,8 @@ void setup() {
     // Check USB status immediately at boot (for bypass mode detection)
     // Do this BEFORE any delays or other initialization
     delay(50);  // Brief delay for USB hardware to stabilize
-    usbConnectedAtBoot = isUsbPowered();
+    bool usbAtBootEarlyDetection = isUsbPowered();  // Capture BEFORE loadBatteryState() overwrites it
+    usbConnectedAtBoot = usbAtBootEarlyDetection;
     firstBatteryUpdate = false;  // No longer needed since we check at boot
 
     if (!preferences.begin("kb1-settings", false)) {
@@ -1000,10 +1001,10 @@ void setup() {
     // On fresh power-on, detect USB fresh to enable proper charging detection
     esp_reset_reason_t resetReason = esp_reset_reason();
     if (resetReason != ESP_RST_DEEPSLEEP) {
-        // Fresh boot (not wake from sleep) - clear flag and detect USB fresh
-        usbConnectedAtBoot = false;
-        batteryState.lastUsbState = false;
-        SERIAL_PRINTLN("Fresh boot - USB state will be detected");
+        // Fresh boot - restore early hardware detection (loadBatteryState overwrote it with stale NVS)
+        usbConnectedAtBoot = usbAtBootEarlyDetection;
+        batteryState.lastUsbState = usbAtBootEarlyDetection;  // Prevents fake "just plugged" event
+        SERIAL_PRINTLN("Fresh boot - USB state detected at boot");
     } else {
         SERIAL_PRINTLN("Wake from sleep - USB state restored from NVS");
     }
