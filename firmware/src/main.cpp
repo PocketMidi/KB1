@@ -952,7 +952,7 @@ void setup() {
     
     // Check USB status immediately at boot (for bypass mode detection)
     // Do this BEFORE any delays or other initialization
-    delay(50);  // Brief delay for USB hardware to stabilize
+    delay(150);  // Allow USB SOF frames to start (50ms was too short for some hosts)
     bool usbAtBootEarlyDetection = isUsbPowered();  // Capture BEFORE loadBatteryState() overwrites it
     usbConnectedAtBoot = usbAtBootEarlyDetection;
     firstBatteryUpdate = false;  // No longer needed since we check at boot
@@ -1122,17 +1122,26 @@ void setup() {
     lastActivityMillis = millis();
     
     // Initialize battery monitoring and check for boot state
-    // Check USB multiple times with delays to allow CDC initialization
+    // Check USB multiple times with delays to allow CDC initialization and USB host enumeration
+    // Checks BOTH serial CDC (terminal open) AND USB power (frame counter, catches no-terminal case)
     batteryState.lastUpdateMs = millis();
     for (int i = 0; i < 20; i++) {  // 20 checks × 50ms = 1 second total
-        if ((bool)Serial) {
+        bool serialNow = (bool)Serial;
+        bool usbPoweredNow = isUsbPowered();
+
+        if (serialNow || usbPoweredNow) {
             usbConnectedAtBoot = true;
-            SERIAL_PRINTLN("USB detected at boot - bypass mode (NOT charging)");
-            SERIAL_PRINTLN("For charging: Power on device first, THEN plug USB");
-            // DO NOT reset estimatedPercentage - preserve calibration in bypass mode
             batteryState.lastUsbState = true;
             firstBatteryUpdate = false;  // Don't check again in updateBatteryMonitoring
-            
+
+            if (serialNow) {
+                SERIAL_PRINTLN("USB detected at boot (serial) - bypass mode (NOT charging)");
+            } else {
+                SERIAL_PRINTLN("USB detected at boot (no serial) - bypass mode (NOT charging)");
+            }
+            SERIAL_PRINTLN("For charging: Power on device first, THEN plug USB");
+            // DO NOT reset estimatedPercentage - preserve calibration in bypass mode
+
             // Save to NVS immediately so sleep/wake preserves bypass mode
             saveBatteryState();
             break;
