@@ -404,7 +404,10 @@ void BluetoothController::refreshKeepAlive() {
         uint8_t statusPacket[10] = {0};
         statusPacket[0] = batteryState.estimatedPercentage;
         statusPacket[1] = (batteryState.lastUsbState ? 0x01 : 0x00);
-        // bytes 2-5: pattern/octave/scale/root — filled by main loop in future
+        statusPacket[2] = (uint8_t)_chordSettings.strumPattern;
+        statusPacket[3] = 128; // octave offset reserved (128 = center/0)
+        statusPacket[4] = (uint8_t)_scaleSettings.scaleType;
+        statusPacket[5] = (uint8_t)(_scaleSettings.rootNote % 12);
         // bytes 6-9: reserved
         _pKeepAliveCharacteristic->setValue(statusPacket, 10);
         _pKeepAliveCharacteristic->notify();
