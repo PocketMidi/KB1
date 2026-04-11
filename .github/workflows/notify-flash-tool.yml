@@ -10,8 +10,7 @@ name: Notify Flash Tool on Release
 #   Value: a Personal Access Token with "repo" scope on PocketMidi/KB1-flash
 
 on:
-  release:
-    types: [published]
+  workflow_dispatch:  # disabled - firmware releases are now done manually
 
 jobs:
   notify-flash-tool:
