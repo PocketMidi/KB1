@@ -233,7 +233,8 @@ void BluetoothController::enable() {
             KEEPALIVE_UUID,
             BLECharacteristic::PROPERTY_READ |
             BLECharacteristic::PROPERTY_WRITE |
-            BLECharacteristic::PROPERTY_WRITE_NR
+            BLECharacteristic::PROPERTY_WRITE_NR |
+            BLECharacteristic::PROPERTY_NOTIFY
         );
         _pKeepAliveCharacteristic->addDescriptor(new BLE2902());
         _pKeepAliveCharacteristic->setCallbacks(new KeepAliveCallback(this));
@@ -395,6 +396,19 @@ void BluetoothController::refreshKeepAlive() {
     _lastKeepAlivePing = millis();
     _keepAliveActive = true;
     updateLastActivity();
+
+    // Send status notification back to web app (battery + USB state)
+    // Format: [battery(1), flags(1), pattern(1), octave(1), scale(1), root(1), reserved(4)] = 10 bytes
+    // bit0 of flags = USB connected, bit1 = touch calibrated (reserved for future)
+    if (_isEnabled && _pKeepAliveCharacteristic && _deviceConnected) {
+        uint8_t statusPacket[10] = {0};
+        statusPacket[0] = batteryState.estimatedPercentage;
+        statusPacket[1] = (batteryState.lastUsbState ? 0x01 : 0x00);
+        // bytes 2-5: pattern/octave/scale/root — filled by main loop in future
+        // bytes 6-9: reserved
+        _pKeepAliveCharacteristic->setValue(statusPacket, 10);
+        _pKeepAliveCharacteristic->notify();
+    }
 }
 
 void BluetoothController::notifyChordSettings() {

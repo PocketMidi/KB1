@@ -177,7 +177,7 @@ void BatteryControlCallback::onWrite(BLECharacteristic *pCharacteristic) {
         _controller->updateLastActivity();
     }
 
-    if (rxValue.length() != 1) {
+    if (rxValue.length() < 1 || rxValue.length() > 2) {
         SERIAL_PRINTLN("Invalid battery control command length");
         return;
     }
@@ -219,6 +219,48 @@ void BatteryControlCallback::onWrite(BLECharacteristic *pCharacteristic) {
         if (_controller) {
             _controller->updateBatteryStatus();
         }
+    } else if (command == 0x02 && rxValue.length() == 2) {  // Set battery percentage (dev tool)
+        uint8_t percentage = static_cast<uint8_t>(rxValue[1]);
+        if (percentage > 100) {
+            SERIAL_PRINTLN("Bat% out of range");
+            return;
+        }
+
+        // Set time trackers so calculateBatteryPercentage() returns the correct value.
+        // consumedMah = (100 - %) / 100 * capacity
+        // activeMs   = consumedMah / activeDrainRate * 3600000
+        float consumedMah = ((100.0f - (float)percentage) / 100.0f) * BATTERY_CAPACITY_MAH;
+        uint32_t activeMs = (uint32_t)((consumedMah / BATTERY_ACTIVE_DRAIN_MA) * 3600000.0f);
+
+        batteryState.activeTimeMs = activeMs;
+        batteryState.lightSleepTimeMs = 0;
+        batteryState.deepSleepTimeMs = 0;
+        batteryState.accumulatedDischargeMs = activeMs;
+        batteryState.estimatedPercentage = percentage;
+        batteryState.isFullyCharged = (percentage == 100);
+        if (percentage > 0 && batteryState.calibrationTimestamp == 0) {
+            batteryState.calibrationTimestamp = millis() / 1000;
+        }
+
+        // Save all time-tracker fields to NVS
+        _preferences.putUChar("batPct", percentage);
+        _preferences.putUInt("batActiveMs", activeMs);
+        _preferences.putUInt("batLightMs", 0);
+        _preferences.putUInt("batDeepMs", 0);
+        _preferences.putUInt("batDischMs", activeMs);
+        _preferences.putBool("batFull", percentage == 100);
+        if (batteryState.calibrationTimestamp > 0) {
+            _preferences.putUInt("batCalTime", batteryState.calibrationTimestamp);
+        }
+        batteryState.lastSaveMs = millis();
+
+        // Notify UI of battery status change
+        if (_controller) {
+            _controller->updateBatteryStatus();
+        }
+
+        SERIAL_PRINT("Bat% set: ");
+        SERIAL_PRINTLN(percentage);
     } else {
         SERIAL_PRINT("Unknown battery control command: ");
         SERIAL_PRINTLN(command);
