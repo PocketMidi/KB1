@@ -17,9 +17,11 @@ public:
         mcp.pinMode(S4_PIN, INPUT_PULLUP);
     }
 
-    void update() {
-        const bool s3State = !mcp.digitalRead(S3_PIN);
-        const bool s4State = !mcp.digitalRead(S4_PIN);
+    void update(const GPIOCache& gpioCache) {
+        // Extract octave button states from cached GPIO (no I2C overhead)
+        // S3 and S4 are on U2 (pins 4 and 6)
+        const bool s3State = gpioCache.isU2PinLow(S3_PIN);
+        const bool s4State = gpioCache.isU2PinLow(S4_PIN);
 
         // Handle individual octave shifts on release
         if (!s3State && isS3Pressed) {

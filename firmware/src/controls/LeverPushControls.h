@@ -87,17 +87,7 @@ LeverPushControls<MidiTransport>::LeverPushControls(
     _lastSentValue(_settings.minCCValue),
     _previousCCNumber(-1)
     {
-        // If this lever push controls strum speed (CC 200), initialize to current strum speed
-        // Map current speed (4-360ms) to MIDI value (127-0, inverted)
-        if (_settings.ccNumber == 200) {
-            int speedMs = _chordSettings.strumSpeed;
-            int midiValue = map(speedMs, 360, 4, 0, 127);
-            _currentValue = midiValue;
-            _targetValue = midiValue;
-            _rampStartValue = midiValue;
-            _lastSentValue = midiValue;
-            SERIAL_PRINT("LP200="); SERIAL_PRINTLN(midiValue);
-        }
+        // LeverPush is always unipolar - no special init needed for CC 200
     }
 
 template<class MidiTransport>
@@ -123,11 +113,10 @@ void LeverPushControls<MidiTransport>::setOffsetTime(unsigned long time) {
 
 template<class MidiTransport>
 void LeverPushControls<MidiTransport>::setCCNumber(int number) {
-    int oldCC = _settings.ccNumber;
     _settings.ccNumber = number;
     
-    // When CC number changes TO 200 (Strum Speed), sync strumSpeed from lever's current position
-    if (number == 200 && oldCC != 200) {
+    // When CC number changes TO 200 (Strum Speed), sync from current strumSpeed
+    if (number == 200) {
         int strumSpeed = map(_currentValue, _settings.minCCValue, _settings.maxCCValue, 360, 4);
         _chordSettings.strumSpeed = constrain(strumSpeed, 4, 360);
         SERIAL_PRINT("LeverPush assigned to CC 200, syncing strumSpeed to: ");
@@ -162,21 +151,11 @@ void LeverPushControls<MidiTransport>::setOffsetInterpolationType(InterpolationT
 template<class MidiTransport>
 void LeverPushControls<MidiTransport>::syncValue() {
     // Re-initialize value based on current settings (called after BLE updates)
-    // For lever push, sync to current strum speed if CC 200 is assigned
-    if (_settings.ccNumber == 200) {
-        int speedMs = _chordSettings.strumSpeed;
-        int midiValue = map(speedMs, 360, 4, 0, 127);
-        _currentValue = midiValue;
-        _targetValue = midiValue;
-        _rampStartValue = midiValue;
-        _lastSentValue = midiValue;
-    } else {
-        // Default to min value
-        _currentValue = _settings.minCCValue;
-        _targetValue = _settings.minCCValue;
-        _rampStartValue = _settings.minCCValue;
-        _lastSentValue = _settings.minCCValue;
-    }
+    // LeverPush is always unipolar - just reset to min value
+    _currentValue = _settings.minCCValue;
+    _targetValue = _settings.minCCValue;
+    _rampStartValue = _settings.minCCValue;
+    _lastSentValue = _settings.minCCValue;
 }
 
 template<class MidiTransport>
@@ -349,10 +328,17 @@ void LeverPushControls<MidiTransport>::updateValue() {
             SERIAL_PRINT("Velocity set: "); SERIAL_PRINTLN(sendVal);
             _keyboardControl.setVelocity(sendVal);
         } else if (_settings.ccNumber == 200) {
-            // 200 = KB1 Expression: Strum Speed (4-360ms)
-            // Map CC value (0-127) to speed: 0=slow(360ms), 127=fast(4ms) - inverted output
-            int strumSpeed = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 360, 4);
-            _chordSettings.strumSpeed = constrain(strumSpeed, 4, 360);
+            // 200 = KB1 Expression: Strum Speed (bipolar: ±4 to ±360ms)
+            // CC 200 is bipolar: 0-63=reverse(-360 to -4ms), 64=center, 65-127=forward(+4 to +360ms)
+            int strumSpeed;
+            if (sendVal < 64) {
+                // Reverse mode: MIDI 0-63 maps to -360ms to -4ms (slow to fast reverse)
+                strumSpeed = -map(sendVal, 0, 63, 360, 4);
+            } else {
+                // Forward mode: MIDI 65-127 maps to +4ms to +360ms (fast to slow forward)
+                strumSpeed = map(sendVal, 127, 65, 360, 4);
+            }
+            _chordSettings.strumSpeed = constrain(strumSpeed, -360, 360);
             SERIAL_PRINT("KB1 Expression: Strum Speed set to "); SERIAL_PRINTLN(_chordSettings.strumSpeed);
             // Notify BLE clients of the change
             if (notifyChordSettingsCallback) {

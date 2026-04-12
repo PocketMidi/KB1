@@ -7,9 +7,17 @@
 #include <Preferences.h>
 #include <music/ScaleManager.h>
 #include <led/LEDController.h>
+#include <esp_gap_ble_api.h>
 
 class ServerCallbacks;
 class CharacteristicCallbacks;
+
+// BLE power modes for adaptive connection interval management
+enum BLEPowerMode {
+    LIVE_PERFORMANCE,   // Live sliders - max responsiveness (7.5-15ms, latency 0)
+    CONFIGURATION,      // Settings changes - good responsiveness (30-50ms, latency 1)
+    IDLE_CONNECTED      // Music making - max power savings (100-200ms, latency 4)
+};
 
 class BluetoothController {
 public:
@@ -68,6 +76,20 @@ public:
     unsigned long getLastActivity() const { return _lastActivity; }
     void checkIdleAndSleep(unsigned long idleThresholdMs);
 
+    // Adaptive power management (new in v1.7.0)
+    void setActivityMode(BLEPowerMode mode);
+    BLEPowerMode getCurrentPowerMode() const { return _currentPowerMode; }
+    void storeRemoteAddress(const uint8_t* address);
+    void updateBatteryModeTracking();  // Update battery time tracking when mode changes
+
+    // Smart reconnect after sleep (v1.7.0)
+    void setReconnectEligible(bool eligible);
+    bool isReconnectEligible() const { return _reconnectEligible; }
+    void startReconnectMode();
+    bool isReconnectMode() const { return _reconnectMode; }
+    unsigned long getReconnectStartMs() const { return _reconnectStartMs; }
+    void exitReconnectMode();
+
     // Keep-alive management
     void setKeepAliveActive(bool active);
     
@@ -88,6 +110,17 @@ private:
     unsigned long _lastToggleTime;
     unsigned long _lastActivity;
     bool _modemSleeping;
+
+    // Adaptive power management state (v1.7.0)
+    BLEPowerMode _currentPowerMode;
+    unsigned long _lastModeChangeMs;
+    uint8_t _remoteAddress[6];
+    bool _hasRemoteAddress;
+    
+    // Smart reconnect state (v1.7.0)
+    bool _reconnectEligible;   // True if should auto-reconnect on wake
+    bool _reconnectMode;        // True if currently in reconnect window
+    unsigned long _reconnectStartMs;  // When reconnect mode started
 
     BLECharacteristic* _pLever1SettingsCharacteristic;
     BLECharacteristic* _pLeverPush1SettingsCharacteristic;
@@ -128,6 +161,9 @@ private:
     ScaleSettings& _scaleSettings;
     ChordSettings& _chordSettings;
     SystemSettings& _systemSettings;
+
+    // Private helper methods
+    void updateConnectionParams();  // Apply power mode to BLE connection parameters
 };
 
 #endif

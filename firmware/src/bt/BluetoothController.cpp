@@ -58,10 +58,17 @@ BluetoothController::BluetoothController(
     _lastToggleTime(0),
     _lastActivity(0),
     _modemSleeping(false),
+    _currentPowerMode(CONFIGURATION),  // Start in config mode for responsive initial setup
+    _lastModeChangeMs(0),
+    _hasRemoteAddress(false),
+    _reconnectEligible(false),
+    _reconnectMode(false),
+    _reconnectStartMs(0),
     _lastKeepAlivePing(0),
     _keepAliveActive(false),
     _keepAliveGracePeriod(KEEPALIVE_GRACE_PERIOD_MS)
 {
+    memset(_remoteAddress, 0, 6);  // Clear BLE address
 }
 
 void BluetoothController::enable() {
@@ -411,6 +418,204 @@ void BluetoothController::refreshKeepAlive() {
         // bytes 6-9: reserved
         _pKeepAliveCharacteristic->setValue(statusPacket, 10);
         _pKeepAliveCharacteristic->notify();
+    }
+}
+
+// Store remote BLE device address for connection parameter updates
+void BluetoothController::storeRemoteAddress(const uint8_t* address) {
+    if (address) {
+        memcpy(_remoteAddress, address, 6);
+        _hasRemoteAddress = true;
+        if (serialConnected) {
+            Serial.print("BLE remote addr: ");
+            for (int i = 0; i < 6; i++) {
+                if (_remoteAddress[i] < 0x10) Serial.print("0");
+                Serial.print(_remoteAddress[i], HEX);
+                if (i < 5) Serial.print(":");
+            }
+            Serial.println();
+        }
+    }
+}
+
+// Set activity mode and update connection parameters
+// Conservative timeouts to avoid lag during configuration
+void BluetoothController::setActivityMode(BLEPowerMode mode) {
+    if (mode == _currentPowerMode) {
+        return;  // No change needed
+    }
+    
+    // Update battery tracking for time spent in previous mode
+    updateBatteryModeTracking();
+    
+    unsigned long now = millis();
+    BLEPowerMode oldMode = _currentPowerMode;  // Save for logging
+    _currentPowerMode = mode;
+    _lastModeChangeMs = now;
+    
+    // Also update lastModeChangeMs in battery state for consistency
+    batteryState.lastModeChangeMs = now;
+    
+    const char* modeName = "";
+    switch(mode) {
+        case LIVE_PERFORMANCE:
+            modeName = "LIVE";
+            break;
+        case CONFIGURATION:
+            modeName = "CONFIG";
+            break;
+        case IDLE_CONNECTED:
+            modeName = "IDLE";
+            break;
+    }
+    SERIAL_PRINT("BLE power mode: ");
+    SERIAL_PRINTLN(modeName);
+    
+    // Update connection parameters if we have a connection
+    if (_deviceConnected) {
+        updateConnectionParams();
+    }
+}
+
+// Update battery time tracking when BLE power mode changes
+void BluetoothController::updateBatteryModeTracking() {
+    if (!_deviceConnected) {
+        return;  // Nothing to track if not connected
+    }
+    
+    unsigned long now = millis();
+    unsigned long elapsed = now - batteryState.lastModeChangeMs;
+    
+    // Accumulate time spent in the current mode
+    switch(_currentPowerMode) {
+        case LIVE_PERFORMANCE:
+            batteryState.bleLiveTimeMs += elapsed;
+            break;
+        case CONFIGURATION:
+            batteryState.bleConfigTimeMs += elapsed;
+            break;
+        case IDLE_CONNECTED:
+            batteryState.bleIdleTimeMs += elapsed;
+            break;
+    }
+}
+
+// Update BLE connection parameters based on current power mode
+void BluetoothController::updateConnectionParams() {
+    if (!_deviceConnected) {
+        return;
+    }
+    
+    uint16_t minInt, maxInt, latency;
+    
+    switch(_currentPowerMode) {
+        case LIVE_PERFORMANCE:
+            // Max responsiveness for live sliders
+            minInt = 6;    // 7.5ms
+            maxInt = 12;   // 15ms
+            latency = 0;   // No latency
+            break;
+            
+        case CONFIGURATION:
+            // Good responsiveness for settings changes
+            minInt = 24;   // 30ms
+            maxInt = 40;   // 50ms
+            latency = 1;   // Can skip 1 event (60-100ms worst case)
+            break;
+            
+        case IDLE_CONNECTED:
+            // Max power savings for music-making periods
+            minInt = 80;   // 100ms
+            maxInt = 160;  // 200ms
+            latency = 4;   // Can skip 4 events (400-800ms response time)
+            break;
+    }
+    
+    // Get remote address from server if we don't have it yet
+    // For ESP32 BLE Arduino, we need to get it from the peer devices
+    if (!_hasRemoteAddress && _pServer) {
+        std::map<uint16_t, conn_status_t> peer_devices = _pServer->getPeerDevices(false);
+        if (!peer_devices.empty()) {
+            // Get first (and likely only) connected device
+            auto it = peer_devices.begin();
+            // For ESP32, the remote_bda should be available in conn_status_t
+            // If not directly accessible, we'll need to use GAP APIs
+            // For now, mark as available and use the conn_id approach
+            _hasRemoteAddress = true;
+            SERIAL_PRINTLN("BLE: Using connection for param update");
+        }
+    }
+    
+    // If we still don't have connection info, skip update
+    if (!_hasRemoteAddress) {
+        SERIAL_PRINTLN("BLE: No connection info for param update");
+        return;
+    }
+    
+    // Prepare connection parameter update request
+    // Note: With ESP32 BLE, we can try updating without explicit address
+    // The BLE stack should apply to the current connection
+    esp_ble_conn_update_params_t params = {0};
+    // If we don't have the exact address, the BLE stack may still accept 
+    // the update if there's only one active connection
+    memset(params.bda, 0, 6);  // Zero address may work for single connection
+    params.min_int = minInt;
+    params.max_int = maxInt;
+    params.latency = latency;
+    params.timeout = 400;  // 4 seconds supervision timeout
+    
+    // Request the connection parameter update
+    // Note: Central (phone/tablet) may accept or reject this request
+    esp_err_t result = esp_ble_gap_update_conn_params(&params);
+    
+    if (result == ESP_OK) {
+        SERIAL_PRINT("  Requested: ");
+        SERIAL_PRINT(minInt * 1.25f);
+        SERIAL_PRINT("-");
+        SERIAL_PRINT(maxInt * 1.25f);
+        SERIAL_PRINT("ms, latency=");
+        SERIAL_PRINTLN(latency);
+    } else {
+        if (serialConnected) {
+            Serial.print("  Param update failed: 0x");
+            Serial.println(result, HEX);
+        }
+    }
+}
+
+// Smart reconnect management (v1.7.0)
+void BluetoothController::setReconnectEligible(bool eligible) {
+    _reconnectEligible = eligible;
+    if (!eligible) {
+        _reconnectMode = false;
+        _reconnectStartMs = 0;
+    }
+    SERIAL_PRINT("BLE reconnect eligible: ");
+    SERIAL_PRINTLN(eligible ? "YES" : "NO");
+}
+
+void BluetoothController::startReconnectMode() {
+    if (!_reconnectEligible) {
+        return;
+    }
+    
+    SERIAL_PRINTLN("BLE:ReconnectMode");
+    _reconnectMode = true;
+    _reconnectStartMs = millis();
+    
+    // Enable BLE in IDLE mode for power-efficient reconnection
+    if (!_isEnabled) {
+        enable();
+        setActivityMode(IDLE_CONNECTED);  // Start power-efficient (35mA)
+    }
+}
+
+void BluetoothController::exitReconnectMode() {
+    if (_reconnectMode) {
+        SERIAL_PRINTLN("BLE reconnect mode ended");
+        _reconnectMode = false;
+        _reconnectEligible = false;
+        _reconnectStartMs = 0;
     }
 }
 

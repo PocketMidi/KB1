@@ -22,6 +22,7 @@ void GenericSettingsCallback::onWrite(BLECharacteristic *pCharacteristic) {
 
     if (_controller) {
         _controller->updateLastActivity();
+        _controller->setActivityMode(CONFIGURATION);  // Settings write = config mode
     }
 
     // Basic length check
@@ -85,6 +86,7 @@ void MidiSettingsCallback::onWrite(BLECharacteristic *pCharacteristic) {
     const std::string rxValue = pCharacteristic->getValue();
     if (_controller) {
         _controller->updateLastActivity();
+        _controller->setActivityMode(LIVE_PERFORMANCE);  // MIDI write = live slider mode
     }
 
     if (!rxValue.empty()) {
@@ -135,6 +137,7 @@ void StrumIntervalsCallback::onWrite(BLECharacteristic *pCharacteristic) {
 
     if (_controller) {
         _controller->updateLastActivity();
+        _controller->setActivityMode(CONFIGURATION);  // Strum pattern write = config mode
     }
 
     // Expect data format: length byte + interval bytes (int8_t array)
@@ -175,6 +178,7 @@ void BatteryControlCallback::onWrite(BLECharacteristic *pCharacteristic) {
 
     if (_controller) {
         _controller->updateLastActivity();
+        _controller->setActivityMode(CONFIGURATION);  // Battery control = config mode
     }
 
     if (rxValue.length() < 1 || rxValue.length() > 2) {

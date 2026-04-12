@@ -26,7 +26,8 @@ public:
         _ledController(ledController),
         _lastCCTouchValue(-1),
         _lastTouchToggle(0),
-        _touchDebounceTime(250),
+        _touchDebounceTime(250),      // 250ms for Hold/Continuous (EMI rejection)
+        _toggleDebounceTime(50),       // 50ms for Toggle mode (5× faster pattern selection)
         _toggleState(false),
         _wasPressed(false),
         _smoothedValue(0.0f),
@@ -117,10 +118,11 @@ public:
                         if (isPressed && !_wasPressed) {
                             // Special handling for Pattern Selector (CC 201): cycle through patterns
                             if (_settings.ccNumber == 201) {
-                                // Rate limiting: prevent rapid Pattern Selector changes
+                                // Rate limiting with adaptive debounce: 50ms for Toggle mode (5× faster than previous 250ms)
+                                // Allows rapid pattern cycling while preventing bounce
                                 static unsigned long lastPatternChange = 0;
                                 unsigned long now = millis();
-                                if (now - lastPatternChange < 150) {
+                                if (now - lastPatternChange < _toggleDebounceTime) {  // Use 50ms for Toggle mode
                                     _wasPressed = isPressed;  // Update state to prevent re-trigger
                                     break;
                                 }
@@ -279,7 +281,8 @@ private:
 
     int _lastCCTouchValue;
     unsigned long _lastTouchToggle;
-    unsigned long _touchDebounceTime;
+    unsigned long _touchDebounceTime;     // Debounce for Hold/Continuous modes (250ms)
+    unsigned long _toggleDebounceTime;    // Debounce for Toggle mode (50ms, faster re-trigger)
     bool _toggleState;
     bool _wasPressed;
     int _previousCCNumber;

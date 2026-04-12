@@ -65,15 +65,32 @@ public:
     static constexpr int MAX_CHORD_NOTES = 16;  // Support 3x voicing (5 notes × 3 octaves = 15)
 
     void begin() {
+        // Configure all pins as INPUT_PULLUP first
         for (auto & key : _keys) {
             key.mcp->pinMode(key.pin, INPUT_PULLUP);
-            bool raw = !key.mcp->digitalRead(key.pin);
+        }
+        
+        // Then do ONE bulk read to initialize states (2 I2C transactions instead of 19)
+        GPIOCache initialCache;
+        initialCache.u1_pins = mcp_U1.readGPIOAB();
+        initialCache.u2_pins = mcp_U2.readGPIOAB();
+        initialCache.timestamp = micros();
+        
+        // Set initial states from bulk read
+        for (auto & key : _keys) {
+            bool raw;
+            if (key.mcp == &mcp_U1) {
+                raw = initialCache.isU1PinLow(key.pin);
+            } else {  // key.mcp == &mcp_U2
+                raw = initialCache.isU2PinLow(key.pin);
+            }
             key.lastReading = raw;
             key.debouncedState = raw;
             key.state = raw;
             key.prevState = raw;
             key.lastDebounceTime = millis();
         }
+        
         resetAllKeys();
     }
 
@@ -382,17 +399,24 @@ public:
         _arpCurrentNote = -1;
     }
 
-    void updateKeyboardState() {
+    void updateKeyboardState(const GPIOCache& gpioCache) {
         // Update arpeggiator (for advanced strum looping)
         updateArpeggiator();
         
         // Update basic strum (non-blocking cascade)
         updateStrum();
         
-        // Debounced key scanning
+        // Debounced key scanning (using cached GPIO states, zero I2C overhead)
         for (int i = 0; i < MAX_KEYS; ++i) {
             auto & key = _keys[i];
-            bool raw = !key.mcp->digitalRead(key.pin);
+            
+            // Extract pin state from cache based on which MCP this key is on
+            bool raw;
+            if (key.mcp == &mcp_U1) {
+                raw = gpioCache.isU1PinLow(key.pin);
+            } else {  // key.mcp == &mcp_U2
+                raw = gpioCache.isU2PinLow(key.pin);
+            };
             if (raw != key.lastReading) {
                 key.lastDebounceTime = millis();
                 key.lastReading = raw;

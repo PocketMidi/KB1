@@ -89,6 +89,7 @@ LeverControls<MidiTransport>::LeverControls(
     _isPressed(false),
     _rampStartTime(0)
     {
+        // Default initialization
         if (_settings.valueMode == ValueMode::BIPOLAR) {
             _currentValue = 64;
             _targetValue = 64;
@@ -108,15 +109,15 @@ LeverControls<MidiTransport>::LeverControls(
             _rampStartValue = vel;
             SERIAL_PRINT("L128="); SERIAL_PRINTLN(vel);
         }
-        // If this lever controls strum speed (CC 200), initialize to current strum speed
-        // Map current speed (4-360ms) to MIDI value (127-0, inverted)
+        // CC 200 (Strum Speed) syncs from current strumSpeed value
         else if (_settings.ccNumber == 200) {
-            int speedMs = _chordSettings.strumSpeed;
-            int midiValue = map(speedMs, 360, 4, 0, 127);
+            int speedMs = abs(_chordSettings.strumSpeed);
+            int midiValue = map(speedMs, 5, 360, 0, 127);
             _currentValue = midiValue;
             _targetValue = midiValue;
             _rampStartValue = midiValue;
-            SERIAL_PRINT("L200="); SERIAL_PRINTLN(midiValue);
+            SERIAL_PRINT("L200="); SERIAL_PRINT(midiValue); 
+            SERIAL_PRINT("("); SERIAL_PRINT(speedMs); SERIAL_PRINTLN("ms)");
         }
 
         _lastSentValue = _currentValue;
@@ -154,19 +155,18 @@ void LeverControls<MidiTransport>::setOffsetTime(unsigned long time) {
 
 template<class MidiTransport>
 void LeverControls<MidiTransport>::setCCNumber(int number) {
-    int oldCC = _settings.ccNumber;
+    int oldCC =_settings.ccNumber;
     _settings.ccNumber = number;
     
-    // When CC number changes TO 200 (Strum Speed), sync strumSpeed from lever's current position
+    // When CC changes TO 200, sync from current strumSpeed magnitude
     if (number == 200 && oldCC != 200) {
-        int strumSpeed = map(_currentValue, _settings.minCCValue, _settings.maxCCValue, 360, 4);
-        _chordSettings.strumSpeed = constrain(strumSpeed, 4, 360);
-        SERIAL_PRINT("Lever assigned to CC 200, syncing strumSpeed to: ");
-        SERIAL_PRINTLN(_chordSettings.strumSpeed);
-        // Notify BLE clients of the change
-        if (notifyChordSettingsCallback) {
-            notifyChordSettingsCallback();
-        }
+        int speedMs = abs(_chordSettings.strumSpeed);
+        int midiValue = map(speedMs, 5, 360, 0, 127);
+        _currentValue = midiValue;
+        _targetValue = midiValue;
+        _rampStartValue = midiValue;
+        SERIAL_PRINT("Lever assigned to CC 200, synced to MIDI: ");
+        SERIAL_PRINTLN(midiValue);
     }
 }
 
@@ -208,8 +208,22 @@ void LeverControls<MidiTransport>::setValue(int value) {
 
 template<class MidiTransport>
 void LeverControls<MidiTransport>::syncValue() {
-    // Re-initialize value based on current settings (called after BLE updates)
-    if (_settings.valueMode == ValueMode::BIPOLAR) {
+   // Re-initialize value based on current settings (called after BLE updates)
+    if (_settings.ccNumber == 128) {
+        int vel = _keyboardControl.getVelocity();
+        _currentValue = vel;
+        _targetValue = vel;
+        _rampStartValue = vel;
+    }
+    // CC 200 (Strum Speed) syncs from current strumSpeed magnitude
+    else if (_settings.ccNumber == 200) {
+        int speedMs = abs(_chordSettings.strumSpeed);
+        int midiValue = map(speedMs, 5, 360, 0, 127);
+        _currentValue = midiValue;
+        _targetValue = midiValue;
+        _rampStartValue = midiValue;
+    }
+    else if (_settings.valueMode == ValueMode::BIPOLAR) {
         _currentValue = 64;
         _targetValue = 64;
         _rampStartValue = 64;
@@ -217,22 +231,6 @@ void LeverControls<MidiTransport>::syncValue() {
         _currentValue = _settings.minCCValue;
         _targetValue = _settings.minCCValue;
         _rampStartValue = _settings.minCCValue;
-    }
-    
-    // Special sync for velocity (CC 128)
-    if (_settings.ccNumber == 128) {
-        int vel = _keyboardControl.getVelocity();
-        _currentValue = vel;
-        _targetValue = vel;
-        _rampStartValue = vel;
-    }
-    // Special sync for strum speed (CC 200)
-    else if (_settings.ccNumber == 200) {
-        int speedMs = _chordSettings.strumSpeed;
-        int midiValue = map(speedMs, 360, 4, 0, 127);
-        _currentValue = midiValue;
-        _targetValue = midiValue;
-        _rampStartValue = midiValue;
     }
     
     _lastSentValue = _currentValue;
@@ -246,14 +244,12 @@ void LeverControls<MidiTransport>::handleInput() {
 
     if (_settings.functionMode == LeverFunctionMode::INCREMENTAL) {
         if (leftState && !_isPressed) {
-            int oldValue = _currentValue;
             _currentValue = max(_settings.minCCValue, _currentValue - _settings.stepSize);
             _isPressed = true;
             SERIAL_PRINT("L");
             SERIAL_PRINT(_currentValue);
             SERIAL_PRINTLN("<");
         } else if (rightState && !_isPressed) {
-            int oldValue = _currentValue;
             _currentValue = min(_settings.maxCCValue, _currentValue + _settings.stepSize);
             _isPressed = true;
             SERIAL_PRINT("L");
@@ -275,7 +271,7 @@ void LeverControls<MidiTransport>::handleInput() {
         } else {
             if (_isPressed) {
                 if (_settings.valueMode == ValueMode::BIPOLAR) {
-                    _targetValue = 64;
+                    _targetValue = (_settings.minCCValue + _settings.maxCCValue) / 2;
                 } else if (_settings.valueMode == ValueMode::UNIPOLAR) {
                     _targetValue = _settings.minCCValue;
                 }
@@ -298,7 +294,7 @@ void LeverControls<MidiTransport>::handleInput() {
         else {
             if (_isPressed) {
                 if (_settings.valueMode == ValueMode::BIPOLAR) {
-                    _targetValue = 64;
+                    _targetValue = (_settings.minCCValue + _settings.maxCCValue) / 2;
                 } else if (_settings.valueMode == ValueMode::UNIPOLAR) {
                     _targetValue = _settings.minCCValue;
                 }
@@ -359,10 +355,16 @@ void LeverControls<MidiTransport>::updateValue() {
             SERIAL_PRINTLN(sendVal);
             _keyboardControl.setVelocity(sendVal);
         } else if (_settings.ccNumber == 200) {
-            // 200 = KB1 Expression: Strum Speed (4-360ms)
-            // Map CC value (0-127) to speed: 0=slow(360ms), 127=fast(4ms) - inverted output
-            int strumSpeed = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 360, 4);
-            _chordSettings.strumSpeed = constrain(strumSpeed, 4, 360);
+            // 200 = KB1 Expression: Strum Speed (unipolar magnitude, direction set via UI)
+            // MIDI 0-127 maps to 5-360ms magnitude
+            // Direction (sign) is controlled via web UI FWD/REV toggle
+            int speedMs = map(sendVal, 0, 127, 5, 360);
+            // Preserve current direction sign
+            if (_chordSettings.strumSpeed < 0) {
+                _chordSettings.strumSpeed = -speedMs;
+            } else {
+                _chordSettings.strumSpeed = speedMs;
+            }
             SERIAL_PRINT("SS"); SERIAL_PRINTLN(_chordSettings.strumSpeed);
             // Notify BLE clients of the change
             if (notifyChordSettingsCallback) {
