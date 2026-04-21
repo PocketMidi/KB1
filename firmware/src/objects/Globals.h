@@ -158,6 +158,9 @@ extern void (*syncLeverPush2Callback)();
 // Callback for notifying BLE when chord settings change from firmware
 extern void (*notifyChordSettingsCallback)();
 
+// Callback for notifying BLE when scale settings change from firmware
+extern void (*notifyScaleSettingsCallback)();
+
 // Callback for resetting pattern controls when shape mode is disabled
 extern void (*resetPatternControlsCallback)();
 

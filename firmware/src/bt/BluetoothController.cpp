@@ -627,6 +627,14 @@ void BluetoothController::notifyChordSettings() {
     }
 }
 
+void BluetoothController::notifyScaleSettings() {
+    if (_isEnabled && _pScaleSettingsCharacteristic && _deviceConnected) {
+        _pScaleSettingsCharacteristic->setValue((uint8_t*)&_scaleSettings, sizeof(ScaleSettings));
+        _pScaleSettingsCharacteristic->notify();
+        // SERIAL_PRINTLN("Notified scale settings to BLE client");
+    }
+}
+
 void BluetoothController::updateBatteryStatus() {
     if (_isEnabled && _pBatteryStatusCharacteristic) {
         // Calculate remaining runtime in seconds

@@ -5,6 +5,8 @@
 #include <objects/Settings.h>
 #include <led/LEDController.h>
 
+class ScaleManager;  // Forward declaration
+
 template<typename MidiTransport>
 class TouchControl {
 public:
@@ -15,7 +17,8 @@ public:
         int sensorMax,
         MidiTransport& midi,
         ChordSettings& chordSettings,
-        LEDController& ledController
+        LEDController& ledController,
+        ScaleManager& scaleManager
     ) :
         _touchPin(touchPin),
         _settings(settings),
@@ -24,6 +27,7 @@ public:
         _midi(midi),
         _chordSettings(chordSettings),
         _ledController(ledController),
+        _scaleManager(scaleManager),
         _lastCCTouchValue(-1),
         _lastTouchToggle(0),
         _touchDebounceTime(250),      // 250ms for Hold/Continuous (EMI rejection)
@@ -106,6 +110,33 @@ public:
                                 int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 10, 100);
                                 _chordSettings.velocitySpread = constrain(velocitySpread, 10, 100);
                                 SERIAL_PRINT("VS"); SERIAL_PRINTLN(_chordSettings.velocitySpread);
+                            } else if (_settings.ccNumber == 204) {
+                                // 204 = KB1 Expression: Scale Type (0-20)
+                                int scaleIndex = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 20);
+                                scaleIndex = constrain(scaleIndex, 0, 20);
+                                _scaleManager.setScale((ScaleType)scaleIndex);
+                                SERIAL_PRINT("ScaleType="); SERIAL_PRINTLN(scaleIndex);
+                                if (notifyScaleSettingsCallback) {
+                                    notifyScaleSettingsCallback();
+                                }
+                            } else if (_settings.ccNumber == 205) {
+                                // 205 = KB1 Expression: Chord Type (0-14)
+                                int chordIndex = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 14);
+                                chordIndex = constrain(chordIndex, 0, 14);
+                                _chordSettings.chordType = (ChordType)chordIndex;
+                                SERIAL_PRINT("ChordType="); SERIAL_PRINTLN(chordIndex);
+                                if (notifyChordSettingsCallback) {
+                                    notifyChordSettingsCallback();
+                                }
+                            } else if (_settings.ccNumber == 206) {
+                                // 206 = KB1 Expression: Root Note (60-71, MIDI notes C through B)
+                                int rootNote = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 60, 71);
+                                rootNote = constrain(rootNote, 60, 71);
+                                _scaleManager.setRootNote(rootNote);
+                                SERIAL_PRINT("RootNote="); SERIAL_PRINTLN(rootNote);
+                                if (notifyScaleSettingsCallback) {
+                                    notifyScaleSettingsCallback();
+                                }
                             } else {
                                 _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
                             }
@@ -173,6 +204,147 @@ public:
                                 char buf[8];
                                 snprintf(buf, sizeof(buf), "P%d", _chordSettings.strumPattern);
                                 SERIAL_PRINTLN(buf);
+                            } else if (_settings.ccNumber == 204) {
+                                // Scale Type (CC 204): cycle through scale types (0-20)
+                                static unsigned long lastScaleChange = 0;
+                                unsigned long now = millis();
+                                if (now - lastScaleChange < _toggleDebounceTime) {
+                                    _wasPressed = isPressed;
+                                    break;
+                                }
+                                lastScaleChange = now;
+                                
+                                // Get current scale type (0-20)
+                                int currentScale = (int)_scaleManager.getScaleType();
+                                
+                                // Get min/max from settings (maps 0-127 to 0-20)
+                                int minScale = map(_settings.minCCValue, 0, 127, 0, 20);
+                                int maxScale = map(_settings.maxCCValue, 0, 127, 0, 20);
+                                minScale = constrain(minScale, 0, 20);
+                                maxScale = constrain(maxScale, 0, 20);
+                                
+                                // Cycle based on offsetTime: 0=forward, >0=reverse
+                                bool isForward = (_settings.offsetTime == 0);
+                                if (isForward) {
+                                    currentScale++;
+                                    if (currentScale > maxScale) currentScale = minScale;
+                                } else {
+                                    currentScale--;
+                                    if (currentScale < minScale) currentScale = maxScale;
+                                }
+                                currentScale = constrain(currentScale, 0, 20);
+                                
+                                // Set LED color based on direction
+                                _ledController.set(isForward ? LedColor::PINK : LedColor::BLUE, 255);
+                                _ledController.set(isForward ? LedColor::BLUE : LedColor::PINK, 0);
+                                _ledController.set(isForward ? LedColor::PINK : LedColor::BLUE, 0, 300);
+                                
+                                // Apply scale change
+                                _scaleManager.setScale((ScaleType)currentScale);
+                                
+                                // Send MIDI CC (map scale index back to MIDI range using settings)
+                                int sendVal = map(currentScale, 0, 20, _settings.minCCValue, _settings.maxCCValue);
+                                _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
+                                _lastCCTouchValue = sendVal;
+                                
+                                SERIAL_PRINT("ScaleType="); SERIAL_PRINTLN(currentScale);
+                                if (notifyScaleSettingsCallback) {
+                                    notifyScaleSettingsCallback();
+                                }
+                            } else if (_settings.ccNumber == 205) {
+                                // Chord Type (CC 205): cycle through chord types (0-14)
+                                static unsigned long lastChordChange = 0;
+                                unsigned long now = millis();
+                                if (now - lastChordChange < _toggleDebounceTime) {
+                                    _wasPressed = isPressed;
+                                    break;
+                                }
+                                lastChordChange = now;
+                                
+                                // Get current chord type (0-14)
+                                int currentChord = (int)_chordSettings.chordType;
+                                
+                                // Get min/max from settings (maps 0-127 to 0-14)
+                                int minChord = map(_settings.minCCValue, 0, 127, 0, 14);
+                                int maxChord = map(_settings.maxCCValue, 0, 127, 0, 14);
+                                minChord = constrain(minChord, 0, 14);
+                                maxChord = constrain(maxChord, 0, 14);
+                                
+                                // Cycle based on offsetTime: 0=forward, >0=reverse
+                                bool isForward = (_settings.offsetTime == 0);
+                                if (isForward) {
+                                    currentChord++;
+                                    if (currentChord > maxChord) currentChord = minChord;
+                                } else {
+                                    currentChord--;
+                                    if (currentChord < minChord) currentChord = maxChord;
+                                }
+                                currentChord = constrain(currentChord, 0, 14);
+                                
+                                // Set LED color based on direction
+                                _ledController.set(isForward ? LedColor::PINK : LedColor::BLUE, 255);
+                                _ledController.set(isForward ? LedColor::BLUE : LedColor::PINK, 0);
+                                _ledController.set(isForward ? LedColor::PINK : LedColor::BLUE, 0, 300);
+                                
+                                // Apply chord change
+                                _chordSettings.chordType = (ChordType)currentChord;
+                                
+                                // Send MIDI CC (map chord index back to MIDI range using settings)
+                                int sendVal = map(currentChord, 0, 14, _settings.minCCValue, _settings.maxCCValue);
+                                _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
+                                _lastCCTouchValue = sendVal;
+                                
+                                SERIAL_PRINT("ChordType="); SERIAL_PRINTLN(currentChord);
+                                if (notifyChordSettingsCallback) {
+                                    notifyChordSettingsCallback();
+                                }
+                            } else if (_settings.ccNumber == 206) {
+                                // Root Note (CC 206): cycle through root notes (60-71, MIDI notes C through B)
+                                static unsigned long lastRootChange = 0;
+                                unsigned long now = millis();
+                                if (now - lastRootChange < _toggleDebounceTime) {
+                                    _wasPressed = isPressed;
+                                    break;
+                                }
+                                lastRootChange = now;
+                                
+                                // Get current root note (MIDI 60-71)
+                                int currentRoot = _scaleManager.getRootNote();
+                                
+                                // Get min/max from settings (maps 0-127 to 60-71)
+                                int minRoot = map(_settings.minCCValue, 0, 127, 60, 71);
+                                int maxRoot = map(_settings.maxCCValue, 0, 127, 60, 71);
+                                minRoot = constrain(minRoot, 60, 71);
+                                maxRoot = constrain(maxRoot, 60, 71);
+                                
+                                // Cycle based on offsetTime: 0=forward, >0=reverse
+                                bool isForward = (_settings.offsetTime == 0);
+                                if (isForward) {
+                                    currentRoot++;
+                                    if (currentRoot > maxRoot) currentRoot = minRoot;
+                                } else {
+                                    currentRoot--;
+                                    if (currentRoot < minRoot) currentRoot = maxRoot;
+                                }
+                                currentRoot = constrain(currentRoot, 60, 71);
+                                
+                                // Set LED color based on direction
+                                _ledController.set(isForward ? LedColor::PINK : LedColor::BLUE, 255);
+                                _ledController.set(isForward ? LedColor::BLUE : LedColor::PINK, 0);
+                                _ledController.set(isForward ? LedColor::PINK : LedColor::BLUE, 0, 300);
+                                
+                                // Apply root note change
+                                _scaleManager.setRootNote(currentRoot);
+                                
+                                // Send MIDI CC (map root MIDI note back to MIDI range using settings)
+                                int sendVal = map(currentRoot, 60, 71, _settings.minCCValue, _settings.maxCCValue);
+                                _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
+                                _lastCCTouchValue = sendVal;
+                                
+                                SERIAL_PRINT("RootNote="); SERIAL_PRINTLN(currentRoot);
+                                if (notifyScaleSettingsCallback) {
+                                    notifyScaleSettingsCallback();
+                                }
                             } else {
                                 // Normal toggle behavior for other parameters
                                 _toggleState = !_toggleState;
@@ -196,6 +368,33 @@ public:
                                     int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 10, 100);
                                     _chordSettings.velocitySpread = constrain(velocitySpread, 10, 100);
                                     SERIAL_PRINT("VS"); SERIAL_PRINTLN(_chordSettings.velocitySpread);
+                                } else if (_settings.ccNumber == 204) {
+                                    // 204 = KB1 Expression: Scale Type (0-20)
+                                    int scaleIndex = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 20);
+                                    scaleIndex = constrain(scaleIndex, 0, 20);
+                                    _scaleManager.setScale((ScaleType)scaleIndex);
+                                    SERIAL_PRINT("ScaleType="); SERIAL_PRINTLN(scaleIndex);
+                                    if (notifyScaleSettingsCallback) {
+                                        notifyScaleSettingsCallback();
+                                    }
+                                } else if (_settings.ccNumber == 205) {
+                                    // 205 = KB1 Expression: Chord Type (0-14)
+                                    int chordIndex = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 14);
+                                    chordIndex = constrain(chordIndex, 0, 14);
+                                    _chordSettings.chordType = (ChordType)chordIndex;
+                                    SERIAL_PRINT("ChordType="); SERIAL_PRINTLN(chordIndex);
+                                    if (notifyChordSettingsCallback) {
+                                        notifyChordSettingsCallback();
+                                    }
+                                } else if (_settings.ccNumber == 206) {
+                                    // 206 = KB1 Expression: Root Note (60-71, MIDI notes C through B)
+                                    int rootNote = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 60, 71);
+                                    rootNote = constrain(rootNote, 60, 71);
+                                    _scaleManager.setRootNote(rootNote);
+                                    SERIAL_PRINT("RootNote="); SERIAL_PRINTLN(rootNote);
+                                    if (notifyScaleSettingsCallback) {
+                                        notifyScaleSettingsCallback();
+                                    }
                                 } else {
                                     _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
                                 }
@@ -233,6 +432,33 @@ public:
                                 int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 10, 100);
                                 _chordSettings.velocitySpread = constrain(velocitySpread, 10, 100);
                                 SERIAL_PRINT("VS"); SERIAL_PRINTLN(_chordSettings.velocitySpread);
+                            } else if (_settings.ccNumber == 204) {
+                                // 204 = KB1 Expression: Scale Type (0-20)
+                                int scaleIndex = map(sendVal, 0, 127, 0, 20);
+                                scaleIndex = constrain(scaleIndex, 0, 20);
+                                _scaleManager.setScale((ScaleType)scaleIndex);
+                                SERIAL_PRINT("ScaleType="); SERIAL_PRINTLN(scaleIndex);
+                                if (notifyScaleSettingsCallback) {
+                                    notifyScaleSettingsCallback();
+                                }
+                            } else if (_settings.ccNumber == 205) {
+                                // 205 = KB1 Expression: Chord Type (0-14)
+                                int chordIndex = map(sendVal, 0, 127, 0, 14);
+                                chordIndex = constrain(chordIndex, 0, 14);
+                                _chordSettings.chordType = (ChordType)chordIndex;
+                                SERIAL_PRINT("ChordType="); SERIAL_PRINTLN(chordIndex);
+                                if (notifyChordSettingsCallback) {
+                                    notifyChordSettingsCallback();
+                                }
+                            } else if (_settings.ccNumber == 206) {
+                                // 206 = KB1 Expression: Root Note (0-11)
+                                int rootNote = map(sendVal, 0, 127, 0, 11);
+                                rootNote = constrain(rootNote, 0, 11);
+                                _scaleManager.setRootNote(rootNote);
+                                SERIAL_PRINT("RootNote="); SERIAL_PRINTLN(rootNote);
+                                if (notifyScaleSettingsCallback) {
+                                    notifyScaleSettingsCallback();
+                                }
                             } else {
                                 // Throttled serial output for continuous mode (print every 500ms max)
                                 static unsigned long lastContinuousPrint = 0;
@@ -278,6 +504,7 @@ private:
     MidiTransport& _midi;
     ChordSettings& _chordSettings;
     LEDController& _ledController;
+    ScaleManager& _scaleManager;
 
     int _lastCCTouchValue;
     unsigned long _lastTouchToggle;

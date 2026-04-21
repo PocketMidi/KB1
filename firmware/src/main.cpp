@@ -69,6 +69,9 @@ void (*syncLeverPush2Callback)() = nullptr;
 // Callback for notifying BLE when chord settings change from firmware
 void (*notifyChordSettingsCallback)() = nullptr;
 
+// Callback for notifying BLE when scale settings change from firmware
+void (*notifyScaleSettingsCallback)() = nullptr;
+
 // Callback for resetting pattern controls when shape mode is disabled
 void (*resetPatternControlsCallback)() = nullptr;
 
@@ -217,7 +220,8 @@ LeverControls<decltype(MIDI)> lever1(
     ledController,
     LedColor::PINK,
     keyboardControl,
-    chordSettings
+    chordSettings,
+    scaleManager
 );
 
 //----------------------------------
@@ -242,7 +246,8 @@ LeverPushControls<decltype(MIDI)> leverPush1(
     ledController,
     LedColor::PINK,
     keyboardControl,
-    chordSettings
+    chordSettings,
+    scaleManager
 );
 
 //----------------------------------
@@ -270,7 +275,8 @@ LeverControls<decltype(MIDI)> lever2(
     ledController,
     LedColor::BLUE,
     keyboardControl,
-    chordSettings
+    chordSettings,
+    scaleManager
 );
 
 //----------------------------------
@@ -295,7 +301,8 @@ LeverPushControls<decltype(MIDI)> leverPush2(
         ledController,
         LedColor::BLUE,
         keyboardControl,
-        chordSettings
+        chordSettings,
+        scaleManager
 );
 
 //----------------------------------
@@ -316,7 +323,8 @@ TouchControl<decltype(MIDI)> touch(
     64000,
     MIDI,
     chordSettings,
-    ledController
+    ledController,
+    scaleManager
 );
 
 SystemSettings systemSettings = {
@@ -1157,6 +1165,13 @@ void setup() {
     notifyChordSettingsCallback = []() { 
         if (bluetoothControllerPtr) {
             bluetoothControllerPtr->notifyChordSettings(); 
+        }
+    };
+
+    // Set up callback for notifying BLE when scale settings change from firmware
+    notifyScaleSettingsCallback = []() { 
+        if (bluetoothControllerPtr) {
+            bluetoothControllerPtr->notifyScaleSettings(); 
         }
     };
 

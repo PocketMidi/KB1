@@ -8,6 +8,8 @@
 #include <controls/OctaveControl.h>
 #include <controls/KeyboardControl.h>
 
+class ScaleManager;  // Forward declaration
+
 template<class MidiTransport>
 class LeverPushControls {
 public:
@@ -20,7 +22,8 @@ public:
         LEDController& ledController,
         LedColor ledColor,
         KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>>& keyboardControl,
-        ChordSettings& chordSettings
+        ChordSettings& chordSettings,
+        ScaleManager& scaleManager
     );
 
     void update();
@@ -44,6 +47,7 @@ private:
     LEDController& _ledController;
     LedColor _ledColor;
     ChordSettings& _chordSettings;
+    ScaleManager& _scaleManager;
 
     bool _isPressed;
     int _lastSentValue;
@@ -68,7 +72,8 @@ LeverPushControls<MidiTransport>::LeverPushControls(
     LEDController& ledController,
     LedColor ledColor,
     KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>>& keyboardControl,
-    ChordSettings& chordSettings)
+    ChordSettings& chordSettings,
+    ScaleManager& scaleManager)
     :
     _mcp(mcp),
     _centerPin(centerPin),
@@ -79,6 +84,7 @@ LeverPushControls<MidiTransport>::LeverPushControls(
     _ledColor(ledColor),
     _keyboardControl(keyboardControl),
     _chordSettings(chordSettings),
+    _scaleManager(scaleManager),
     _isPressed(false),
     _rampStartTime(0),
     _currentValue(_settings.minCCValue),
@@ -246,6 +252,111 @@ void LeverPushControls<MidiTransport>::handleInput() {
                 // Don't change value on release - keep current pattern
                 _isPressed = false;
             }
+        } else if (_settings.ccNumber == 204) {
+            // Scale Type (CC 204): cycle through scale types (0-20)
+            if (state && !_isPressed) {
+                // Get current scale type
+                int currentScale = (int)_scaleManager.getScaleType();
+                
+                // Get min/max from settings (maps 0-127 to 0-20)
+                int minScale = map(_settings.minCCValue, 0, 127, 0, 20);
+                int maxScale = map(_settings.maxCCValue, 0, 127, 0, 20);
+                minScale = constrain(minScale, 0, 20);
+                maxScale = constrain(maxScale, 0, 20);
+                
+                // Cycle based on offsetTime: 0=forward, >0=reverse
+                if (_settings.offsetTime == 0) {
+                    currentScale++;
+                    if (currentScale > maxScale) currentScale = minScale;
+                } else {
+                    currentScale--;
+                    if (currentScale < minScale) currentScale = maxScale;
+                }
+                currentScale = constrain(currentScale, 0, 20);
+                
+                // Apply scale change directly (skip send() remapping)
+                _scaleManager.setScale((ScaleType)currentScale);
+                _currentValue = map(currentScale, 0, 20, _settings.minCCValue, _settings.maxCCValue);
+                _lastSentValue = _currentValue; // Prevent send() from remapping
+                _isPressed = true;
+                
+                SERIAL_PRINT("ScaleType="); SERIAL_PRINTLN(currentScale);
+                if (notifyScaleSettingsCallback) {
+                    notifyScaleSettingsCallback();
+                }
+            } else if (!state && _isPressed) {
+                _isPressed = false;
+            }
+        } else if (_settings.ccNumber == 205) {
+            // Chord Type (CC 205): cycle through chord types (0-14)
+            if (state && !_isPressed) {
+                // Get current chord type
+                int currentChord = (int)_chordSettings.chordType;
+                
+                // Get min/max from settings (maps 0-127 to 0-14)
+                int minChord = map(_settings.minCCValue, 0, 127, 0, 14);
+                int maxChord = map(_settings.maxCCValue, 0, 127, 0, 14);
+                minChord = constrain(minChord, 0, 14);
+                maxChord = constrain(maxChord, 0, 14);
+                
+                // Cycle based on offsetTime: 0=forward, >0=reverse
+                if (_settings.offsetTime == 0) {
+                    currentChord++;
+                    if (currentChord > maxChord) currentChord = minChord;
+                } else {
+                    currentChord--;
+                    if (currentChord < minChord) currentChord = maxChord;
+                }
+                currentChord = constrain(currentChord, 0, 14);
+                
+                // Apply chord change directly (skip send() remapping)
+                _chordSettings.chordType = (ChordType)currentChord;
+                _currentValue = map(currentChord, 0, 14, _settings.minCCValue, _settings.maxCCValue);
+                _lastSentValue = _currentValue; // Prevent send() from remapping
+                _isPressed = true;
+                
+                SERIAL_PRINT("ChordType="); SERIAL_PRINTLN(currentChord);
+                if (notifyChordSettingsCallback) {
+                    notifyChordSettingsCallback();
+                }
+            } else if (!state && _isPressed) {
+                _isPressed = false;
+            }
+        } else if (_settings.ccNumber == 206) {
+            // Root Note (CC 206): cycle through root notes (60-71, MIDI notes C through B)
+            if (state && !_isPressed) {
+                // Get current root note (MIDI 60-71)
+                int currentRoot = _scaleManager.getRootNote();
+                
+                // Get min/max from settings (maps 0-127 to 60-71)
+                int minRoot = map(_settings.minCCValue, 0, 127, 60, 71);
+                int maxRoot = map(_settings.maxCCValue, 0, 127, 60, 71);
+                minRoot = constrain(minRoot, 60, 71);
+                maxRoot = constrain(maxRoot, 60, 71);
+                
+                // Cycle based on offsetTime: 0=forward, >0=reverse
+                if (_settings.offsetTime == 0) {
+                    currentRoot++;
+                    if (currentRoot > maxRoot) currentRoot = minRoot;
+                } else {
+                    currentRoot--;
+                    if (currentRoot < minRoot) currentRoot = maxRoot;
+                }
+                currentRoot = constrain(currentRoot, 60, 71);
+                
+                // Apply root note change directly (skip send() remapping)
+                _scaleManager.setRootNote(currentRoot);
+                _currentValue = map(currentRoot, 60, 71, _settings.minCCValue, _settings.maxCCValue);
+                _lastSentValue = _currentValue; // Prevent send() from remapping
+                _isPressed = true;
+                
+                SERIAL_PRINT("RootNote="); SERIAL_PRINTLN(currentRoot);
+                if (notifyScaleSettingsCallback) {
+                    notifyScaleSettingsCallback();
+                }
+            } else if (!state && _isPressed) {
+                _isPressed = false;
+            }
         } else {
             // Normal toggle behavior for other parameters
             if (state && !_isPressed) {
@@ -405,6 +516,39 @@ void LeverPushControls<MidiTransport>::updateValue() {
             int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 10, 100);
             _chordSettings.velocitySpread = constrain(velocitySpread, 10, 100);
             SERIAL_PRINT("VS"); SERIAL_PRINTLN(_chordSettings.velocitySpread);
+        } else if (_settings.ccNumber == 204) {
+            // 204 = KB1 Expression: Scale Type (0-20)
+            // Map user's CC range to scale type 0-20
+            int scaleIndex = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 20);
+            scaleIndex = constrain(scaleIndex, 0, 20);
+            _scaleManager.setScale((ScaleType)scaleIndex);
+            SERIAL_PRINT("ScaleType="); SERIAL_PRINTLN(scaleIndex);
+            // Notify BLE clients of the change
+            if (notifyScaleSettingsCallback) {
+                notifyScaleSettingsCallback();
+            }
+        } else if (_settings.ccNumber == 205) {
+            // 205 = KB1 Expression: Chord Type (0-14)
+            // Map user's CC range to chord type 0-14
+            int chordIndex = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 14);
+            chordIndex = constrain(chordIndex, 0, 14);
+            _chordSettings.chordType = (ChordType)chordIndex;
+            SERIAL_PRINT("ChordType="); SERIAL_PRINTLN(chordIndex);
+            // Notify BLE clients of the change
+            if (notifyChordSettingsCallback) {
+                notifyChordSettingsCallback();
+            }
+        } else if (_settings.ccNumber == 206) {
+            // 206 = KB1 Expression: Root Note (60-71, MIDI notes C through B)
+            // Map user's CC range to root note 60-71
+            int rootNote = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 60, 71);
+            rootNote = constrain(rootNote, 60, 71);
+            _scaleManager.setRootNote(rootNote);
+            SERIAL_PRINT("RootNote="); SERIAL_PRINTLN(rootNote);
+            // Notify BLE clients of the change
+            if (notifyScaleSettingsCallback) {
+                notifyScaleSettingsCallback();
+            }
         } else {
             // Throttle CC output (max once per 300ms to reduce interpolation spam)
             static unsigned long lastPushCCPrint = 0;

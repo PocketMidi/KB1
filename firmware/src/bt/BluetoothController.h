@@ -95,6 +95,7 @@ public:
     
     // Notify BLE clients when settings change from firmware
     void notifyChordSettings();
+    void notifyScaleSettings();
     void updateBatteryStatus();  // Update battery status characteristic
     bool isKeepAliveActive() const { return _keepAliveActive; }
     unsigned long getLastKeepAlivePing() const { return _lastKeepAlivePing; }

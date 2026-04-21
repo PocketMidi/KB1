@@ -8,6 +8,8 @@
 #include <controls/KeyboardControl.h>
 #include <objects/Settings.h>
 
+class ScaleManager;  // Forward declaration
+
 template<class MidiTransport>
 class LeverControls {
 public:
@@ -21,7 +23,8 @@ public:
         LEDController& ledController,
         LedColor ledColor,
         KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>>& keyboardControl,
-        ChordSettings& chordSettings
+        ChordSettings& chordSettings,
+        ScaleManager& scaleManager
     );
 
     void update();
@@ -50,6 +53,7 @@ private:
     LEDController& _ledController;
     LedColor _ledColor;
     ChordSettings& _chordSettings;
+    ScaleManager& _scaleManager;
 
     bool _isPressed;
     int _lastSentValue;
@@ -74,7 +78,8 @@ LeverControls<MidiTransport>::LeverControls(
     LEDController& ledController,
     LedColor ledColor,
     KeyboardControl<MidiTransport, OctaveControl<Adafruit_MCP23X17, LEDController>>& keyboardControl,
-    ChordSettings& chordSettings)
+    ChordSettings& chordSettings,
+    ScaleManager& scaleManager)
     :
     _midi(midi),
     _mcpLeft(mcpLeft),
@@ -86,6 +91,7 @@ LeverControls<MidiTransport>::LeverControls(
     _ledColor(ledColor),
     _keyboardControl(keyboardControl),
     _chordSettings(chordSettings),
+    _scaleManager(scaleManager),
     _isPressed(false),
     _rampStartTime(0)
     {
@@ -243,20 +249,107 @@ void LeverControls<MidiTransport>::handleInput() {
     int oldTargetValue = _targetValue;
 
     if (_settings.functionMode == LeverFunctionMode::INCREMENTAL) {
-        if (leftState && !_isPressed) {
-            _currentValue = max(_settings.minCCValue, _currentValue - _settings.stepSize);
-            _isPressed = true;
-            SERIAL_PRINT("L");
-            SERIAL_PRINT(_currentValue);
-            SERIAL_PRINTLN("<");
-        } else if (rightState && !_isPressed) {
-            _currentValue = min(_settings.maxCCValue, _currentValue + _settings.stepSize);
-            _isPressed = true;
-            SERIAL_PRINT("L");
-            SERIAL_PRINT(_currentValue);
-            SERIAL_PRINTLN(">");
-        } else if (!leftState && !rightState && _isPressed) {
-            _isPressed = false;
+        // Special handling for discrete cycling parameters (204, 205, 206)
+        // Step in discrete space instead of MIDI space for accurate control
+        if (_settings.ccNumber == 204) {
+            // Scale Type (0-20): Apply directly to avoid MIDI remapping errors
+            if (leftState && !_isPressed) {
+                int currentScale = (int)_scaleManager.getScaleType();
+                currentScale = max(0, currentScale - 1);
+                _scaleManager.setScale((ScaleType)currentScale);
+                _currentValue = map(currentScale, 0, 20, _settings.minCCValue, _settings.maxCCValue);
+                _lastSentValue = _currentValue; // Skip send() remapping
+                _isPressed = true;
+                SERIAL_PRINT("ScaleType="); SERIAL_PRINTLN(currentScale);
+                if (notifyScaleSettingsCallback) {
+                    notifyScaleSettingsCallback();
+                }
+            } else if (rightState && !_isPressed) {
+                int currentScale = (int)_scaleManager.getScaleType();
+                currentScale = min(20, currentScale + 1);
+                _scaleManager.setScale((ScaleType)currentScale);
+                _currentValue = map(currentScale, 0, 20, _settings.minCCValue, _settings.maxCCValue);
+                _lastSentValue = _currentValue;
+                _isPressed = true;
+                SERIAL_PRINT("ScaleType="); SERIAL_PRINTLN(currentScale);
+                if (notifyScaleSettingsCallback) {
+                    notifyScaleSettingsCallback();
+                }
+            } else if (!leftState && !rightState && _isPressed) {
+                _isPressed = false;
+            }
+        } else if (_settings.ccNumber == 205) {
+            // Chord Type (0-14): Apply directly to avoid MIDI remapping errors
+            if (leftState && !_isPressed) {
+                int currentChord = (int)_chordSettings.chordType;
+                currentChord = max(0, currentChord - 1);
+                _chordSettings.chordType = (ChordType)currentChord;
+                _currentValue = map(currentChord, 0, 14, _settings.minCCValue, _settings.maxCCValue);
+                _lastSentValue = _currentValue;
+                _isPressed = true;
+                SERIAL_PRINT("ChordType="); SERIAL_PRINTLN(currentChord);
+                if (notifyChordSettingsCallback) {
+                    notifyChordSettingsCallback();
+                }
+            } else if (rightState && !_isPressed) {
+                int currentChord = (int)_chordSettings.chordType;
+                currentChord = min(14, currentChord + 1);
+                _chordSettings.chordType = (ChordType)currentChord;
+                _currentValue = map(currentChord, 0, 14, _settings.minCCValue, _settings.maxCCValue);
+                _lastSentValue = _currentValue;
+                _isPressed = true;
+                SERIAL_PRINT("ChordType="); SERIAL_PRINTLN(currentChord);
+                if (notifyChordSettingsCallback) {
+                    notifyChordSettingsCallback();
+                }
+            } else if (!leftState && !rightState && _isPressed) {
+                _isPressed = false;
+            }
+        } else if (_settings.ccNumber == 206) {
+            // Root Note (0-11): Apply directly to avoid MIDI remapping errors
+            // Root note is stored as MIDI note 60-71 (C through B)
+            if (leftState && !_isPressed) {
+                int currentRoot = _scaleManager.getRootNote();
+                currentRoot = max(60, currentRoot - 1);
+                _scaleManager.setRootNote(currentRoot);
+                _currentValue = map(currentRoot, 60, 71, _settings.minCCValue, _settings.maxCCValue);
+                _lastSentValue = _currentValue;
+                _isPressed = true;
+                SERIAL_PRINT("RootNote="); SERIAL_PRINTLN(currentRoot);
+                if (notifyScaleSettingsCallback) {
+                    notifyScaleSettingsCallback();
+                }
+            } else if (rightState && !_isPressed) {
+                int currentRoot = _scaleManager.getRootNote();
+                currentRoot = min(71, currentRoot + 1);
+                _scaleManager.setRootNote(currentRoot);
+                _currentValue = map(currentRoot, 60, 71, _settings.minCCValue, _settings.maxCCValue);
+                _lastSentValue = _currentValue;
+                _isPressed = true;
+                SERIAL_PRINT("RootNote="); SERIAL_PRINTLN(currentRoot);
+                if (notifyScaleSettingsCallback) {
+                    notifyScaleSettingsCallback();
+                }
+            } else if (!leftState && !rightState && _isPressed) {
+                _isPressed = false;
+            }
+        } else {
+            // Normal INCREMENTAL mode: step in MIDI space
+            if (leftState && !_isPressed) {
+                _currentValue = max(_settings.minCCValue, _currentValue - _settings.stepSize);
+                _isPressed = true;
+                SERIAL_PRINT("L");
+                SERIAL_PRINT(_currentValue);
+                SERIAL_PRINTLN("<");
+            } else if (rightState && !_isPressed) {
+                _currentValue = min(_settings.maxCCValue, _currentValue + _settings.stepSize);
+                _isPressed = true;
+                SERIAL_PRINT("L");
+                SERIAL_PRINT(_currentValue);
+                SERIAL_PRINTLN(">");
+            } else if (!leftState && !rightState && _isPressed) {
+                _isPressed = false;
+            }
         }
         _targetValue = _currentValue;
     } else if (_settings.functionMode == LeverFunctionMode::PEAK_AND_DECAY) {
@@ -406,6 +499,39 @@ void LeverControls<MidiTransport>::updateValue() {
             int velocitySpread = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 10, 100);
             _chordSettings.velocitySpread = constrain(velocitySpread, 10, 100);
             SERIAL_PRINT("VS"); SERIAL_PRINTLN(_chordSettings.velocitySpread);
+        } else if (_settings.ccNumber == 204) {
+            // 204 = KB1 Expression: Scale Type (0-20)
+            // Map user's CC range to scale type 0-20
+            int scaleIndex = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 20);
+            scaleIndex = constrain(scaleIndex, 0, 20);
+            _scaleManager.setScale((ScaleType)scaleIndex);
+            SERIAL_PRINT("ScaleType="); SERIAL_PRINTLN(scaleIndex);
+            // Notify BLE clients of the change
+            if (notifyScaleSettingsCallback) {
+                notifyScaleSettingsCallback();
+            }
+        } else if (_settings.ccNumber == 205) {
+            // 205 = KB1 Expression: Chord Type (0-14)
+            // Map user's CC range to chord type 0-14
+            int chordIndex = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 14);
+            chordIndex = constrain(chordIndex, 0, 14);
+            _chordSettings.chordType = (ChordType)chordIndex;
+            SERIAL_PRINT("ChordType="); SERIAL_PRINTLN(chordIndex);
+            // Notify BLE clients of the change
+            if (notifyChordSettingsCallback) {
+                notifyChordSettingsCallback();
+            }
+        } else if (_settings.ccNumber == 206) {
+            // 206 = KB1 Expression: Root Note (60-71, MIDI notes C through B)
+            // Map user's CC range to root note 60-71
+            int rootNote = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 60, 71);
+            rootNote = constrain(rootNote, 60, 71);
+            _scaleManager.setRootNote(rootNote);
+            SERIAL_PRINT("RootNote="); SERIAL_PRINTLN(rootNote);
+            // Notify BLE clients of the change
+            if (notifyScaleSettingsCallback) {
+                notifyScaleSettingsCallback();
+            }
         } else {
             // Throttle CC output (max once per 300ms to reduce interpolation spam)
             static unsigned long lastLeverCCPrint = 0;
