@@ -404,9 +404,10 @@ void BluetoothController::refreshKeepAlive() {
     _keepAliveActive = true;
     updateLastActivity();
 
-    // Send status notification back to web app (battery + USB state)
-    // Format: [battery(1), flags(1), pattern(1), octave(1), scale(1), root(1), reserved(4)] = 10 bytes
+    // Send status notification back to web app (battery + USB state + power mode)
+    // Format: [battery(1), flags(1), pattern(1), octave(1), scale(1), root(1), powerMode(1), reserved(3)] = 10 bytes
     // bit0 of flags = USB connected, bit1 = touch calibrated (reserved for future)
+    // powerMode: 0=disconnected(50mA), 1=live(95mA), 2=config(60mA), 3=idle(35mA)
     if (_isEnabled && _pKeepAliveCharacteristic && _deviceConnected) {
         uint8_t statusPacket[10] = {0};
         statusPacket[0] = batteryState.estimatedPercentage;
@@ -415,7 +416,8 @@ void BluetoothController::refreshKeepAlive() {
         statusPacket[3] = 128; // octave offset reserved (128 = center/0)
         statusPacket[4] = (uint8_t)_scaleSettings.scaleType;
         statusPacket[5] = (uint8_t)(_scaleSettings.rootNote % 12);
-        // bytes 6-9: reserved
+        statusPacket[6] = (uint8_t)_currentPowerMode;  // 1=LIVE, 2=CONFIG, 3=IDLE
+        // bytes 7-9: reserved
         _pKeepAliveCharacteristic->setValue(statusPacket, 10);
         _pKeepAliveCharacteristic->notify();
     }
@@ -641,9 +643,9 @@ void BluetoothController::updateBatteryStatus() {
         uint32_t remainingSeconds = 0;
         
         if (batteryState.estimatedPercentage < 255) {  // Not charging
-            // Estimate remaining runtime based on current percentage and active drain
+            // Estimate remaining runtime based on current percentage and disconnected mode drain (baseline)
             float remainingMah = (batteryState.estimatedPercentage / 100.0f) * BATTERY_CAPACITY_MAH;
-            float remainingHours = remainingMah / BATTERY_ACTIVE_DRAIN_MA;  // Conservative estimate using active drain
+            float remainingHours = remainingMah / BATTERY_ACTIVE_DRAIN_MA;  // Baseline estimate (disconnected, lowest drain)
             remainingSeconds = (uint32_t)(remainingHours * 3600.0f);
         }
         

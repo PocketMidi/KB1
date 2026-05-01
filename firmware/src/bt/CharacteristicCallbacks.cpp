@@ -197,6 +197,12 @@ void BatteryControlCallback::onWrite(BLECharacteristic *pCharacteristic) {
         batteryState.activeTimeMs = 0;
         batteryState.lightSleepTimeMs = 0;
         batteryState.deepSleepTimeMs = 0;
+        
+        // CRITICAL: Zero out BLE adaptive power trackers (v1.7.0+)
+        batteryState.bleLiveTimeMs = 0;
+        batteryState.bleConfigTimeMs = 0;
+        batteryState.bleIdleTimeMs = 0;
+        
         batteryState.accumulatedChargeMs = 0;  // Clear accumulated charge time
         batteryState.chargeSessionStartMs = 0;  // Clear session timer
         batteryState.calibrationTimestamp = 0;  // Never calibrated
@@ -207,6 +213,12 @@ void BatteryControlCallback::onWrite(BLECharacteristic *pCharacteristic) {
         _preferences.putUChar("batPct", 254);
         _preferences.putUInt("batCalTime", 0);
         _preferences.putULong("batAccChgMs", 0);  // Clear accumulated charge time in NVS
+        
+        // Save BLE adaptive power tracker zeroes (v1.7.0+)
+        _preferences.putUInt("batBLeLive", 0);
+        _preferences.putUInt("batBLeCfg", 0);
+        _preferences.putUInt("batBLeIdl", 0);
+        
         batteryState.lastSaveMs = millis();  // Update save timestamp
         
         SERIAL_PRINTLN("Battery reset to uncalibrated - ready for recalibration");
@@ -222,6 +234,7 @@ void BatteryControlCallback::onWrite(BLECharacteristic *pCharacteristic) {
         // Notify UI of battery status change
         if (_controller) {
             _controller->updateBatteryStatus();
+            _controller->refreshKeepAlive();  // Send fresh power mode data
         }
     } else if (command == 0x02 && rxValue.length() == 2) {  // Set battery percentage (dev tool)
         uint8_t percentage = static_cast<uint8_t>(rxValue[1]);
@@ -240,6 +253,13 @@ void BatteryControlCallback::onWrite(BLECharacteristic *pCharacteristic) {
         batteryState.lightSleepTimeMs = 0;
         batteryState.deepSleepTimeMs = 0;
         batteryState.accumulatedDischargeMs = activeMs;
+        
+        // CRITICAL: Zero out BLE adaptive power trackers (v1.7.0+)
+        // Otherwise calculateBatteryPercentage() uses stale BLE hours and overwrites manual set
+        batteryState.bleLiveTimeMs = 0;
+        batteryState.bleConfigTimeMs = 0;
+        batteryState.bleIdleTimeMs = 0;
+        
         batteryState.estimatedPercentage = percentage;
         batteryState.isFullyCharged = (percentage == 100);
         if (percentage > 0 && batteryState.calibrationTimestamp == 0) {
@@ -252,6 +272,12 @@ void BatteryControlCallback::onWrite(BLECharacteristic *pCharacteristic) {
         _preferences.putUInt("batLightMs", 0);
         _preferences.putUInt("batDeepMs", 0);
         _preferences.putUInt("batDischMs", activeMs);
+        
+        // Save BLE adaptive power tracker zeroes (v1.7.0+)
+        _preferences.putUInt("batBLeLive", 0);
+        _preferences.putUInt("batBLeCfg", 0);
+        _preferences.putUInt("batBLeIdl", 0);
+        
         _preferences.putBool("batFull", percentage == 100);
         if (batteryState.calibrationTimestamp > 0) {
             _preferences.putUInt("batCalTime", batteryState.calibrationTimestamp);
@@ -261,6 +287,7 @@ void BatteryControlCallback::onWrite(BLECharacteristic *pCharacteristic) {
         // Notify UI of battery status change
         if (_controller) {
             _controller->updateBatteryStatus();
+            _controller->refreshKeepAlive();  // Send fresh power mode data
         }
 
         SERIAL_PRINT("Bat% set: ");

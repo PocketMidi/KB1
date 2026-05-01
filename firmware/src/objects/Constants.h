@@ -2,10 +2,10 @@
 #define CONSTANTS_H
 
 // Firmware version
-#define FIRMWARE_VERSION "1.7.1"
+#define FIRMWARE_VERSION "1.7.2"
 #define FIRMWARE_VERSION_MAJOR 1
 #define FIRMWARE_VERSION_MINOR 7
-#define FIRMWARE_VERSION_PATCH 1
+#define FIRMWARE_VERSION_PATCH 2
 
 // Uncomment following line to enable Serial Printing
 #define SERIAL_PRINT_ENABLED 1
@@ -56,13 +56,13 @@
 #define BATTERY_FULL_CHARGE_MS 18000000   // 5 hours (18000000ms)
 
 // Power consumption by mode (measured values)
-#define BATTERY_ACTIVE_DRAIN_MA 95        // Active mode current draw (legacy, BLE live)
+#define BATTERY_ACTIVE_DRAIN_MA 35        // Active mode, BLE disconnected (35mA - lowest, no radio)
 #define BATTERY_LIGHT_SLEEP_DRAIN_MA 2    // Light sleep current draw
 #define BATTERY_DEEP_SLEEP_DRAIN_MA 0.014 // Deep sleep current draw (14µA)
 
 // BLE adaptive power mode drain rates (v1.7.0)
 #define BATTERY_BLE_LIVE_DRAIN_MA 95      // BLE LIVE_PERFORMANCE mode (max responsiveness)
 #define BATTERY_BLE_CONFIG_DRAIN_MA 60    // BLE CONFIGURATION mode (good responsiveness)
-#define BATTERY_BLE_IDLE_DRAIN_MA 35      // BLE IDLE_CONNECTED mode (max power savings)
+#define BATTERY_BLE_IDLE_DRAIN_MA 50      // BLE IDLE_CONNECTED mode (radio on but idle)
 
 #endif

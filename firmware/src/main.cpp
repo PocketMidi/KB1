@@ -700,6 +700,12 @@ void updateBatteryMonitoring() {
                 batteryState.activeTimeMs = 0;
                 batteryState.lightSleepTimeMs = 0;
                 batteryState.deepSleepTimeMs = 0;
+                
+                // CRITICAL: Zero out BLE adaptive power trackers (v1.7.0+)
+                batteryState.bleLiveTimeMs = 0;
+                batteryState.bleConfigTimeMs = 0;
+                batteryState.bleIdleTimeMs = 0;
+                
                 batteryState.estimatedPercentage = 100;
                 batteryState.calibrationTimestamp = now / 1000;
                 batteryState.accumulatedChargeMs = 0;  // Clear accumulated time (calibration complete)
@@ -720,11 +726,32 @@ void updateBatteryMonitoring() {
                     batteryState.accumulatedDischargeMs = 0;
                 }
                 
-                // Also reduce activeTimeMs proportionally (since we track both)
-                if (batteryState.activeTimeMs > equivalentActiveMs) {
-                    batteryState.activeTimeMs -= equivalentActiveMs;
-                } else {
-                    batteryState.activeTimeMs = 0;
+                // Reduce all time trackers proportionally to match added capacity
+                // Try to reduce from most efficient modes first (legacy active/BLE trackers)
+                unsigned long remaining = equivalentActiveMs;
+                
+                // Reduce legacy activeTimeMs first
+                if (remaining > 0 && batteryState.activeTimeMs > 0) {
+                    unsigned long reduction = (batteryState.activeTimeMs < remaining) ? batteryState.activeTimeMs : remaining;
+                    batteryState.activeTimeMs -= reduction;
+                    remaining -= reduction;
+                }
+                
+                // Reduce BLE trackers (v1.7.0) - reduce from lowest power mode first
+                if (remaining > 0 && batteryState.bleIdleTimeMs > 0) {
+                    unsigned long reduction = (batteryState.bleIdleTimeMs < remaining) ? batteryState.bleIdleTimeMs : remaining;
+                    batteryState.bleIdleTimeMs -= reduction;
+                    remaining -= reduction;
+                }
+                if (remaining > 0 && batteryState.bleConfigTimeMs > 0) {
+                    unsigned long reduction = (batteryState.bleConfigTimeMs < remaining) ? batteryState.bleConfigTimeMs : remaining;
+                    batteryState.bleConfigTimeMs -= reduction;
+                    remaining -= reduction;
+                }
+                if (remaining > 0 && batteryState.bleLiveTimeMs > 0) {
+                    unsigned long reduction = (batteryState.bleLiveTimeMs < remaining) ? batteryState.bleLiveTimeMs : remaining;
+                    batteryState.bleLiveTimeMs -= reduction;
+                    remaining -= reduction;
                 }
                 
                 // Recalculate percentage (cap at 100%)
@@ -780,6 +807,12 @@ void updateBatteryMonitoring() {
                     batteryState.activeTimeMs = 0;
                     batteryState.lightSleepTimeMs = 0;
                     batteryState.deepSleepTimeMs = 0;
+                    
+                    // CRITICAL: Zero out BLE adaptive power trackers (v1.7.0+)
+                    batteryState.bleLiveTimeMs = 0;
+                    batteryState.bleConfigTimeMs = 0;
+                    batteryState.bleIdleTimeMs = 0;
+                    
                     batteryState.estimatedPercentage = 100;
                     batteryState.calibrationTimestamp = now / 1000;  // Store as seconds since boot (approximation)
                     batteryState.accumulatedChargeMs = 0;  // Clear accumulated time (calibration complete)
@@ -820,22 +853,52 @@ void updateBatteryMonitoring() {
                     unsigned long equivalentActiveMs = equivalentActiveHours * 3600000.0f;
                     
                     // Calculate what the percentage would be with this charge
-                    // Start from the snapshot values at charge start
+                    // Reduce time trackers proportionally (simulate partial charge completion)
                     unsigned long tempActiveMs = batteryState.activeTimeMs;
-                    if (tempActiveMs > equivalentActiveMs) {
-                        tempActiveMs -= equivalentActiveMs;
-                    } else {
-                        tempActiveMs = 0;
+                    unsigned long tempBleLiveMs = batteryState.bleLiveTimeMs;
+                    unsigned long tempBleConfigMs = batteryState.bleConfigTimeMs;
+                    unsigned long tempBleIdleMs = batteryState.bleIdleTimeMs;
+                    
+                    unsigned long remaining = equivalentActiveMs;
+                    
+                    // Reduce legacy active first
+                    if (remaining > 0 && tempActiveMs > 0) {
+                        unsigned long reduction = (tempActiveMs < remaining) ? tempActiveMs : remaining;
+                        tempActiveMs -= reduction;
+                        remaining -= reduction;
                     }
                     
-                    // Calculate percentage using temporary reduced discharge time
+                    // Reduce BLE trackers from lowest power mode first
+                    if (remaining > 0 && tempBleIdleMs > 0) {
+                        unsigned long reduction = (tempBleIdleMs < remaining) ? tempBleIdleMs : remaining;
+                        tempBleIdleMs -= reduction;
+                        remaining -= reduction;
+                    }
+                    if (remaining > 0 && tempBleConfigMs > 0) {
+                        unsigned long reduction = (tempBleConfigMs < remaining) ? tempBleConfigMs : remaining;
+                        tempBleConfigMs -= reduction;
+                        remaining -= reduction;
+                    }
+                    if (remaining > 0 && tempBleLiveMs > 0) {
+                        unsigned long reduction = (tempBleLiveMs < remaining) ? tempBleLiveMs : remaining;
+                        tempBleLiveMs -= reduction;
+                        remaining -= reduction;
+                    }
+                    
+                    // Calculate percentage using temporary reduced time trackers
                     float activeHours = tempActiveMs / 3600000.0f;
                     float lightSleepHours = batteryState.lightSleepTimeMs / 3600000.0f;
                     float deepSleepHours = batteryState.deepSleepTimeMs / 3600000.0f;
+                    float bleLiveHours = tempBleLiveMs / 3600000.0f;
+                    float bleConfigHours = tempBleConfigMs / 3600000.0f;
+                    float bleIdleHours = tempBleIdleMs / 3600000.0f;
                     
                     float consumedMah = (activeHours * BATTERY_ACTIVE_DRAIN_MA) +
                                        (lightSleepHours * BATTERY_LIGHT_SLEEP_DRAIN_MA) +
-                                       (deepSleepHours * BATTERY_DEEP_SLEEP_DRAIN_MA);
+                                       (deepSleepHours * BATTERY_DEEP_SLEEP_DRAIN_MA) +
+                                       (bleLiveHours * BATTERY_BLE_LIVE_DRAIN_MA) +
+                                       (bleConfigHours * BATTERY_BLE_CONFIG_DRAIN_MA) +
+                                       (bleIdleHours * BATTERY_BLE_IDLE_DRAIN_MA);
                     
                     float remainingMah = BATTERY_CAPACITY_MAH - consumedMah;
                     uint8_t currentPercentage = (uint8_t)((remainingMah / BATTERY_CAPACITY_MAH) * 100.0f);
