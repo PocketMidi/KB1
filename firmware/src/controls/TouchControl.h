@@ -49,14 +49,17 @@ public:
         }
         _previousCCNumber = _settings.ccNumber;
 
-        // Disable Pattern Selector (201) and Swing (202) when not in strum:shape mode
-        // Only active when playMode=CHORD AND strumEnabled=true AND strumPattern>0
-        bool isStrumShapeMode = (_chordSettings.playMode == PlayMode::CHORD && 
-                                  _chordSettings.strumEnabled && 
-                                  _chordSettings.strumPattern > 0);
-        bool isPatternOrSwing = (_settings.ccNumber == 201 || _settings.ccNumber == 202);
-        if (isPatternOrSwing && !isStrumShapeMode) {
-            // Silently ignore input when not in strum:shape mode
+        // Disable Pattern Selector (201) when not in ARP mode
+        // Disable Swing (202) when not in ARP mode
+        // Disable Latch (207) when not in ARP mode
+        bool isArpMode = (_chordSettings.playMode == PlayMode::ARP);
+        if (_settings.ccNumber == 201 && !isArpMode) {
+            return;
+        }
+        if (_settings.ccNumber == 202 && !isArpMode) {
+            return;
+        }
+        if (_settings.ccNumber == 207 && !isArpMode) {
             return;
         }
 
@@ -101,9 +104,9 @@ public:
                                 _chordSettings.strumSpeed = constrain(strumSpeed, 4, 360);
                                 SERIAL_PRINT("SS"); SERIAL_PRINTLN(_chordSettings.strumSpeed);
                             } else if (_settings.ccNumber == 202) {
-                                // 202 = KB1 Expression: Swing (0-100%)
-                                int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 100);
-                                _chordSettings.strumSwing = constrain(swing, 0, 100);
+                                // 202 = KB1 Expression: Swing (0-50 firmware, 50-100% UI)
+                                int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 50);
+                                _chordSettings.strumSwing = constrain(swing, 0, 50);
                                 SERIAL_PRINT("SW"); SERIAL_PRINTLN(_chordSettings.strumSwing);
                             } else if (_settings.ccNumber == 203) {
                                 // 203 = KB1 Expression: Velocity Spread (10-100%)
@@ -111,20 +114,19 @@ public:
                                 _chordSettings.velocitySpread = constrain(velocitySpread, 10, 100);
                                 SERIAL_PRINT("VS"); SERIAL_PRINTLN(_chordSettings.velocitySpread);
                             } else if (_settings.ccNumber == 204) {
-                                // 204 = KB1 Expression: Scale Type (0-20)
-                                int scaleIndex = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 20);
-                                scaleIndex = constrain(scaleIndex, 0, 20);
-                                _scaleManager.setScale((ScaleType)scaleIndex);
-                                SERIAL_PRINT("ScaleType="); SERIAL_PRINTLN(scaleIndex);
-                                if (notifyScaleSettingsCallback) {
-                                    notifyScaleSettingsCallback();
+                                // 204 = KB1 Expression: Chord Swing (10-100)
+                                int chordSwing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 10, 100);
+                                _chordSettings.gateValue = constrain(chordSwing, 10, 100);
+                                SERIAL_PRINT("CS"); SERIAL_PRINTLN(_chordSettings.gateValue);
+                                if (notifyChordSettingsCallback) {
+                                    notifyChordSettingsCallback();
                                 }
                             } else if (_settings.ccNumber == 205) {
-                                // 205 = KB1 Expression: Chord Type (0-14)
-                                int chordIndex = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 14);
-                                chordIndex = constrain(chordIndex, 0, 14);
-                                _chordSettings.chordType = (ChordType)chordIndex;
-                                SERIAL_PRINT("ChordType="); SERIAL_PRINTLN(chordIndex);
+                                // 205 = KB1 Expression: Note Range / voicing (1-3 octave spread)
+                                int voicing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 1, 3);
+                                voicing = constrain(voicing, 1, 3);
+                                _chordSettings.voicing = voicing;
+                                SERIAL_PRINT("NoteRange="); SERIAL_PRINTLN(voicing);
                                 if (notifyChordSettingsCallback) {
                                     notifyChordSettingsCallback();
                                 }
@@ -136,6 +138,13 @@ public:
                                 SERIAL_PRINT("RootNote="); SERIAL_PRINTLN(rootNote);
                                 if (notifyScaleSettingsCallback) {
                                     notifyScaleSettingsCallback();
+                                }
+                            } else if (_settings.ccNumber == 207) {
+                                // 207 = KB1 Expression: ARP Latch toggle (0=momentary, 1=latch)
+                                _chordSettings.arpLatchMode = (sendVal >= 64) ? 1 : 0;
+                                SERIAL_PRINT("Latch="); SERIAL_PRINTLN(_chordSettings.arpLatchMode);
+                                if (notifyChordSettingsCallback) {
+                                    notifyChordSettingsCallback();
                                 }
                             } else {
                                 _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
@@ -200,101 +209,96 @@ public:
                                 // Update internal chord settings to match the pattern change
                                 _chordSettings.strumPattern = constrain(currentPattern, 1, 6);
                                 
+                                // Notify BLE clients of the change
+                                if (notifyChordSettingsCallback) {
+                                    notifyChordSettingsCallback();
+                                }
+                                
                                 // Minimal logging (1 line only for speed)
                                 char buf[8];
                                 snprintf(buf, sizeof(buf), "P%d", _chordSettings.strumPattern);
                                 SERIAL_PRINTLN(buf);
                             } else if (_settings.ccNumber == 204) {
-                                // Scale Type (CC 204): cycle through scale types (0-20)
-                                static unsigned long lastScaleChange = 0;
+                                // Chord Swing (CC 204): step through 10-100 on each press
+                                static unsigned long lastChordSwingChange = 0;
                                 unsigned long now = millis();
-                                if (now - lastScaleChange < _toggleDebounceTime) {
+                                if (now - lastChordSwingChange < _toggleDebounceTime) {
                                     _wasPressed = isPressed;
                                     break;
                                 }
-                                lastScaleChange = now;
+                                lastChordSwingChange = now;
                                 
-                                // Get current scale type (0-20)
-                                int currentScale = (int)_scaleManager.getScaleType();
+                                int minSwing = map(_settings.minCCValue, 0, 127, 10, 100);
+                                int maxSwing = map(_settings.maxCCValue, 0, 127, 10, 100);
+                                minSwing = constrain(minSwing, 10, 100);
+                                maxSwing = constrain(maxSwing, 10, 100);
                                 
-                                // Get min/max from settings (maps 0-127 to 0-20)
-                                int minScale = map(_settings.minCCValue, 0, 127, 0, 20);
-                                int maxScale = map(_settings.maxCCValue, 0, 127, 0, 20);
-                                minScale = constrain(minScale, 0, 20);
-                                maxScale = constrain(maxScale, 0, 20);
-                                
-                                // Cycle based on offsetTime: 0=forward, >0=reverse
+                                // Step based on offsetTime: 0=forward, >0=reverse
                                 bool isForward = (_settings.offsetTime == 0);
+                                int step = max(1, (maxSwing - minSwing) / 10);
+                                int current = _chordSettings.gateValue;
                                 if (isForward) {
-                                    currentScale++;
-                                    if (currentScale > maxScale) currentScale = minScale;
+                                    current += step;
+                                    if (current > maxSwing) current = minSwing;
                                 } else {
-                                    currentScale--;
-                                    if (currentScale < minScale) currentScale = maxScale;
+                                    current -= step;
+                                    if (current < minSwing) current = maxSwing;
                                 }
-                                currentScale = constrain(currentScale, 0, 20);
+                                _chordSettings.gateValue = constrain(current, 10, 100);
                                 
-                                // Set LED color based on direction
                                 _ledController.set(isForward ? LedColor::PINK : LedColor::BLUE, 255);
-                                _ledController.set(isForward ? LedColor::BLUE : LedColor::PINK, 0);
                                 _ledController.set(isForward ? LedColor::PINK : LedColor::BLUE, 0, 300);
                                 
-                                // Apply scale change
-                                _scaleManager.setScale((ScaleType)currentScale);
+                                int sendVal2 = map(_chordSettings.gateValue, 10, 100, _settings.minCCValue, _settings.maxCCValue);
+                                _midi.sendControlChange(_settings.ccNumber, sendVal2, 1);
+                                _lastCCTouchValue = sendVal2;
                                 
-                                // Send MIDI CC (map scale index back to MIDI range using settings)
-                                int sendVal = map(currentScale, 0, 20, _settings.minCCValue, _settings.maxCCValue);
-                                _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
-                                _lastCCTouchValue = sendVal;
-                                
-                                SERIAL_PRINT("ScaleType="); SERIAL_PRINTLN(currentScale);
-                                if (notifyScaleSettingsCallback) {
-                                    notifyScaleSettingsCallback();
+                                SERIAL_PRINT("CS"); SERIAL_PRINTLN(_chordSettings.gateValue);
+                                if (notifyChordSettingsCallback) {
+                                    notifyChordSettingsCallback();
                                 }
                             } else if (_settings.ccNumber == 205) {
-                                // Chord Type (CC 205): cycle through chord types (0-14)
-                                static unsigned long lastChordChange = 0;
+                                // Note Range (CC 205): cycle through voicing 1→2→3→1 (octave spread)
+                                static unsigned long lastVoicingChange = 0;
                                 unsigned long now = millis();
-                                if (now - lastChordChange < _toggleDebounceTime) {
+                                if (now - lastVoicingChange < _toggleDebounceTime) {
                                     _wasPressed = isPressed;
                                     break;
                                 }
-                                lastChordChange = now;
-                                
-                                // Get current chord type (0-14)
-                                int currentChord = (int)_chordSettings.chordType;
-                                
-                                // Get min/max from settings (maps 0-127 to 0-14)
-                                int minChord = map(_settings.minCCValue, 0, 127, 0, 14);
-                                int maxChord = map(_settings.maxCCValue, 0, 127, 0, 14);
-                                minChord = constrain(minChord, 0, 14);
-                                maxChord = constrain(maxChord, 0, 14);
-                                
+                                lastVoicingChange = now;
+
+                                int currentVoicing = constrain(_chordSettings.voicing, 1, 3);
+
+                                // Get min/max from settings (maps 0-127 to 1-3)
+                                int minVoicing = map(_settings.minCCValue, 0, 127, 1, 3);
+                                int maxVoicing = map(_settings.maxCCValue, 0, 127, 1, 3);
+                                minVoicing = constrain(minVoicing, 1, 3);
+                                maxVoicing = constrain(maxVoicing, 1, 3);
+
                                 // Cycle based on offsetTime: 0=forward, >0=reverse
                                 bool isForward = (_settings.offsetTime == 0);
                                 if (isForward) {
-                                    currentChord++;
-                                    if (currentChord > maxChord) currentChord = minChord;
+                                    currentVoicing++;
+                                    if (currentVoicing > maxVoicing) currentVoicing = minVoicing;
                                 } else {
-                                    currentChord--;
-                                    if (currentChord < minChord) currentChord = maxChord;
+                                    currentVoicing--;
+                                    if (currentVoicing < minVoicing) currentVoicing = maxVoicing;
                                 }
-                                currentChord = constrain(currentChord, 0, 14);
-                                
+                                currentVoicing = constrain(currentVoicing, 1, 3);
+
                                 // Set LED color based on direction
                                 _ledController.set(isForward ? LedColor::PINK : LedColor::BLUE, 255);
                                 _ledController.set(isForward ? LedColor::BLUE : LedColor::PINK, 0);
                                 _ledController.set(isForward ? LedColor::PINK : LedColor::BLUE, 0, 300);
-                                
-                                // Apply chord change
-                                _chordSettings.chordType = (ChordType)currentChord;
-                                
-                                // Send MIDI CC (map chord index back to MIDI range using settings)
-                                int sendVal = map(currentChord, 0, 14, _settings.minCCValue, _settings.maxCCValue);
-                                _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
-                                _lastCCTouchValue = sendVal;
-                                
-                                SERIAL_PRINT("ChordType="); SERIAL_PRINTLN(currentChord);
+
+                                _chordSettings.voicing = currentVoicing;
+
+                                // Send MIDI CC (map voicing back to MIDI range)
+                                int sendVal205 = map(currentVoicing, 1, 3, _settings.minCCValue, _settings.maxCCValue);
+                                _midi.sendControlChange(_settings.ccNumber, sendVal205, 1);
+                                _lastCCTouchValue = sendVal205;
+
+                                SERIAL_PRINT("NoteRange="); SERIAL_PRINTLN(currentVoicing);
                                 if (notifyChordSettingsCallback) {
                                     notifyChordSettingsCallback();
                                 }
@@ -345,6 +349,31 @@ public:
                                 if (notifyScaleSettingsCallback) {
                                     notifyScaleSettingsCallback();
                                 }
+                            } else if (_settings.ccNumber == 207) {
+                                // Latch (CC 207): toggle arpLatchMode 0↔1 on each tap
+                                static unsigned long lastLatchChange = 0;
+                                unsigned long now = millis();
+                                if (now - lastLatchChange < _toggleDebounceTime) {
+                                    _wasPressed = isPressed;
+                                    break;
+                                }
+                                lastLatchChange = now;
+                                
+                                _chordSettings.arpLatchMode = (_chordSettings.arpLatchMode == 0) ? 1 : 0;
+                                
+                                // Pink = latch on, Blue = momentary
+                                bool isLatched = (_chordSettings.arpLatchMode == 1);
+                                _ledController.set(isLatched ? LedColor::PINK : LedColor::BLUE, 255);
+                                _ledController.set(isLatched ? LedColor::PINK : LedColor::BLUE, 0, 300);
+                                
+                                int sendVal = isLatched ? _settings.maxCCValue : _settings.minCCValue;
+                                _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
+                                _lastCCTouchValue = sendVal;
+                                
+                                SERIAL_PRINT("Latch="); SERIAL_PRINTLN(_chordSettings.arpLatchMode);
+                                if (notifyChordSettingsCallback) {
+                                    notifyChordSettingsCallback();
+                                }
                             } else {
                                 // Normal toggle behavior for other parameters
                                 _toggleState = !_toggleState;
@@ -359,9 +388,9 @@ public:
                                     _chordSettings.strumSpeed = constrain(strumSpeed, 4, 360);
                                     SERIAL_PRINT("SS"); SERIAL_PRINTLN(_chordSettings.strumSpeed);
                                 } else if (_settings.ccNumber == 202) {
-                                    // 202 = KB1 Expression: Swing (0-100%)
-                                    int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 100);
-                                    _chordSettings.strumSwing = constrain(swing, 0, 100);
+                                    // 202 = KB1 Expression: Swing (0-50 firmware, 50-100% UI)
+                                    int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 50);
+                                    _chordSettings.strumSwing = constrain(swing, 0, 50);
                                     SERIAL_PRINT("SW"); SERIAL_PRINTLN(_chordSettings.strumSwing);
                                 } else if (_settings.ccNumber == 203) {
                                     // 203 = KB1 Expression: Velocity Spread (8-100%)
@@ -369,20 +398,19 @@ public:
                                     _chordSettings.velocitySpread = constrain(velocitySpread, 10, 100);
                                     SERIAL_PRINT("VS"); SERIAL_PRINTLN(_chordSettings.velocitySpread);
                                 } else if (_settings.ccNumber == 204) {
-                                    // 204 = KB1 Expression: Scale Type (0-20)
-                                    int scaleIndex = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 20);
-                                    scaleIndex = constrain(scaleIndex, 0, 20);
-                                    _scaleManager.setScale((ScaleType)scaleIndex);
-                                    SERIAL_PRINT("ScaleType="); SERIAL_PRINTLN(scaleIndex);
-                                    if (notifyScaleSettingsCallback) {
-                                        notifyScaleSettingsCallback();
+                                    // 204 = KB1 Expression: Chord Swing (10-100)
+                                    int chordSwing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 10, 100);
+                                    _chordSettings.gateValue = constrain(chordSwing, 10, 100);
+                                    SERIAL_PRINT("CS"); SERIAL_PRINTLN(_chordSettings.gateValue);
+                                    if (notifyChordSettingsCallback) {
+                                        notifyChordSettingsCallback();
                                     }
                                 } else if (_settings.ccNumber == 205) {
-                                    // 205 = KB1 Expression: Chord Type (0-14)
-                                    int chordIndex = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 14);
-                                    chordIndex = constrain(chordIndex, 0, 14);
-                                    _chordSettings.chordType = (ChordType)chordIndex;
-                                    SERIAL_PRINT("ChordType="); SERIAL_PRINTLN(chordIndex);
+                                    // 205 = KB1 Expression: Note Range / voicing (1-3 octave spread)
+                                    int voicing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 1, 3);
+                                    voicing = constrain(voicing, 1, 3);
+                                    _chordSettings.voicing = voicing;
+                                    SERIAL_PRINT("NoteRange="); SERIAL_PRINTLN(voicing);
                                     if (notifyChordSettingsCallback) {
                                         notifyChordSettingsCallback();
                                     }
@@ -411,7 +439,13 @@ public:
                         if (_sensorMax != _sensorMin) {
                             percentage = (float)(clampedSensorValue - _sensorMin) / (float)(_sensorMax - _sensorMin);
                         }
-                        int ccValue = _settings.minCCValue + (int)(percentage * (_settings.maxCCValue - _settings.minCCValue));
+                        // REV mode (offsetTime > 0): invert mapping — release returns to maxCC instead of minCC
+                        int ccValue;
+                        if (_settings.offsetTime > 0) {
+                            ccValue = _settings.maxCCValue - (int)(percentage * (_settings.maxCCValue - _settings.minCCValue));
+                        } else {
+                            ccValue = _settings.minCCValue + (int)(percentage * (_settings.maxCCValue - _settings.minCCValue));
+                        }
 
                         if (_lastCCTouchValue != ccValue) {
                             int sendVal = constrain(ccValue, 0, 127);
@@ -423,9 +457,9 @@ public:
                                 _chordSettings.strumSpeed = constrain(strumSpeed, 4, 360);
                                 SERIAL_PRINT("SS"); SERIAL_PRINTLN(_chordSettings.strumSpeed);
                             } else if (_settings.ccNumber == 202) {
-                                // 202 = KB1 Expression: Swing (0-100%)
-                                int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 100);
-                                _chordSettings.strumSwing = constrain(swing, 0, 100);
+                                // 202 = KB1 Expression: Swing (0-50 firmware, 50-100% UI)
+                                int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 50);
+                                _chordSettings.strumSwing = constrain(swing, 0, 50);
                                 SERIAL_PRINT("SW"); SERIAL_PRINTLN(_chordSettings.strumSwing);
                             } else if (_settings.ccNumber == 203) {
                                 // 203 = KB1 Expression: Velocity Spread (10-100%)
@@ -433,20 +467,19 @@ public:
                                 _chordSettings.velocitySpread = constrain(velocitySpread, 10, 100);
                                 SERIAL_PRINT("VS"); SERIAL_PRINTLN(_chordSettings.velocitySpread);
                             } else if (_settings.ccNumber == 204) {
-                                // 204 = KB1 Expression: Scale Type (0-20)
-                                int scaleIndex = map(sendVal, 0, 127, 0, 20);
-                                scaleIndex = constrain(scaleIndex, 0, 20);
-                                _scaleManager.setScale((ScaleType)scaleIndex);
-                                SERIAL_PRINT("ScaleType="); SERIAL_PRINTLN(scaleIndex);
-                                if (notifyScaleSettingsCallback) {
-                                    notifyScaleSettingsCallback();
+                                // 204 = KB1 Expression: Chord Swing (10-100)
+                                int chordSwing = map(sendVal, 0, 127, 10, 100);
+                                _chordSettings.gateValue = constrain(chordSwing, 10, 100);
+                                SERIAL_PRINT("CS"); SERIAL_PRINTLN(_chordSettings.gateValue);
+                                if (notifyChordSettingsCallback) {
+                                    notifyChordSettingsCallback();
                                 }
                             } else if (_settings.ccNumber == 205) {
-                                // 205 = KB1 Expression: Chord Type (0-14)
-                                int chordIndex = map(sendVal, 0, 127, 0, 14);
-                                chordIndex = constrain(chordIndex, 0, 14);
-                                _chordSettings.chordType = (ChordType)chordIndex;
-                                SERIAL_PRINT("ChordType="); SERIAL_PRINTLN(chordIndex);
+                                // 205 = KB1 Expression: Note Range / voicing (1-3 octave spread)
+                                int voicing = map(sendVal, 0, 127, 1, 3);
+                                voicing = constrain(voicing, 1, 3);
+                                _chordSettings.voicing = voicing;
+                                SERIAL_PRINT("NoteRange="); SERIAL_PRINTLN(voicing);
                                 if (notifyChordSettingsCallback) {
                                     notifyChordSettingsCallback();
                                 }

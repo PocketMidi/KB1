@@ -157,11 +157,18 @@ void LeverPushControls<MidiTransport>::setOffsetInterpolationType(InterpolationT
 template<class MidiTransport>
 void LeverPushControls<MidiTransport>::syncValue() {
     // Re-initialize value based on current settings (called after BLE updates)
-    // LeverPush is always unipolar - just reset to min value
-    _currentValue = _settings.minCCValue;
-    _targetValue = _settings.minCCValue;
-    _rampStartValue = _settings.minCCValue;
-    _lastSentValue = _settings.minCCValue;
+    if (_settings.ccNumber == 201) {
+        // Pattern Selector: sync _currentValue to the actual running strumPattern so
+        // cycling starts from the correct position, not from the preset min value
+        const int patternMidi[] = {0, 25, 51, 76, 102, 127};
+        int pattern = constrain(_chordSettings.strumPattern, 1, 6);
+        _currentValue = patternMidi[pattern - 1];
+    } else {
+        _currentValue = _settings.minCCValue;
+    }
+    _targetValue = _currentValue;
+    _rampStartValue = _currentValue;
+    _lastSentValue = _currentValue;
 }
 
 template<class MidiTransport>
@@ -176,14 +183,13 @@ void LeverPushControls<MidiTransport>::handleInput() {
     }
     _previousCCNumber = _settings.ccNumber;
 
-    // Disable Pattern Selector (201) and Swing (202) when not in strum:shape mode
-    // Only active when playMode=CHORD AND strumEnabled=true AND strumPattern>0
-    bool isStrumShapeMode = (_chordSettings.playMode == PlayMode::CHORD && 
-                              _chordSettings.strumEnabled && 
-                              _chordSettings.strumPattern > 0);
-    bool isPatternOrSwing = (_settings.ccNumber == 201 || _settings.ccNumber == 202);
-    if (isPatternOrSwing && !isStrumShapeMode) {
-        // Silently ignore input when not in strum:shape mode
+    // Disable Pattern Selector (201) when not in ARP mode
+    // Disable Swing (202) when not in ARP mode
+    bool isArpMode = (_chordSettings.playMode == PlayMode::ARP);
+    if (_settings.ccNumber == 201 && !isArpMode) {
+        return;
+    }
+    if (_settings.ccNumber == 202 && !isArpMode) {
         return;
     }
 
@@ -211,16 +217,8 @@ void LeverPushControls<MidiTransport>::handleInput() {
                 // This avoids rounding errors from continuous mapping
                 const int patternMidi[] = {0, 25, 51, 76, 102, 127};
                 
-                // Find current pattern by matching nearest MIDI value
-                int currentPattern = 1;
-                int minDiff = 127;
-                for (int i = 0; i < 6; i++) {
-                    int diff = abs(_currentValue - patternMidi[i]);
-                    if (diff < minDiff) {
-                        minDiff = diff;
-                        currentPattern = i + 1;
-                    }
-                }
+                // Read current pattern from shared chord settings (shared state with touch/lever controls)
+                int currentPattern = constrain(_chordSettings.strumPattern, 1, 6);
                 
                 // Get min/max from settings
                 int minPattern = 1 + (_settings.minCCValue * 5 / 127);  // Map 0-127 to 0-5, add 1
@@ -240,14 +238,19 @@ void LeverPushControls<MidiTransport>::handleInput() {
                 }
                 currentPattern = constrain(currentPattern, 1, 6);
                 
-                // Set discrete MIDI value for the pattern
+                // Set discrete MIDI value for the pattern and update shared state
                 _currentValue = patternMidi[currentPattern - 1];
+                _chordSettings.strumPattern = currentPattern;
                 _isPressed = true;
                 
                 SERIAL_PRINT("P");
                 SERIAL_PRINT(currentPattern);
                 SERIAL_PRINT("=");
                 SERIAL_PRINTLN(_currentValue);
+                
+                if (notifyChordSettingsCallback) {
+                    notifyChordSettingsCallback();
+                }
             } else if (!state && _isPressed) {
                 // Don't change value on release - keep current pattern
                 _isPressed = false;
@@ -288,34 +291,25 @@ void LeverPushControls<MidiTransport>::handleInput() {
                 _isPressed = false;
             }
         } else if (_settings.ccNumber == 205) {
-            // Chord Type (CC 205): cycle through chord types (0-14)
+            // Note Range (CC 205): cycle through voicing 1→2→3→1 (octave spread)
             if (state && !_isPressed) {
-                // Get current chord type
-                int currentChord = (int)_chordSettings.chordType;
+                int currentVoicing = constrain(_chordSettings.voicing, 1, 3);
                 
-                // Get min/max from settings (maps 0-127 to 0-14)
-                int minChord = map(_settings.minCCValue, 0, 127, 0, 14);
-                int maxChord = map(_settings.maxCCValue, 0, 127, 0, 14);
-                minChord = constrain(minChord, 0, 14);
-                maxChord = constrain(maxChord, 0, 14);
-                
-                // Cycle based on offsetTime: 0=forward, >0=reverse
+                // Cycle based on offsetTime: 0=forward, >0=reverse, always wraps 1-3
                 if (_settings.offsetTime == 0) {
-                    currentChord++;
-                    if (currentChord > maxChord) currentChord = minChord;
+                    currentVoicing++;
+                    if (currentVoicing > 3) currentVoicing = 1;
                 } else {
-                    currentChord--;
-                    if (currentChord < minChord) currentChord = maxChord;
+                    currentVoicing--;
+                    if (currentVoicing < 1) currentVoicing = 3;
                 }
-                currentChord = constrain(currentChord, 0, 14);
                 
-                // Apply chord change directly (skip send() remapping)
-                _chordSettings.chordType = (ChordType)currentChord;
-                _currentValue = map(currentChord, 0, 14, _settings.minCCValue, _settings.maxCCValue);
+                _chordSettings.voicing = currentVoicing;
+                _currentValue = map(currentVoicing, 1, 3, _settings.minCCValue, _settings.maxCCValue);
                 _lastSentValue = _currentValue; // Prevent send() from remapping
                 _isPressed = true;
                 
-                SERIAL_PRINT("ChordType="); SERIAL_PRINTLN(currentChord);
+                SERIAL_PRINT("NoteRange="); SERIAL_PRINTLN(currentVoicing);
                 if (notifyChordSettingsCallback) {
                     notifyChordSettingsCallback();
                 }
@@ -395,6 +389,31 @@ void LeverPushControls<MidiTransport>::handleInput() {
             _rampStartTime = millis();
             _rampStartValue = _currentValue;
         }
+    } else if (_settings.functionMode == LeverPushFunctionMode::SUSTAIN) {
+        // MOM: sustain on while held, off on release
+        // LAT (offsetTime > 0): first press = on, second press = off
+        bool isLatch = (_settings.offsetTime > 0);
+        if (isLatch) {
+            if (state && !_isPressed) {
+                _isPressed = true;
+                bool newSustain = !_keyboardControl.isSustainActive();
+                _keyboardControl.setSustainActive(newSustain, _settings.onsetTime);
+                SERIAL_PRINT("Sustain LAT="); SERIAL_PRINTLN(newSustain ? "ON" : "OFF");
+            } else if (!state && _isPressed) {
+                _isPressed = false;
+            }
+        } else {
+            // Momentary
+            if (state && !_isPressed) {
+                _isPressed = true;
+                _keyboardControl.setSustainActive(true, _settings.onsetTime);
+                SERIAL_PRINTLN("Sustain MOM=ON");
+            } else if (!state && _isPressed) {
+                _isPressed = false;
+                _keyboardControl.setSustainActive(false, _settings.onsetTime);
+                SERIAL_PRINTLN("Sustain MOM=OFF");
+            }
+        }
     }
 }
 
@@ -457,13 +476,10 @@ void LeverPushControls<MidiTransport>::updateValue() {
             }
         } else if (_settings.ccNumber == 201) {
             // 201 = KB1 Expression: Pattern Selector (1-6)
-            // Only active when in strum:shape mode
-            bool isStrumShapeMode = (_chordSettings.playMode == PlayMode::CHORD && 
-                                      _chordSettings.strumEnabled && 
-                                      _chordSettings.strumPattern > 0);
-            if (!isStrumShapeMode) {
-                // Silently ignore when not in strum:shape mode
-                SERIAL_PRINTLN("LeverPush CC 201: Ignored (not in strum:shape mode)");
+            // Only active in ARP mode
+            bool isArpMode = (_chordSettings.playMode == PlayMode::ARP);
+            if (!isArpMode) {
+                SERIAL_PRINTLN("LeverPush CC 201: Ignored (not in ARP mode)");
             } else {
                 // Use discrete MIDI values to avoid rounding errors
                 const int patternMidi[] = {0, 25, 51, 76, 102, 127};
@@ -496,19 +512,25 @@ void LeverPushControls<MidiTransport>::updateValue() {
                 
                 _chordSettings.strumPattern = constrain(pattern, 1, 6);
                 SERIAL_PRINT("P"); SERIAL_PRINTLN(_chordSettings.strumPattern);
+                
+                // Notify BLE clients of the change
+                if (notifyChordSettingsCallback) {
+                    notifyChordSettingsCallback();
+                }
             }
         } else if (_settings.ccNumber == 202) {
-            // 202 = KB1 Expression: Swing (0-100%)
-            // Only active when in strum:shape mode
+            // 202 = KB1 Expression: Swing (0-50 firmware, 50-100% UI)
+            // Active in arp:pattern mode only
             bool isStrumShapeMode = (_chordSettings.playMode == PlayMode::CHORD && 
                                       _chordSettings.strumEnabled && 
                                       _chordSettings.strumPattern > 0);
-            if (!isStrumShapeMode) {
-                // Silently ignore when not in strum:shape mode
+            bool isArpMode = (_chordSettings.playMode == PlayMode::ARP);
+            if (!isStrumShapeMode && !isArpMode) {
+                // Silently ignore when not in a swing-capable mode
                 SERIAL_PRINTLN("LP202:Skip");
             } else {
-                int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 100);
-                _chordSettings.strumSwing = constrain(swing, 0, 100);
+                int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 50);
+                _chordSettings.strumSwing = constrain(swing, 0, 50);
                 SERIAL_PRINT("SW"); SERIAL_PRINTLN(_chordSettings.strumSwing);
             }
         } else if (_settings.ccNumber == 203) {
@@ -528,12 +550,11 @@ void LeverPushControls<MidiTransport>::updateValue() {
                 notifyScaleSettingsCallback();
             }
         } else if (_settings.ccNumber == 205) {
-            // 205 = KB1 Expression: Chord Type (0-14)
-            // Map user's CC range to chord type 0-14
-            int chordIndex = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 14);
-            chordIndex = constrain(chordIndex, 0, 14);
-            _chordSettings.chordType = (ChordType)chordIndex;
-            SERIAL_PRINT("ChordType="); SERIAL_PRINTLN(chordIndex);
+            // 205 = KB1 Expression: Note Range (voicing 1-3)
+            int voicing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 1, 3);
+            voicing = constrain(voicing, 1, 3);
+            _chordSettings.voicing = voicing;
+            SERIAL_PRINT("NoteRange="); SERIAL_PRINTLN(voicing);
             // Notify BLE clients of the change
             if (notifyChordSettingsCallback) {
                 notifyChordSettingsCallback();

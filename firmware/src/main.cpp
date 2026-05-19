@@ -177,12 +177,15 @@ ScaleManager scaleManager(scaleSettings);
 ChordSettings chordSettings = {
     .playMode = PlayMode::SCALE,
     .chordType = ChordType::MAJOR,
-    .strumEnabled = false,
+    .strumEnabled = true,
     .velocitySpread = 10,
-    .strumSpeed = 80,   // 80ms default (moderate-fast, range: ±5ms=fast at edges, ±360ms=slow at center)
-    .strumPattern = 0,  // Default to chord type
-    .strumSwing = 0,    // No swing by default
-    .voicing = 1        // 1x octave range by default
+    .strumSpeed = 110,  // 110ms default
+    .strumPattern = 4,  // Default to Contract (P4)
+    .strumSwing = 15,   // 65% UI (15 firmware = subtle swing for ARP)
+    .gateValue = 35,    // Raw 35 maps to ~64% displayed chord swing
+    .voicing = 2,       // 2x octave range by default
+    .arpUserMode = 0,   // CHORD mode (chord-based arp, not user-defined sequence)
+    .arpLatchMode = 1   // LATCHED (stop on last key release)
 };
 
 //----------------------------------
@@ -228,14 +231,14 @@ LeverControls<decltype(MIDI)> lever1(
 // LeverPush 1  Setup
 //----------------------------------
 LeverPushSettings leverPush1Settings = {
-    .ccNumber = 24,
-    .minCCValue = 32,
+    .ccNumber = 209,
+    .minCCValue = 0,
     .maxCCValue = 127,
-    .functionMode = LeverPushFunctionMode::INTERPOLATED,
-    .onsetTime = 100,
-    .offsetTime = 100,
-    .onsetType = InterpolationType::LINEAR,
-    .offsetType = InterpolationType::LINEAR,
+    .functionMode = LeverPushFunctionMode::SUSTAIN,
+    .onsetTime = 500,
+    .offsetTime = 0,
+    .onsetType = InterpolationType::LOGARITHMIC,
+    .offsetType = InterpolationType::LOGARITHMIC,
 };
 LeverPushControls<decltype(MIDI)> leverPush1(
     &mcp_U1,
@@ -259,7 +262,7 @@ LeverSettings lever2Settings = {
     .maxCCValue = 127,
     .stepSize = 6,
     .functionMode = LeverFunctionMode::INCREMENTAL,
-    .valueMode = ValueMode::BIPOLAR,
+    .valueMode = ValueMode::UNIPOLAR,
     .onsetTime = 100,
     .offsetTime = 100,
     .onsetType = InterpolationType::LINEAR,
@@ -310,11 +313,11 @@ LeverPushControls<decltype(MIDI)> leverPush2(
 //----------------------------------
 TouchSettings touchSettings = {
     .ccNumber = 1,
-    .minCCValue = 64,
-    .maxCCValue = 127,
+    .minCCValue = 38,   // 30% (range: 0-127 maps to 0-100%)
+    .maxCCValue = 114,  // 90%
     .functionMode = TouchFunctionMode::CONTINUOUS,
     .threshold = 36800,  // 20% (range: 30000-64000 maps to 0-100%)
-    .offsetTime = 0,  // FWD mode (forward cycling for Pattern Selector)
+    .offsetTime = 100,  // REV mode (release returns to max)
 };
 TouchControl<decltype(MIDI)> touch(
     T1,
@@ -1065,6 +1068,9 @@ void updateChargingLEDPattern() {
 void setup() {
     SERIAL_BEGIN();  // Instant check, no waiting
 
+    // Seed RNG from ESP32 hardware entropy source so random arp patterns differ every boot
+    randomSeed(esp_random());
+
     pinMode(LED_BUILTIN, OUTPUT);
     digitalWrite(LED_BUILTIN, LOW); // Keep LED on
     
@@ -1172,7 +1178,14 @@ void setup() {
 
     MIDI.begin(1);
 
-    octaveControl.begin();
+    // MIDI panic on boot: clear any garbage state caused by UART TX floating during
+    // ESP32 reset/flash. Sends All Notes Off + Reset All Controllers on all 16 channels.
+    // This auto-recovers connected synths without needing a manual patch reload.
+    delay(100);  // Let UART settle before sending
+    for (int ch = 1; ch <= 16; ch++) {
+        MIDI.sendControlChange(121, 0, ch);  // Reset All Controllers
+        MIDI.sendControlChange(123, 0, ch);  // All Notes Off
+    }
     keyboardControl.begin();
 
     // Register velocity hook to keep lever2 in sync when velocity changes
@@ -1530,7 +1543,10 @@ void loop() {
             }
             // CONFIGURATION → IDLE_CONNECTED after 60 seconds of no settings activity
             // This allows plenty of time for intermittent configuration without throttling
-            else if (currentMode == CONFIGURATION && timeSinceActivity > 60000) {
+            // Skip if arp is running: updateConnectionParams() runs on Core 1 alongside I2C and can
+            // cause a BLE stack stall that exceeds the key release debounce, producing a false key release.
+            else if (currentMode == CONFIGURATION && timeSinceActivity > 60000
+                     && !keyboardControl.isArpActive()) {
                 bluetoothControllerPtr->setActivityMode(IDLE_CONNECTED);
             }
         }
@@ -1663,12 +1679,14 @@ void loop() {
 
         // Determine activity: touch active, any keyboard key, any pressed switch, or BLE keep-alive active
         bool keyboardActive = keyboardControl.anyKeyActive();
+        // Arp running in latch mode counts as active (prevents IDLE BLE params from causing I2C glitch)
+        bool arpActive = keyboardControl.isArpActive();
         bool bleKeepAliveActive = bluetoothControllerPtr && bluetoothControllerPtr->isKeepAliveActive();
         
         // Prevent sleep during charging
         bool activelyCharging = batteryState.isChargingMode && (batteryState.chargeSessionStartMs > 0);
         
-        activityDetected = touchActive || keyboardActive || pinkLedPressed || blueLeftPressed || leverPushIsPressed || bleKeepAliveActive || activelyCharging;
+        activityDetected = touchActive || keyboardActive || arpActive || pinkLedPressed || blueLeftPressed || leverPushIsPressed || bleKeepAliveActive || activelyCharging;
 
         if (activityDetected) {
             // Reset idle confirmation and mark last activity time

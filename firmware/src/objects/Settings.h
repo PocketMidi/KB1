@@ -48,14 +48,17 @@ struct ScaleSettings {
 
 // Struct for Chord/Keyboard settings
 struct ChordSettings {
-    PlayMode playMode;          // SCALE or CHORD
+    PlayMode playMode;          // SCALE, CHORD, or ARP
     ChordType chordType;        // MAJOR, MINOR, etc.
     bool strumEnabled;          // false = chord (all notes together), true = strum (cascaded)
     int velocitySpread;         // 10-100 (percentage) - velocity variation for chord notes
-    int strumSpeed;             // 4-360 (milliseconds) - delay between notes in strum mode
-    int strumPattern;           // 0-7 - pattern index (0 = use chord type, 1-7 = interval patterns)
-    int strumSwing;             // 0-100 (percentage) - swing amount for strum timing
+    int strumSpeed;             // 4-360 (milliseconds) - delay between notes in strum mode / arp speed
+    int strumPattern;           // 0-7 - pattern index (0 = use chord type, 1-7 = interval patterns) / arp build mode (0-5)
+    int strumSwing;             // 0-50 (percentage) - swing amount for arp timing (0 = straight 50% UI, 50 = max swing 100% UI)
+    int gateValue;              // 10-100 (percentage) - CHORD swing amount (10 = straight 50/50, 100 = swung ~66/33)
     int voicing;                // 1-3 (octave range: 1x, 2x, 3x)
+    int arpUserMode;            // 0 = CHORD mode (chord-based arp), 1 = USER mode (user-defined sequence)
+    int arpLatchMode;           // 0 = MOMENTARY (stop on any key release), 1 = LATCHED (stop on last key release)
 };
 
 // Struct for System/Power settings

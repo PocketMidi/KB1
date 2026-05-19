@@ -26,18 +26,36 @@ public:
           _arpCurrentIndex(0),
           _arpLastNoteTime(0),
           _arpCurrentNote(-1),
+          _arpDirection(1),
+          _arpLastPattern(-1),
+          _arpShufflePos(0),
+          _pitchBendOffset(0),
+          _pitchBendOverlapUs(25000),
+          _sustainActive(false),
+          _sustainReleaseDelayMs(200),
+          _arpUserLatchPanicArmed(false),
           _strumActive(false),
           _activeStrumKey(0),
           _strumInProgress(false),
           _strumCount(0),
           _strumCurrentIndex(0),
-          _strumLastNoteTime(0)
+          _strumLastNoteTime(0),
+          _userArpCount(0)
     {
         memset(_isNoteOn, false, sizeof(_isNoteOn));
+        memset(_baseNote, 0, sizeof(_baseNote));
+        memset(_userArpNotes, 0, sizeof(_userArpNotes));
         memset(_strumNotes, 0, sizeof(_strumNotes));
         memset(_strumVelocities, 0, sizeof(_strumVelocities));
+        memset(_strumNoteOffTimes, 0, sizeof(_strumNoteOffTimes));
         memset(_activeChordNotes, 0, sizeof(_activeChordNotes));
         memset(_activeChordCount, 0, sizeof(_activeChordCount));
+        memset(_pbPendingOffNote, 0, sizeof(_pbPendingOffNote));
+        memset(_pbPendingOffDueUs, 0, sizeof(_pbPendingOffDueUs));
+        memset(_pbPendingOffActive, false, sizeof(_pbPendingOffActive));
+        memset(_sustainPendingOffNote, 0, sizeof(_sustainPendingOffNote));
+        memset(_sustainPendingOffDueUs, 0, sizeof(_sustainPendingOffDueUs));
+        memset(_sustainPendingOffActive, false, sizeof(_sustainPendingOffActive));
 
         // Initialize keys array
         _keys[0] = {59, 4, true, true, &mcp_U1, "SW1 (B)"};
@@ -61,10 +79,70 @@ public:
         _keys[18] = {77, 8, true, true, &mcp_U2, "SW12 (F)"};
     }
 
-    static constexpr unsigned long KEY_DEBOUNCE_MS = 10; // ms
+    static constexpr unsigned long KEY_PRESS_DEBOUNCE_MS = 10;    // ms - keep fast for responsive press
+    static constexpr unsigned long KEY_RELEASE_DEBOUNCE_MS = 30;   // ms - longer to survive BLE-induced I2C stalls
+    static constexpr unsigned long ARP_USER_LATCH_PANIC_HOLD_MS = 900; // ms
     static constexpr int MAX_CHORD_NOTES = 16;  // Support 3x voicing (5 notes × 3 octaves = 15)
+    static constexpr int MAX_PB_PENDING_OFFS = 24;
+    static constexpr int MAX_SUSTAIN_PENDING_OFFS = 128;
+
+    // Set the note overlap duration for pitch bend mode retriggers.
+    // Called by LeverControls whenever the lever is in PITCH_BEND mode.
+    void setPitchBendOverlapUs(unsigned long us) { _pitchBendOverlapUs = us; }
+
+    // Returns true when the arpeggiator is actively running (including latch mode with keys released)
+    bool isArpActive() const { return _arpActive; }
+
+    // Sustain timing mode: while active, each key release gets its own delayed NoteOff.
+    bool isSustainActive() const { return _sustainActive; }
+    void setSustainActive(bool active, unsigned long releaseMs = 0) {
+        if (active) {
+            // Capture duration used for per-release scheduling.
+            _sustainReleaseDelayMs = releaseMs;
+            if (!_sustainActive) {
+                // Lock pitch bend neutral when sustain engages.
+                setPitchBendOffset(0);
+                _sustainActive = true;
+            }
+            return;
+        }
+
+        if (_sustainActive) {
+            _sustainActive = false;
+            // Keep existing scheduled tails; just stop scheduling new ones.
+            // Update stored duration for next activation.
+            _sustainReleaseDelayMs = releaseMs;
+        }
+    }
+
+    // Pitch bend offset in semitones (-2 to +2). Set by LeverControls PITCH_BEND mode.
+    void setPitchBendOffset(int semitones) {
+        // Sustain mode freezes pitch bend to avoid accidental lever movement side effects.
+        if (_sustainActive) return;
+        semitones = constrain(semitones, -2, 2);
+        if (semitones == _pitchBendOffset) return;
+        int oldOffset = _pitchBendOffset;
+        _pitchBendOffset = semitones;
+        // Retrigger held SCALE notes with minimal latency.
+        // NoteOn before NoteOff creates a tiny overlap that sounds smoother than off-then-on.
+        if (_chordSettings.playMode == PlayMode::SCALE) {
+            for (int i = 0; i < 128; i++) {
+                if (_isNoteOn[i]) {
+                    int quantized = _baseNote[i]; // Use stored note — correct for both natural and compact mode
+                    int oldNote = constrain(quantized + oldOffset, 0, 127);
+                    int newNote = constrain(quantized + semitones, 0, 127);
+                    if (oldNote != newNote) {
+                        _midi.sendNoteOn(newNote, _currentVelocity, 1);
+                        schedulePitchBendNoteOff(oldNote);
+                    }
+                }
+            }
+        }
+    }
 
     void begin() {
+        memset(_keyPressStartMs, 0, sizeof(_keyPressStartMs));
+        memset(_keyLongPressHandled, false, sizeof(_keyLongPressHandled));
         // Configure all pins as INPUT_PULLUP first
         for (auto & key : _keys) {
             key.mcp->pinMode(key.pin, INPUT_PULLUP);
@@ -105,12 +183,15 @@ public:
             // Check if compact mode and we have a valid key index
             if (_scaleManager.getKeyMapping() == 1 && keyIndex >= 0) {
                 // Compact mode: map white keys to sequential scale degrees
+                // Black keys repeat their lower adjacent white key (same note, parallel octave behaviour)
                 int whiteKeyPosition = getWhiteKeyPosition(keyIndex);
+                if (whiteKeyPosition < 0) {
+                    whiteKeyPosition = getBlackKeyLowerWhitePosition(keyIndex);
+                }
                 if (whiteKeyPosition >= 0) {
-                    // This is a white key, use compact mapping (root starts at leftmost white key)
                     quantizedNote = _scaleManager.getCompactModeNote(whiteKeyPosition) + (_octaveControl.getOctave() * 12);
                 } else {
-                    // Black key in compact mode, use quantization
+                    // Fallback: quantize normally
                     quantizedNote = _scaleManager.quantizeNote(note + _octaveControl.getOctave() * 12);
                 }
             } else {
@@ -118,11 +199,13 @@ public:
                 quantizedNote = _scaleManager.quantizeNote(note + _octaveControl.getOctave() * 12);
             }
             
-            _midi.sendNoteOn(quantizedNote, _currentVelocity, channel);
+            int bentNote = constrain(quantizedNote + _pitchBendOffset, 0, 127);
+            _midi.sendNoteOn(bentNote, _currentVelocity, channel);
             char buf[16];
-            snprintf(buf, sizeof(buf), "N%dv%d", quantizedNote, _currentVelocity);
+            snprintf(buf, sizeof(buf), "N%dv%d", bentNote, _currentVelocity);
             SERIAL_PRINTLN(buf);
             _isNoteOn[note] = true;
+            _baseNote[note] = quantizedNote; // Store pre-offset note for pitch bend retrigger
         } else {
             // Chord mode - use chromatic notes (no scale quantization)
             int rootNote = note + (_octaveControl.getOctave() * 12);
@@ -132,12 +215,11 @@ public:
             int intervalCount;
             getExpandedIntervals(intervals, intervalCount);
             
-            // Check if this is advanced strum mode (pattern > 0)
-            // Advanced mode works independently of chord/strum toggle
-            bool isAdvancedStrum = _chordSettings.strumPattern > 0;
+            // Check if we're in ARP mode (PlayMode::ARP)
+            bool isArpMode = _chordSettings.playMode == PlayMode::ARP;
             
-            if (isAdvancedStrum) {
-                // ADVANCED STRUM: Looping arpeggiator (monophonic)
+            if (isArpMode) {
+                // ARP MODE: Looping arpeggiator (monophonic)
                 
                 // If arpeggiator is already running, smoothly transition to new root note
                 // Keep current index to continue pattern seamlessly
@@ -151,16 +233,64 @@ public:
                     SERIAL_PRINTLN(_arpCurrentNote);
                 }
                 
+                // In ARP USER mode, capture note press order
+                if (isArpMode && _chordSettings.arpUserMode == 1) {
+                    // USER mode: toggle note in/out of sequence on press
+                    bool noteAlreadyTracked = false;
+                    for (int i = 0; i < _userArpCount; i++) {
+                        if (_userArpNotes[i] == rootNote) {
+                            noteAlreadyTracked = true;
+                            // Already in sequence: remove it (toggle off)
+                            for (int j = i; j < _userArpCount - 1; j++) {
+                                _userArpNotes[j] = _userArpNotes[j + 1];
+                            }
+                            _userArpCount--;
+                            SERIAL_PRINT("ArpU:Rem"); SERIAL_PRINTLN(rootNote);
+                            break;
+                        }
+                    }
+                    if (!noteAlreadyTracked && _userArpCount < 8) {
+                        _userArpNotes[_userArpCount++] = rootNote;
+                        SERIAL_PRINT("ArpU:Add"); SERIAL_PRINTLN(rootNote);
+                    }
+                } else if (_chordSettings.arpLatchMode == 1 && wasAlreadyRunning && rootNote == _arpRootNote) {
+                    // CHORD latch: same key pressed again → stop arp (toggle off)
+                    SERIAL_PRINTLN("Arp:LatchStop");
+                    stopArpeggiator();
+                    _isNoteOn[note] = false;
+                    return;
+                }
+                
                 // Update arpeggiator state
                 _arpActive = true;
                 _arpRootNote = rootNote;
                 _arpPattern = intervals;
                 _arpPatternLength = intervalCount;
+                if (!wasAlreadyRunning) {
+                    _arpUserLatchPanicArmed = false;
+                }
                 
                 // Keep current index if already running, otherwise start from beginning
                 if (!wasAlreadyRunning) {
-                    _arpCurrentIndex = 0;
-                    _arpLastNoteTime = millis();
+                    int p = _chordSettings.strumPattern;
+                    if (p == 2) {
+                        _arpCurrentIndex = intervalCount > 0 ? intervalCount - 1 : 0;
+                        _arpDirection = -1;
+                    } else if (p == 4) {
+                        generateArpContract(intervalCount);
+                        _arpDirection = 1;
+                    } else if (p == 5) {
+                        generateArpExpand(intervalCount);
+                        _arpDirection = 1;
+                    } else if (p == 6) {
+                        // Random: generate a fresh shuffle on every new key press
+                        generateArpShuffle(intervalCount);
+                        _arpDirection = 1;
+                    } else {
+                        _arpCurrentIndex = 0;
+                        _arpDirection = 1;
+                    }
+                    _arpLastPattern = p;
                     char buf[16];
                     snprintf(buf, sizeof(buf), "Arp:R%dP%d", rootNote, _chordSettings.strumPattern);
                     SERIAL_PRINTLN(buf);
@@ -257,28 +387,72 @@ public:
                 }
                 
                 _isNoteOn[note] = true;
-            }  // End of isAdvancedStrum else block
+            }  // End of ARP else block
         }
     }
 
     void stopMidiNote(const byte note, int keyIndex = -1) {
-        // If arpeggiator is active, only stop it when the last key is released
+        // If arpeggiator is active, handle based on latch mode
         if (_arpActive) {
             _isNoteOn[note] = false;
             
-            // Check if any other keys are still held
-            bool otherKeysHeld = false;
-            for (int i = 0; i < 128; i++) {
-                if (_isNoteOn[i]) {
-                    otherKeysHeld = true;
-                    break;
+            // Remove note from user sequence if in USER mode and MOMENTARY
+            // (LATCHED USER mode: sequence only changes on press, not release)
+            if (_chordSettings.playMode == PlayMode::ARP && _chordSettings.arpUserMode == 1
+                && _chordSettings.arpLatchMode == 0) {
+                int rootNote = note + (_octaveControl.getOctave() * 12);
+                for (int i = 0; i < _userArpCount; i++) {
+                    if (_userArpNotes[i] == rootNote) {
+                        for (int j = i; j < _userArpCount - 1; j++) {
+                            _userArpNotes[j] = _userArpNotes[j + 1];
+                        }
+                        _userArpCount--;
+                        break;
+                    }
                 }
             }
             
-            // Only stop arpeggiator when the last key is released
-            if (!otherKeysHeld) {
-                stopArpeggiator();
+            // Check latch mode: MOMENTARY (0) stops when last key released, LATCHED (1) keeps playing
+            if (_chordSettings.arpLatchMode == 0) {
+                bool shouldStop = false;
+                if (_chordSettings.arpUserMode == 1) {
+                    // USER mode: stop when sequence is empty
+                    shouldStop = (_userArpCount == 0);
+                } else {
+                    // CHORD mode: stop only when ALL keys are released
+                    bool anyKeyHeld = false;
+                    for (int i = 0; i < 128; i++) {
+                        if (_isNoteOn[i]) { anyKeyHeld = true; break; }
+                    }
+                    if (!anyKeyHeld) {
+                        shouldStop = true;
+                    } else {
+                        // At least one key still held — transpose arp to that key
+                        for (int i = 0; i < 128; i++) {
+                            if (_isNoteOn[i]) {
+                                int newRoot = i + (_octaveControl.getOctave() * 12);
+                                if (newRoot != _arpRootNote) {
+                                    // Cut current note and retarget root
+                                    if (_arpCurrentNote >= 0) {
+                                        _midi.sendNoteOff(_arpCurrentNote, 0, 1);
+                                        _arpCurrentNote = -1;
+                                    }
+                                    _arpRootNote = newRoot;
+                                    char buf[16];
+                                    snprintf(buf, sizeof(buf), "Arp:Root>%d", newRoot);
+                                    SERIAL_PRINTLN(buf);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (shouldStop) {
+                    stopArpeggiator();
+                }
             }
+            // LATCHED (1): Keep playing after key release.
+            // Root note updates on next key press. Arp stops only when mode changes.
             return;
         }
         
@@ -293,12 +467,15 @@ public:
                 // Check if compact mode and we have a valid key index
                 if (_scaleManager.getKeyMapping() == 1 && keyIndex >= 0) {
                     // Compact mode: map white keys to sequential scale degrees
+                    // Black keys repeat their lower adjacent white key (same note, parallel octave behaviour)
                     int whiteKeyPosition = getWhiteKeyPosition(keyIndex);
+                    if (whiteKeyPosition < 0) {
+                        whiteKeyPosition = getBlackKeyLowerWhitePosition(keyIndex);
+                    }
                     if (whiteKeyPosition >= 0) {
-                        // This is a white key, use compact mapping (root starts at leftmost white key)
                         quantizedNote = _scaleManager.getCompactModeNote(whiteKeyPosition) + (_octaveControl.getOctave() * 12);
                     } else {
-                        // Black key in compact mode, use quantization
+                        // Fallback: quantize normally
                         quantizedNote = _scaleManager.quantizeNote(note + _octaveControl.getOctave() * 12);
                     }
                 } else {
@@ -306,10 +483,19 @@ public:
                     quantizedNote = _scaleManager.quantizeNote(note + _octaveControl.getOctave() * 12);
                 }
                 
-                _midi.sendNoteOff(quantizedNote, 0, channel);
-                char buf[16];
-                snprintf(buf, sizeof(buf), "N%d-", quantizedNote);
-                SERIAL_PRINTLN(buf);
+                int bentNote = constrain(quantizedNote + _pitchBendOffset, 0, 127);
+                if (_sustainActive) {
+                    // Per-release tail scheduling in KB1.
+                    scheduleSustainNoteOff(bentNote, _sustainReleaseDelayMs);
+                    char buf[16];
+                    snprintf(buf, sizeof(buf), "N%d~", bentNote); // ~ = delayed by sustain timer
+                    SERIAL_PRINTLN(buf);
+                } else {
+                    _midi.sendNoteOff(bentNote, 0, channel);
+                    char buf[16];
+                    snprintf(buf, sizeof(buf), "N%d-", bentNote);
+                    SERIAL_PRINTLN(buf);
+                }
             } else {
                 // Chord mode - use chromatic notes (no scale quantization)
                 
@@ -333,7 +519,7 @@ public:
                     _strumActive = false;
                 }
             }
-            
+
             _isNoteOn[note] = false;
         }
     }
@@ -396,15 +582,28 @@ public:
         _arpPattern = nullptr;
         _arpPatternLength = 0;
         _arpCurrentIndex = 0;
+        _arpDirection = 1;
+        _arpLastPattern = -1;
         _arpCurrentNote = -1;
+        
+        // Clear user sequence
+        _userArpCount = 0;
+        memset(_userArpNotes, 0, sizeof(_userArpNotes));
     }
 
     void updateKeyboardState(const GPIOCache& gpioCache) {
+        // Process delayed note-offs for pitch bend overlap smoothing.
+        processPendingPitchBendNoteOffs();
+        // Process delayed note-offs scheduled by sustain timing mode.
+        processPendingSustainNoteOffs();
+
         // Update arpeggiator (for advanced strum looping)
         updateArpeggiator();
         
         // Update basic strum (non-blocking cascade)
         updateStrum();
+
+        unsigned long nowMs = millis();
         
         // Debounced key scanning (using cached GPIO states, zero I2C overhead)
         for (int i = 0; i < MAX_KEYS; ++i) {
@@ -418,23 +617,69 @@ public:
                 raw = gpioCache.isU2PinLow(key.pin);
             };
             if (raw != key.lastReading) {
-                key.lastDebounceTime = millis();
+                key.lastDebounceTime = nowMs;
                 key.lastReading = raw;
             }
 
-            if ((millis() - key.lastDebounceTime) >= KEY_DEBOUNCE_MS) {
+            unsigned long debounceMs = raw ? KEY_PRESS_DEBOUNCE_MS : KEY_RELEASE_DEBOUNCE_MS;
+            if ((nowMs - key.lastDebounceTime) >= debounceMs) {
                 if (raw != key.debouncedState) {
                     key.debouncedState = raw;
                     if (key.debouncedState) {
+                        _keyPressStartMs[i] = nowMs;
+                        _keyLongPressHandled[i] = false;
                         playMidiNote(key.midi, i);  // Pass key index
                     } else {
-                        stopMidiNote(key.midi, i);  // Pass key index
+                        bool isLongPressRelease =
+                            _keyPressStartMs[i] > 0 &&
+                            (nowMs - _keyPressStartMs[i]) >= ARP_USER_LATCH_PANIC_HOLD_MS;
+
+                        _keyPressStartMs[i] = 0;
+
+                        // Release-edge panic: consume release after long hold in USER+LATCH ARP.
+                        if (!_keyLongPressHandled[i] && isLongPressRelease &&
+                            _arpUserLatchPanicArmed &&
+                            _arpActive &&
+                            _chordSettings.playMode == PlayMode::ARP &&
+                            _chordSettings.arpUserMode == 1 &&
+                            _chordSettings.arpLatchMode == 1) {
+                            _keyLongPressHandled[i] = true;
+                            SERIAL_PRINTLN("Arp:PanicLP");
+                            stopArpeggiator();
+                        } else {
+                            _keyLongPressHandled[i] = false;
+                            stopMidiNote(key.midi, i);  // Pass key index
+                        }
                     }
                 }
             }
 
             key.prevState = key.state;
             key.state = key.debouncedState;
+        }
+
+        // Panic stop for runaway ARP: long-press any held key in USER + LATCH mode.
+        if (_arpActive &&
+            _chordSettings.playMode == PlayMode::ARP &&
+            _chordSettings.arpUserMode == 1 &&
+            _chordSettings.arpLatchMode == 1) {
+            if (!_arpUserLatchPanicArmed && !anyKeyActive()) {
+                _arpUserLatchPanicArmed = true;
+                SERIAL_PRINTLN("Arp:PanicArmed");
+            }
+
+            for (int i = 0; i < MAX_KEYS; ++i) {
+                if (_keys[i].debouncedState &&
+                    _arpUserLatchPanicArmed &&
+                    !_keyLongPressHandled[i] &&
+                    _keyPressStartMs[i] > 0 &&
+                    (nowMs - _keyPressStartMs[i]) >= ARP_USER_LATCH_PANIC_HOLD_MS) {
+                    _keyLongPressHandled[i] = true;
+                    SERIAL_PRINTLN("Arp:PanicLP");
+                    stopArpeggiator();
+                    break;
+                }
+            }
         }
     }
 
@@ -470,15 +715,41 @@ public:
         
         unsigned long now = millis();
         
-        // Calculate delay for this note
-        int baseDelay = abs(_chordSettings.strumSpeed);
-        int noteDelay = baseDelay;
-        
-        // Apply swing to odd-indexed notes (every other note)
-        if (_chordSettings.strumSwing > 0 && (_strumCurrentIndex % 2) == 1) {
-            int swingDelay = (baseDelay * _chordSettings.strumSwing) / 200;
-            noteDelay += swingDelay;
+        // Check if any currently playing notes need to be turned off (scheduled release timing)
+        for (int i = 0; i < _strumCurrentIndex; i++) {
+            if (_strumNoteOffTimes[i] > 0 && now >= _strumNoteOffTimes[i]) {
+                _midi.sendNoteOff(_strumNotes[i], 0, 1);
+                char buf[16];
+                snprintf(buf, sizeof(buf), "S%d-off", i);
+                SERIAL_PRINTLN(buf);
+                _strumNoteOffTimes[i] = 0;  // Mark as handled
+            }
         }
+        
+        // Calculate delay for this note.
+        // Repurpose gateValue as CHORD swing amount:
+        //   gate=10  -> straight 50/50 split
+        //   gate=100 -> triplet-like 66/33 split
+        // Note: this does not alter touch-control "Gate" mode naming/behavior.
+        // This is independent from ARP swing (strumSwing), which is handled in updateArpeggiator().
+        int baseDelay = abs(_chordSettings.strumSpeed);
+        auto calculateStepDelay = [&](int noteIndex) -> int {
+            int clampedGate = _chordSettings.gateValue;
+            if (clampedGate < 10) clampedGate = 10;
+            if (clampedGate > 100) clampedGate = 100;
+
+            float swingT = (clampedGate - 10.0f) / 90.0f;     // 0..1
+            float longFraction = 0.5f + swingT * (1.0f / 6.0f); // 0.5 .. 0.6667
+            float shortFraction = 1.0f - longFraction;          // 0.5 .. 0.3333
+
+            bool isOffBeat = (noteIndex % 2) == 1;
+            float pairFraction = isOffBeat ? shortFraction : longFraction;
+            int delay = (int)(2.0f * baseDelay * pairFraction);
+
+            if (delay < 4) delay = 4;
+            return delay;
+        };
+        int noteDelay = calculateStepDelay(_strumCurrentIndex);
         
         // Check if enough time has passed to play next note
         if (now - _strumLastNoteTime >= (unsigned long)noteDelay) {
@@ -487,6 +758,16 @@ public:
             char buf[24];
             snprintf(buf, sizeof(buf), "S%d:N%dv%d", _strumCurrentIndex, _strumNotes[_strumCurrentIndex], _strumVelocities[_strumCurrentIndex]);
             SERIAL_PRINTLN(buf);
+            
+            // Hold each note until just before the next strum step so timing feel comes from
+            // swing (onset spacing), not forced staccato note duration.
+            int nextIndex = _strumCurrentIndex + 1;
+            int nextStepDelay = (nextIndex < _strumCount)
+                ? calculateStepDelay(nextIndex)
+                : noteDelay;
+
+            unsigned long noteDuration = (nextStepDelay > 1) ? (unsigned long)(nextStepDelay - 1) : 1UL;
+            _strumNoteOffTimes[_strumCurrentIndex] = now + noteDuration;
             
             // Move to next note
             _strumCurrentIndex++;
@@ -501,17 +782,27 @@ public:
     
     // Update arpeggiator state (called from updateKeyboardState)
     void updateArpeggiator() {
-        if (!_arpActive || !_arpPattern || _arpPatternLength == 0) {
+        if (!_arpActive) {
             return;
+        }
+        
+        // Check if we're in ARP USER mode (user note sequence) or CHORD pattern mode
+        bool isArpUserMode = (_chordSettings.playMode == PlayMode::ARP && _chordSettings.arpUserMode == 1);
+        
+        // Exit if no valid pattern/sequence available
+        if (isArpUserMode) {
+            if (_userArpCount == 0) return;  // No notes in user sequence yet
+        } else {
+            if (!_arpPattern || _arpPatternLength == 0) return;  // No pattern available
         }
 
         unsigned long now = millis();
         
-        // Calculate note duration based on strum speed and swing (use absolute value for timing)
+        // Calculate step delay based on strum speed
         int baseDelay = abs(_chordSettings.strumSpeed);
         int noteDelay = baseDelay;
         
-        // Apply swing to odd-indexed notes
+        // Apply swing to odd-indexed notes in ALL ARP modes (CHORD and USER)
         if (_chordSettings.strumSwing > 0 && (_arpCurrentIndex % 2) == 1) {
             int swingDelay = (baseDelay * _chordSettings.strumSwing) / 200;
             noteDelay += swingDelay;
@@ -531,26 +822,300 @@ public:
         }
         
         // Play next note in pattern
-        int interval = _arpPattern[_arpCurrentIndex];
-        _arpCurrentNote = _arpRootNote + interval;
-        int velocity = calculateChordVelocity(_arpCurrentIndex, _arpPatternLength);
-        
-        _midi.sendNoteOn(_arpCurrentNote, velocity, 1);
-        char buf[24];
-        snprintf(buf, sizeof(buf), "Arp%d:N%dv%d", _arpCurrentIndex, _arpCurrentNote, velocity);
-        SERIAL_PRINTLN(buf);
-        
-        _arpLastNoteTime = now;
-        _arpCurrentIndex++;
-        
-        // Loop seamlessly back to start
-        if (_arpCurrentIndex >= _arpPatternLength) {
-            _arpCurrentIndex = 0;
-            SERIAL_PRINTLN("Arp:Loop");
+        if (isArpUserMode && _userArpCount > 0) {
+            int pat = _chordSettings.strumPattern;
+
+            if (pat == 5 || _userArpCount == 1) {
+                // strumPattern 5 = USER PRESS ORDER (cross-arrows icon): play in key-press order
+                int noteIndex = _arpCurrentIndex % _userArpCount;
+                _arpCurrentNote = _userArpNotes[noteIndex];
+                int velocity = calculateChordVelocity(noteIndex, _userArpCount);
+
+                _midi.sendNoteOn(_arpCurrentNote, velocity, 1);
+                char buf[24];
+                snprintf(buf, sizeof(buf), "ArpU%d:N%dv%d", noteIndex, _arpCurrentNote, velocity);
+                SERIAL_PRINTLN(buf);
+
+                _arpLastNoteTime = now;
+                _arpCurrentIndex++;
+                if (_arpCurrentIndex >= _userArpCount) {
+                    _arpCurrentIndex = 0;
+                    SERIAL_PRINTLN("ArpU:Loop");
+                }
+            } else {
+                // PITCH-SORTED PATTERNS: sort held notes by pitch, then apply direction
+                // Patterns: 1=up, 2=down, 3=updown ping-pong, 6=random, 7=edges-to-center
+                int sortedNotes[8];
+                int sortedCount = _userArpCount;
+                memcpy(sortedNotes, _userArpNotes, sortedCount * sizeof(int));
+
+                // Insertion sort ascending by pitch (max 8 notes, cheap)
+                for (int i = 1; i < sortedCount; i++) {
+                    int key = sortedNotes[i];
+                    int j = i - 1;
+                    while (j >= 0 && sortedNotes[j] > key) {
+                        sortedNotes[j + 1] = sortedNotes[j];
+                        j--;
+                    }
+                    sortedNotes[j + 1] = key;
+                }
+
+                // For Contract (pat==4) and edges-to-center (pat==7), reorder: alternate outer notes inward
+                // e.g. [C3,E3,G3,B3] -> [C3,B3,E3,G3]
+                if (pat == 4 || pat == 7) {
+                    int reordered[8];
+                    int lo = 0, hi = sortedCount - 1, k = 0;
+                    while (lo <= hi) {
+                        reordered[k++] = sortedNotes[lo++];
+                        if (lo <= hi) reordered[k++] = sortedNotes[hi--];
+                    }
+                    memcpy(sortedNotes, reordered, sortedCount * sizeof(int));
+                }
+
+                // Clamp index in case note count changed while playing
+                if (_arpCurrentIndex >= sortedCount) _arpCurrentIndex = 0;
+
+                // Reset direction/index on pattern change
+                if (pat != _arpLastPattern) {
+                    _arpLastPattern = pat;
+                    if (pat == 2) {
+                        _arpCurrentIndex = sortedCount > 0 ? sortedCount - 1 : 0;
+                        _arpDirection = -1;
+                    } else if (pat == 6) {
+                        generateArpShuffle(sortedCount);
+                        _arpDirection = 1;
+                    } else {
+                        _arpCurrentIndex = 0;
+                        _arpDirection = 1;
+                    }
+                }
+
+                // Determine which note to play
+                int noteIndex;
+                if (pat == 6) {
+                    // Random (shuffle): play from pre-generated shuffle, re-shuffle on loop
+                    if (_arpShufflePos >= sortedCount) {
+                        generateArpShuffle(sortedCount);
+                    }
+                    noteIndex = _arpShuffleBuffer[_arpShufflePos++];
+                } else {
+                    noteIndex = _arpCurrentIndex;
+                }
+                if (noteIndex < 0) noteIndex = 0;
+                if (noteIndex >= sortedCount) noteIndex = sortedCount - 1;
+
+                _arpCurrentNote = sortedNotes[noteIndex];
+                int velocity = calculateChordVelocity(noteIndex, sortedCount);
+                _midi.sendNoteOn(_arpCurrentNote, velocity, 1);
+                char buf[32];
+                snprintf(buf, sizeof(buf), "ArpS%d(p%d):N%dv%d", noteIndex, pat, _arpCurrentNote, velocity);
+                SERIAL_PRINTLN(buf);
+
+                _arpLastNoteTime = now;
+
+                // Advance index for non-random patterns
+                if (pat != 6) {
+                    if (pat == 2) {
+                        // Down: decrement, wrap
+                        _arpCurrentIndex--;
+                        if (_arpCurrentIndex < 0) _arpCurrentIndex = sortedCount - 1;
+                    } else if (pat == 3) {
+                        // Up-Down ping-pong
+                        _arpCurrentIndex += _arpDirection;
+                        if (_arpCurrentIndex >= sortedCount) {
+                            _arpDirection = -1;
+                            _arpCurrentIndex = max(0, sortedCount - 2);
+                        } else if (_arpCurrentIndex < 0) {
+                            _arpDirection = 1;
+                            _arpCurrentIndex = min(1, sortedCount - 1);
+                        }
+                    } else {
+                        // Up (pat 1), Contract (pat 4), edges-to-center (pat 7): increment linearly
+                        _arpCurrentIndex++;
+                        if (_arpCurrentIndex >= sortedCount) _arpCurrentIndex = 0;
+                    }
+                }
+            }
+        } else {
+            // CHORD mode: Calculate note from root + interval
+            int interval = _arpPattern[_arpCurrentIndex];
+            _arpCurrentNote = _arpRootNote + interval;
+            int velocity = calculateChordVelocity(_arpCurrentIndex, _arpPatternLength);
+            
+            _midi.sendNoteOn(_arpCurrentNote, velocity, 1);
+            char buf[24];
+            snprintf(buf, sizeof(buf), "Arp%d:N%dv%d", _arpCurrentIndex, _arpCurrentNote, velocity);
+            SERIAL_PRINTLN(buf);
+            
+            _arpLastNoteTime = now;
+            
+            // Advance index based on strumPattern direction mode
+            // Detect pattern change and reset direction/index
+            int pat = _chordSettings.strumPattern;
+            if (pat != _arpLastPattern) {
+                _arpLastPattern = pat;
+                if (pat == 2) {
+                    _arpCurrentIndex = _arpPatternLength > 0 ? _arpPatternLength - 1 : 0;
+                    _arpDirection = -1;
+                } else if (pat == 4) {
+                    generateArpContract(_arpPatternLength);
+                    _arpDirection = 1;
+                } else if (pat == 5) {
+                    generateArpExpand(_arpPatternLength);
+                    _arpDirection = 1;
+                } else if (pat == 6) {
+                    generateArpShuffle(_arpPatternLength);
+                    _arpDirection = 1;
+                } else {
+                    _arpCurrentIndex = 0;
+                    _arpUserLatchPanicArmed = false;
+                    _arpDirection = 1;
+                }
+            } else if (pat == 2) {
+                // Down: decrement and wrap
+                _arpCurrentIndex--;
+                if (_arpCurrentIndex < 0) {
+                    _arpCurrentIndex = _arpPatternLength - 1;
+                    SERIAL_PRINTLN("Arp:Loop");
+                }
+            } else if (pat == 3) {
+                // Up-Down ping-pong
+                _arpCurrentIndex += _arpDirection;
+                if (_arpCurrentIndex >= _arpPatternLength) {
+                    _arpDirection = -1;
+                    _arpCurrentIndex = max(0, _arpPatternLength - 2);
+                } else if (_arpCurrentIndex < 0) {
+                    _arpDirection = 1;
+                    _arpCurrentIndex = min(1, _arpPatternLength - 1);
+                }
+            } else if (pat == 4 || pat == 5) {
+                // Contract/Expand: iterate through pre-computed buffer, restart on loop
+                if (_arpShufflePos >= _arpPatternLength) {
+                    _arpShufflePos = 0;
+                }
+                _arpCurrentIndex = _arpShuffleBuffer[_arpShufflePos++];
+            } else if (pat == 6) {
+                // Random (shuffle): advance through pre-generated shuffle, re-shuffle on loop
+                if (_arpShufflePos >= _arpPatternLength) {
+                    generateArpShuffle(_arpPatternLength);
+                }
+                _arpCurrentIndex = _arpShuffleBuffer[_arpShufflePos++];
+            } else {
+                // Up / chord order (0, 1, 6, 7, default): increment and wrap
+                _arpCurrentIndex++;
+                if (_arpCurrentIndex >= _arpPatternLength) {
+                    _arpCurrentIndex = 0;
+                    SERIAL_PRINTLN("Arp:Loop");
+                }
+            }
         }
     }
 
 private:
+    // Fisher-Yates shuffle of indices 0..count-1 into _arpShuffleBuffer
+    void generateArpShuffle(int count) {
+        count = constrain(count, 1, MAX_CHORD_NOTES);
+        for (int i = 0; i < count; i++) _arpShuffleBuffer[i] = i;
+        for (int i = count - 1; i > 0; i--) {
+            int j = random(0, i + 1);
+            int tmp = _arpShuffleBuffer[i];
+            _arpShuffleBuffer[i] = _arpShuffleBuffer[j];
+            _arpShuffleBuffer[j] = tmp;
+        }
+        _arpShufflePos = 0;
+    }
+
+    // Contract (P4): alternate from outer edges inward — low, high, 2nd-low, 2nd-high...
+    void generateArpContract(int count) {
+        count = constrain(count, 1, MAX_CHORD_NOTES);
+        int lo = 0, hi = count - 1, k = 0;
+        while (lo <= hi) {
+            _arpShuffleBuffer[k++] = lo++;
+            if (lo <= hi) _arpShuffleBuffer[k++] = hi--;
+        }
+        _arpShufflePos = 0;
+    }
+
+    // Expand (P5): from center outward — mid, mid+1, mid-1, mid+2, mid-2...
+    void generateArpExpand(int count) {
+        count = constrain(count, 1, MAX_CHORD_NOTES);
+        int mid = (count - 1) / 2;
+        int k = 0;
+        _arpShuffleBuffer[k++] = mid;
+        for (int d = 1; d < count && k < count; d++) {
+            int hi = mid + d;
+            int lo = mid - d;
+            if (hi < count) _arpShuffleBuffer[k++] = hi;
+            if (lo >= 0 && k < count) _arpShuffleBuffer[k++] = lo;
+        }
+        _arpShufflePos = 0;
+    }
+
+    void schedulePitchBendNoteOff(int note, unsigned long delayUs) {
+        unsigned long due = micros() + delayUs;
+        for (int i = 0; i < MAX_PB_PENDING_OFFS; ++i) {
+            if (!_pbPendingOffActive[i]) {
+                _pbPendingOffNote[i] = note;
+                _pbPendingOffDueUs[i] = due;
+                _pbPendingOffActive[i] = true;
+                return;
+            }
+        }
+        // Queue full: fail safe by sending immediate off to avoid stuck notes.
+        _midi.sendNoteOff(note, 0, 1);
+    }
+
+    void schedulePitchBendNoteOff(int note) {
+        schedulePitchBendNoteOff(note, _pitchBendOverlapUs);
+    }
+
+    void processPendingPitchBendNoteOffs() {
+        unsigned long nowUs = micros();
+        for (int i = 0; i < MAX_PB_PENDING_OFFS; ++i) {
+            if (_pbPendingOffActive[i]) {
+                long dt = (long)(nowUs - _pbPendingOffDueUs[i]);
+                if (dt >= 0) {
+                    _midi.sendNoteOff(_pbPendingOffNote[i], 0, 1);
+                    _pbPendingOffActive[i] = false;
+                }
+            }
+        }
+    }
+
+    void scheduleSustainNoteOff(int note, unsigned long delayMs) {
+        if (delayMs == 0) {
+            _midi.sendNoteOff(note, 0, 1);
+            return;
+        }
+
+        unsigned long due = micros() + (delayMs * 1000UL);
+        for (int i = 0; i < MAX_SUSTAIN_PENDING_OFFS; ++i) {
+            if (!_sustainPendingOffActive[i]) {
+                _sustainPendingOffNote[i] = note;
+                _sustainPendingOffDueUs[i] = due;
+                _sustainPendingOffActive[i] = true;
+                return;
+            }
+        }
+
+        // Queue full: fail safe by sending immediate off to avoid runaways.
+        _midi.sendNoteOff(note, 0, 1);
+        SERIAL_PRINTLN("SustainQ:full");
+    }
+
+    void processPendingSustainNoteOffs() {
+        unsigned long nowUs = micros();
+        for (int i = 0; i < MAX_SUSTAIN_PENDING_OFFS; ++i) {
+            if (_sustainPendingOffActive[i]) {
+                long dt = (long)(nowUs - _sustainPendingOffDueUs[i]);
+                if (dt >= 0) {
+                    _midi.sendNoteOff(_sustainPendingOffNote[i], 0, 1);
+                    _sustainPendingOffActive[i] = false;
+                }
+            }
+        }
+    }
+
     // Map key index to white key position (-1 if not a white key)
     // White keys are: SW1-SW12 (indices: 0,1,3,5,6,8,10,12,13,15,17,18)
     int getWhiteKeyPosition(int keyIndex) const {
@@ -563,20 +1128,30 @@ private:
         return -1;  // Not a white key
     }
 
-    // Get chord intervals based on chord type or strum pattern
+    // In compact mode, black keys repeat the note of their lower (left) adjacent white key.
+    // Hardware key layout (19 keys): white={0,1,3,5,6,8,10,12,13,15,17,18}, black={2,4,7,9,11,14,16}
+    // Maps each black key index to the white-key position (0-based) of the key immediately below it.
+    int getBlackKeyLowerWhitePosition(int keyIndex) const {
+        // black key index -> lower adjacent white key position
+        switch (keyIndex) {
+            case  2: return 1;   // C#/Db -> C (white pos 1)
+            case  4: return 2;   // D#/Eb -> D (white pos 2)
+            case  7: return 4;   // F#/Gb -> F (white pos 4)
+            case  9: return 5;   // G#/Ab -> G (white pos 5)
+            case 11: return 6;   // A#/Bb -> A (white pos 6)
+            case 14: return 8;   // C#/Db (oct2) -> C (white pos 8)
+            case 16: return 9;   // D#/Eb (oct2) -> D (white pos 9)
+            default: return -1;
+        }
+    }
+
+    // Get chord intervals based on chord type or custom ARP pattern
+    // strumPattern 0 = use chord type intervals
+    // strumPattern 1-6 = build mode selector (handled in web app PatternBuilder, always results in custom intervals)
+    // strumPattern 7 = use custom interval array sent via BLE
     void getChordIntervals(const int8_t*& intervals, int& count) const {
-        // Check if a strum pattern is selected (pattern > 0)
-        // Pattern 0 = use chord type intervals
-        // Pattern 1-6 = predefined patterns
-        // Pattern 7 = custom pattern
-        if (_chordSettings.strumPattern > 0 && _chordSettings.strumPattern < 7) {
-            // Use predefined strum pattern (1-6)
-            const StrumPattern* pattern = getStrumPattern(_chordSettings.strumPattern);
-            intervals = pattern->intervals;
-            count = pattern->length;
-            return;
-        } else if (_chordSettings.strumPattern == 7) {
-            // Use custom pattern  
+        if (_chordSettings.strumPattern == 7) {
+            // Use custom pattern built by PatternBuilder and sent via BLE
             const int8_t* customIntervals;
             uint8_t customLength;
             getCustomPattern(customIntervals, customLength);
@@ -740,6 +1315,8 @@ private:
     volatile int _currentVelocity;
     int _minVelocity;
     bool _isNoteOn[128]{};
+    unsigned long _keyPressStartMs[MAX_KEYS]{};
+    bool _keyLongPressHandled[MAX_KEYS]{};
     key _keys[MAX_KEYS];
     void (*_velocityChangeHook)(int) = nullptr;
     
@@ -755,6 +1332,26 @@ private:
     int _arpCurrentIndex;               // Current position in pattern
     unsigned long _arpLastNoteTime;     // Timestamp of last note
     int _arpCurrentNote;                // Currently playing MIDI note (-1 if none)
+    int _arpDirection;                  // +1 = ascending, -1 = descending (for ping-pong patterns)
+    int _arpLastPattern;                // Tracks pattern changes to reset direction/index
+    bool _arpUserLatchPanicArmed;       // Arms long-press panic only after a hands-off moment
+    int _arpShuffleBuffer[MAX_CHORD_NOTES]; // Shuffled index order for random pattern
+    int _arpShufflePos;                 // Current position in shuffle buffer
+    int _pitchBendOffset;               // Semitone offset applied to SCALE mode notes (-2 to +2)
+    unsigned long _pitchBendOverlapUs;   // Note overlap window in microseconds (configurable per lever)
+    int _baseNote[128];                  // Pre-offset quantized note stored at key press (compact+natural safe)
+    bool _sustainActive;                 // True while sustain timing mode is active
+    unsigned long _sustainReleaseDelayMs; // Per-release NoteOff tail in ms
+    int _sustainPendingOffNote[MAX_SUSTAIN_PENDING_OFFS];
+    unsigned long _sustainPendingOffDueUs[MAX_SUSTAIN_PENDING_OFFS];
+    bool _sustainPendingOffActive[MAX_SUSTAIN_PENDING_OFFS];
+    int _pbPendingOffNote[MAX_PB_PENDING_OFFS];      // Delayed note-offs for smooth PB overlap
+    unsigned long _pbPendingOffDueUs[MAX_PB_PENDING_OFFS];
+    bool _pbPendingOffActive[MAX_PB_PENDING_OFFS];
+    
+    // Arp USER mode - user-defined note sequence
+    int _userArpNotes[8];               // MIDI notes in order pressed (up to 8)
+    int _userArpCount;                  // Number of notes in user sequence
     
     // Basic strum state (for monophonic strum behavior)
     bool _strumActive;                  // Is a basic strum/chord currently held
@@ -764,7 +1361,8 @@ private:
     bool _strumInProgress;              // Is strum cascade currently playing
     int _strumNotes[MAX_CHORD_NOTES];   // MIDI notes to play in strum
     int _strumVelocities[MAX_CHORD_NOTES]; // Velocities for each note
-    int _strumCount;                    // Number of notes in strum
+    unsigned long _strumNoteOffTimes[MAX_CHORD_NOTES]; // Scheduled note-off times for active strum notes
+    int _strumCount;                    // Number of notes in this strum
     int _strumCurrentIndex;             // Current position in cascade
     unsigned long _strumLastNoteTime;   // Timestamp of last note played
 };

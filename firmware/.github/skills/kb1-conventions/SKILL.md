@@ -146,6 +146,46 @@ if (micros() - lastClockMicros >= microsBetweenClocks) {
 
 ---
 
+## Chord Settings: Gate vs Swing
+
+**CRITICAL: Gate and Swing are SEPARATE parameters for DIFFERENT play modes**
+
+### Gate (gateValue)
+- **Range:** 10-100%
+- **Used in:** CHORD mode (playMode = 0 or 1)
+- **Purpose:** Controls note duration as percentage of step time
+- **Effect:** 
+  - 100% = Legato (notes held until next note)
+  - 50% = Note on for half the step, silence for half
+  - 10% = Staccato (very short notes, mostly silence)
+- **Implementation:** Strum cascade in `updateStrum()` schedules note-offs based on gateValue
+- **UI Location:** CHORD mode section, visualized with pie chart
+
+### Swing (strumSwing)
+- **Range:** 0-50 (firmware), displayed as 50-100% in UI
+- **Used in:** ARP mode (playMode = 2)
+- **Purpose:** Controls timing variation for odd-indexed notes (shuffle/swing feel)
+- **Effect:**
+  - 0 (50% UI) = Straight timing (no swing)
+  - 25 (75% UI) = Moderate swing
+  - 50 (100% UI) = Maximum swing (every other note significantly delayed)
+- **Implementation:** Arpeggiator in `updateArpeggiator()` adds swing delay to odd-indexed notes
+- **UI Location:** ARP mode section, labeled as "SWING"
+
+### Common Mistake to Avoid
+
+**DO NOT:**
+- Use gateValue in arpeggiator code
+- Use strumSwing in chord strum code
+- Confuse the two when implementing timing logic
+
+**Remember:**
+- CHORD mode = gate controls note duration
+- ARP mode = swing controls timing variation
+- These are orthogonal parameters that never interact
+
+---
+
 ## Critical Assumptions
 
 ### BLE Protocol Assumptions

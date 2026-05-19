@@ -118,7 +118,7 @@ LeverControls<MidiTransport>::LeverControls(
         // CC 200 (Strum Speed) syncs from current strumSpeed value
         else if (_settings.ccNumber == 200) {
             int speedMs = abs(_chordSettings.strumSpeed);
-            int midiValue = map(speedMs, 5, 360, 0, 127);
+            int midiValue = map(speedMs, 5, 360, 127, 0);  // Reversed: lower ms = higher MIDI
             _currentValue = midiValue;
             _targetValue = midiValue;
             _rampStartValue = midiValue;
@@ -167,7 +167,7 @@ void LeverControls<MidiTransport>::setCCNumber(int number) {
     // When CC changes TO 200, sync from current strumSpeed magnitude
     if (number == 200 && oldCC != 200) {
         int speedMs = abs(_chordSettings.strumSpeed);
-        int midiValue = map(speedMs, 5, 360, 0, 127);
+        int midiValue = map(speedMs, 5, 360, 127, 0);  // Reversed: lower ms = higher MIDI
         _currentValue = midiValue;
         _targetValue = midiValue;
         _rampStartValue = midiValue;
@@ -224,7 +224,7 @@ void LeverControls<MidiTransport>::syncValue() {
     // CC 200 (Strum Speed) syncs from current strumSpeed magnitude
     else if (_settings.ccNumber == 200) {
         int speedMs = abs(_chordSettings.strumSpeed);
-        int midiValue = map(speedMs, 5, 360, 0, 127);
+        int midiValue = map(speedMs, 5, 360, 127, 0);  // Reversed: lower ms = higher MIDI
         _currentValue = midiValue;
         _targetValue = midiValue;
         _rampStartValue = midiValue;
@@ -399,6 +399,21 @@ void LeverControls<MidiTransport>::handleInput() {
             _rampStartTime = millis();
             _rampStartValue = _currentValue;
         }
+    } else if (_settings.functionMode == LeverFunctionMode::PITCH_BEND || _settings.ccNumber == 208) {
+        // PITCH_BEND: left=min semitone, right=max semitone, center=0 on release
+        // Uses minCCValue/maxCCValue so the user-configured range is respected
+        if (leftState) {
+            _targetValue = _settings.minCCValue;
+            _isPressed = true;
+        } else if (rightState) {
+            _targetValue = _settings.maxCCValue;
+            _isPressed = true;
+        } else {
+            if (_isPressed) {
+                _targetValue = 64; // Always return to semitone 0 (center)
+            }
+            _isPressed = false;
+        }
     }
 }
 
@@ -437,6 +452,45 @@ void LeverControls<MidiTransport>::updateValue() {
         }
     }
 
+    if (_settings.functionMode == LeverFunctionMode::PITCH_BEND || _settings.ccNumber == 208) {
+        // Bypass interpolation — map _targetValue directly to semitone offset
+        if (_targetValue == _lastSentValue) return;
+        
+        // Convert MIDI CC values to cents (-100..+100)
+        auto midiToCents = [](int midi) -> int {
+            return round((midi / 127.0f) * 200.0f) - 100;
+        };
+        
+        // Get cents bounds from user's configured min/max
+        int minCents = midiToCents(_settings.minCCValue);
+        int maxCents = midiToCents(_settings.maxCCValue);
+        
+        // Map current lever position to target cents within configured range
+        float normalizedPosition = 0.0;
+        if (_settings.maxCCValue > _settings.minCCValue) {
+            normalizedPosition = (float)(_targetValue - _settings.minCCValue) / 
+                                (float)(_settings.maxCCValue - _settings.minCCValue);
+            normalizedPosition = constrain(normalizedPosition, 0.0, 1.0);
+        }
+        
+        float mappedCents = minCents + (normalizedPosition * (maxCents - minCents));
+        int snappedCents = (int)round(mappedCents / 10.0f) * 10;
+        snappedCents = constrain(snappedCents, minCents, maxCents);
+
+        // Note retrigger at semitone boundaries: threshold at ±50 cents.
+        int semitoneOffset = (snappedCents >= 50) ? 1 : (snappedCents <= -50) ? -1 : 0;
+
+        // Use onsetTime (ms) as the note overlap duration. Default 25ms if unset.
+        unsigned long overlapUs = (_settings.onsetTime > 0)
+            ? (unsigned long)_settings.onsetTime * 1000UL
+            : 25000UL;
+        _keyboardControl.setPitchBendOverlapUs(overlapUs);
+        _keyboardControl.setPitchBendOffset(semitoneOffset);
+        _currentValue = _targetValue;
+        _lastSentValue = _targetValue;
+        return;
+    }
+
     if (_currentValue != _lastSentValue) {
         int sendVal = constrain(_currentValue, 0, 127);
         if (_settings.ccNumber == 128) {
@@ -449,9 +503,9 @@ void LeverControls<MidiTransport>::updateValue() {
             _keyboardControl.setVelocity(sendVal);
         } else if (_settings.ccNumber == 200) {
             // 200 = KB1 Expression: Strum Speed (unipolar magnitude, direction set via UI)
-            // MIDI 0-127 maps to 5-360ms magnitude
+            // MIDI 0-127 maps to 360-5ms magnitude (REVERSED: right lever = faster = lower ms)
             // Direction (sign) is controlled via web UI FWD/REV toggle
-            int speedMs = map(sendVal, 0, 127, 5, 360);
+            int speedMs = map(sendVal, 0, 127, 360, 5);
             // Preserve current direction sign
             if (_chordSettings.strumSpeed < 0) {
                 _chordSettings.strumSpeed = -speedMs;
@@ -465,12 +519,12 @@ void LeverControls<MidiTransport>::updateValue() {
             }
         } else if (_settings.ccNumber == 201) {
             // 201 = KB1 Expression: Pattern Selector (1-6)
-            // Only active when in strum:shape mode
+            // Only active when in arp:pattern mode
             bool isStrumShapeMode = (_chordSettings.playMode == PlayMode::CHORD && 
                                       _chordSettings.strumEnabled && 
                                       _chordSettings.strumPattern > 0);
             if (!isStrumShapeMode) {
-                // Silently ignore when not in strum:shape mode
+                // Silently ignore when not in arp:pattern mode
                 SERIAL_PRINTLN("L201:Skip");
             } else {
                 // Map CC value (0-127) to pattern range (1-6)
@@ -479,18 +533,19 @@ void LeverControls<MidiTransport>::updateValue() {
                 SERIAL_PRINT("P"); SERIAL_PRINTLN(_chordSettings.strumPattern);
             }
         } else if (_settings.ccNumber == 202) {
-            // 202 = KB1 Expression: Swing (0-100%)
-            // Only active when in strum:shape mode
+            // 202 = KB1 Expression: Swing (0-50 firmware, 50-100% UI)
+            // Active in arp:pattern mode only
             bool isStrumShapeMode = (_chordSettings.playMode == PlayMode::CHORD && 
                                       _chordSettings.strumEnabled && 
                                       _chordSettings.strumPattern > 0);
-            if (!isStrumShapeMode) {
-                // Silently ignore when not in strum:shape mode
+            bool isArpMode = (_chordSettings.playMode == PlayMode::ARP);
+            if (!isStrumShapeMode && !isArpMode) {
+                // Silently ignore when not in a swing-capable mode
                 SERIAL_PRINTLN("L202:Skip");
             } else {
-                // Map CC value (0-127) to swing range (0-100)
-                int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 100);
-                _chordSettings.strumSwing = constrain(swing, 0, 100);
+                // Map CC value (0-127) to swing range (0-50 firmware, 50-100% UI)
+                int swing = map(sendVal, _settings.minCCValue, _settings.maxCCValue, 0, 50);
+                _chordSettings.strumSwing = constrain(swing, 0, 50);
                 SERIAL_PRINT("SW"); SERIAL_PRINTLN(_chordSettings.strumSwing);
             }
         } else if (_settings.ccNumber == 203) {

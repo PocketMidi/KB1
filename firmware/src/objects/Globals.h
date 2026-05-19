@@ -66,6 +66,7 @@ enum class LeverFunctionMode {
     INTERPOLATED,
     PEAK_AND_DECAY,
     INCREMENTAL,
+    PITCH_BEND,  // Lever morphs held MIDI notes ±2 semitones (recorded by sequencers)
 };
 
 enum class LeverPushFunctionMode {
@@ -73,6 +74,7 @@ enum class LeverPushFunctionMode {
     PEAK_AND_DECAY,
     STATIC,
     RESET,
+    SUSTAIN,  // Hold NoteOffs while pressed; release with offsetTime ms tail
 };
 
 enum class TouchFunctionMode {
@@ -136,7 +138,8 @@ enum class ChordType {
 
 enum class PlayMode {
     SCALE,
-    CHORD
+    CHORD,
+    ARP
 };
 
 extern Preferences preferences;
