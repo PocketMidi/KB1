@@ -1187,6 +1187,7 @@ void setup() {
         MIDI.sendControlChange(123, 0, ch);  // All Notes Off
     }
     keyboardControl.begin();
+    octaveControl.begin();
 
     // Register velocity hook to keep lever2 in sync when velocity changes
     auto velocityHook = [](int v) {
