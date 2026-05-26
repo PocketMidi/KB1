@@ -1,100 +1,89 @@
 # KB1 - Pocket MIDI Keyboard Controller
 
-A pocket-sized, feature-rich MIDI keyboard controller designed for the [Polyend Tracker Mini](https://polyend.com/tracker-mini/). Delivers professional-grade performance controls, wireless configuration, and extensive musical capabilities in an ultra-portable package.
+KB1 is a compact MIDI keyboard controller built around the Polyend Tracker Mini. It connects over Bluetooth Low Energy and is configured via a browser-based web app.
 
 ![KB1 banner](assets/banner_1.jpg)
 
 ## System Overview
 
-The KB1 system consists of three integrated components working together to provide a complete MIDI performance solution:
-
 **Hardware**
-- 19-key velocity-sensitive keyboard with dual operating modes (Scale/Chord)
-- 2 analog levers with push buttons for expressive control
-- Capacitive touch sensor for additional expression
-- Built-in mini speakers for audio monitoring
-- ESP32-based with Bluetooth Low Energy connectivity
-- Rechargeable battery with intelligent power management
+- 19-key keyboard (digital switches, no velocity)
+- 2 analog levers with integrated push buttons
+- 2 capacitive touch inputs
+- 2× 8Ω 1W speakers (PAM8406 Class-D amplifier)
+- XIAO ESP32-S3 MCU with BLE and USB-C
+- 420mAh Li-ion battery, charged via USB-C (requires USB enumeration — dumb chargers do not work)
 
 **Firmware** ([details](firmware/README.md))
-- Dual keyboard modes: Scale (quantized to musical scales) and Chord (10 chord types with voicing, strum, and swing)
-- Multi-octave chord voicing — expand chords 1–3 octaves (up to 15 notes)
-- Dedicated pitch bend and sustain function modes for Press controls
-- Hardware MIDI CCs to cycle scale type, chord type, and root note from levers or touch sensor
-- Fully configurable controls with advanced interpolation curves and function modes
-- 12 real-time performance sliders (CC 51-62) with bipolar/unipolar and momentary/latched modes
-- 8 on-device preset slots for storing complete configurations
-- High-performance 200Hz input scanning with optimized I2C bulk reads
-- Wireless BLE configuration and standard MIDI output
+- Scale mode: note output quantized to a selectable musical scale
+- Chord mode: 10 chord types with strum, voicing (1–3 octave expansion), and swing
+- Press controls: configurable CC, pitch bend (CC 208), or sustain (CC 209)
+- Lever and touch controls: configurable CC output with interpolation curves
+- Hardware CCs to step through scale type, chord type, and root note (CC 204–206)
+- 12 performance sliders (CC 51–62): bipolar/unipolar, momentary/latched
+- 8 on-device preset slots
+- BLE MIDI and Serial MIDI output
 
 **Web Configuration App** ([details](https://github.com/PocketMidi/KB1-config)) [![Traffic](https://img.shields.io/badge/analytics-umami-blue)](https://cloud.umami.is/analytics/us/share/X00Oso9T1qydknsS)
-- Browser-based configuration tool (no installation required)
-- Real-time parameter editing over Bluetooth Low Energy
-- 12-slider performance interface with mobile live mode
-- Preset management with unlimited browser-stored configurations
-- Works on desktop and mobile (Chrome, Edge, Opera)
-- Live usage stats tracked via [Umami Analytics](https://cloud.umami.is/analytics/us/share/X00Oso9T1qydknsS) (privacy-friendly, no cookies)
+- Runs in Chrome, Edge, or Opera — no installation required
+- Connects over Web Bluetooth
+- Settings load from and save to device over BLE
+- 12-slider live performance interface (landscape fullscreen on mobile)
+- Preset management stored in browser
 
 ## Quick Start
 
-### 1. Flash Firmware to Your Device
-
-**Flash using the KB1 Web Flash Tool (Recommended — No Tools Required):**
+### 1. Flash Firmware
 
 1. **Connect KB1** to your computer via USB-C
 2. **Open the flash tool** in Chrome or Edge: [https://pocketmidi.github.io/KB1-flash/](https://pocketmidi.github.io/KB1-flash/)
-3. **Click CONNECT** and select your KB1 device from the serial port dialog
+3. **Click CONNECT** and select your KB1 from the serial port dialog
 
    ![KB1 Flash Tool — Connected](assets/installation/connected.png)
 
-4. **Select a firmware version** from the Latest Releases list (the newest is pre-selected) and click **Flash Selected Version**
-   - The tool automatically backs up your NVS (Non-Volatile Storage data) settings before flashing and restores them after
-   - You can also drag and drop a custom `.bin` file if needed
+4. **Select a firmware version** from the list (latest is pre-selected) and click **Flash Selected Version**
+   - NVS settings are backed up before flashing and restored after
+   - You can also drag and drop a local `.bin` file
 
    ![KB1 Flash Tool — Flashing in progress](assets/installation/progress.png)
 
-5. **Wait for completion** — all four steps (Connect → Backup NVS → Flash → Restore NVS) will turn green
+5. **Wait for all four steps to complete**: Connect → Backup NVS → Flash → Restore NVS
 
    ![KB1 Flash Tool — Update complete](assets/installation/complete.png)
 
-**The flash tool also includes:**
+The flash tool also includes:
+- **Device Info** — firmware version, BLE name, battery status, and NVS values
+- **Serial Monitor** — live serial output from the device
 
-- **Device Info** — view your device's current firmware version, BLE name, battery status, and NVS settings at a glance without opening the full configurator
-- **Serial Monitor** — a built-in serial console for watching live debug output from your KB1, useful for diagnosing MIDI events, battery readings, and connection state in real time
+### 2. Enable Bluetooth
 
-### 2. Enable Bluetooth on Your KB1
+Bluetooth is off by default. To toggle it:
 
-**IMPORTANT**: Before connecting, ensure Bluetooth is enabled on your device.
+1. Push both levers toward each other (left lever right, right lever left) and hold for 3 seconds
+2. LED feedback during hold:
+   - Octave arrow LEDs turn on immediately
+   - Pink + blue LEDs pulse with increasing speed
+   - All LEDs turn off = toggle complete, release levers
 
-**To enable Bluetooth:**
-1. **Cross-lever gesture**: Push both levers toward each other (left lever → right, right lever → left) and **hold for 3 seconds**
-2. **Watch for progressive LED feedback:**
-   - Octave arrow LEDs turn ON immediately (gesture detected)
-   - Pink + blue LEDs pulse with increasing speed as you hold
-   - **All LEDs turn OFF** = activation complete, release levers
+The gesture is cancelled if any key is pressed during the hold.
 
-Repeat the same gesture anytime to toggle Bluetooth on/off.
+### 3. Configure
 
-**Note:** The gesture is automatically cancelled if any keyboard key is pressed, preventing accidental triggers during performance.
-
-### 3. Configure Over Bluetooth
-
-**Launch the web app**: [https://pocketmidi.github.io/KB1-config](https://pocketmidi.github.io/KB1-config)
+Open [https://pocketmidi.github.io/KB1-config](https://pocketmidi.github.io/KB1-config) in Chrome, Edge, or Opera.
 
 1. Click **DISCONNECTED** (top-right) and pair with "KB1"
-2. Settings load automatically from device
-3. Configure keyboard modes, controls, scales, and performance sliders
-4. Click **Save to Device** to persist changes to flash memory
+2. Settings load automatically from the device
+3. Edit settings and click **Save to Device**
 
-**Performance Sliders**: Switch to the SLIDERS tab for 12 real-time CC controllers. On mobile, rotate to landscape for fullscreen live mode.
+**Sliders tab**: 12 CC controllers (CC 51–62). On mobile, rotate to landscape for fullscreen mode.
 
-**iOS Users**: Safari does not support Web Bluetooth. Download V Browser from the App Store to access the web configuration app on iOS devices. Note: When using V Browser, live mode automatically compensates for touch offset, and you may see one slider grayed out (11 remain active) - this is normal behavior for optimal touch accuracy.
+**iOS**: Safari does not support Web Bluetooth. Use V Browser (App Store). In V Browser, live mode compensates for touch offset automatically; one slider may appear grayed out (11 remain active).
 
 ## Documentation
 
-- [Configuration App Guide](https://github.com/PocketMidi/KB1-config) - Complete web app documentation with usage examples
-- [Firmware Documentation](firmware/README.md) - Technical details, features, and build instructions
-- [Hardware Design](hardware/) - Schematics and PCB files
+- [Configuration App Guide](https://github.com/PocketMidi/KB1-config)
+- [Firmware Documentation](firmware/README.md)
+- [Hardware Design](hardware/)
 
 ## Building from Source
 
@@ -111,8 +100,6 @@ npm install
 npm run build
 ```
 
-Detailed build instructions are available in the respective README files.
-
 ## Gallery
 
 ![inner top](assets/inner_1.png)
@@ -122,8 +109,4 @@ Detailed build instructions are available in the respective README files.
 
 - **Software & Firmware**: MIT License (see LICENSE)
 - **Hardware Designs**: CERN Open Hardware Licence v2 – Strongly Reciprocal (see hardware/LICENSE-CERN-OHL-S.txt)
-
----
-
-Built for the Polyend Tracker Mini community
 
