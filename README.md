@@ -1,6 +1,6 @@
 # KB1 - Pocket MIDI Keyboard Controller
 
-A pocket-sized, feature-rich MIDI keyboard controller designed for the [Polyend Tracker Mini](https://polyend.com/tracker-mini/). This first release delivers professional-grade performance controls, wireless configuration, and extensive musical capabilities in an ultra-portable package.
+A pocket-sized, feature-rich MIDI keyboard controller designed for the [Polyend Tracker Mini](https://polyend.com/tracker-mini/). Delivers professional-grade performance controls, wireless configuration, and extensive musical capabilities in an ultra-portable package.
 
 ![KB1 banner](assets/banner_1.jpg)
 
@@ -17,18 +17,23 @@ The KB1 system consists of three integrated components working together to provi
 - Rechargeable battery with intelligent power management
 
 **Firmware** ([details](firmware/README.md))
-- Dual keyboard modes: Scale (quantized to musical scales) and Chord (10 chord types with chord/strum options)
+- Dual keyboard modes: Scale (quantized to musical scales) and Chord (10 chord types with voicing, strum, and swing)
+- Multi-octave chord voicing — expand chords 1–3 octaves (up to 15 notes)
+- Dedicated pitch bend and sustain function modes for Press controls
+- Hardware MIDI CCs to cycle scale type, chord type, and root note from levers or touch sensor
 - Fully configurable controls with advanced interpolation curves and function modes
 - 12 real-time performance sliders (CC 51-62) with bipolar/unipolar and momentary/latched modes
 - 8 on-device preset slots for storing complete configurations
+- High-performance 200Hz input scanning with optimized I2C bulk reads
 - Wireless BLE configuration and standard MIDI output
 
-**Web Configuration App** ([details](https://github.com/PocketMidi/KB1-config))
+**Web Configuration App** ([details](https://github.com/PocketMidi/KB1-config)) [![Traffic](https://img.shields.io/badge/analytics-umami-blue)](https://cloud.umami.is/analytics/us/share/X00Oso9T1qydknsS)
 - Browser-based configuration tool (no installation required)
 - Real-time parameter editing over Bluetooth Low Energy
 - 12-slider performance interface with mobile live mode
 - Preset management with unlimited browser-stored configurations
 - Works on desktop and mobile (Chrome, Edge, Opera)
+- Live usage stats tracked via [Umami Analytics](https://cloud.umami.is/analytics/us/share/X00Oso9T1qydknsS) (privacy-friendly, no cookies)
 
 ## Quick Start
 
