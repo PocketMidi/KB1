@@ -25,7 +25,7 @@ KB1 is a compact MIDI keyboard controller built specifically for the Polyend Tra
 
 **Web Configuration App** ([details](https://github.com/PocketMidi/KB1-config)) [![Traffic](https://img.shields.io/badge/analytics-umami-blue)](https://cloud.umami.is/analytics/us/share/X00Oso9T1qydknsS)
 - Mobile first design
-- Runs in Chromium based browsers (V Browser recommended for iOS)
+- Runs in Chromium based browsers (**iOS**: Safari does not support Web Bluetooth. [V Browser ](https://vbrowser.co) recommended for iOS)
 - Connects over Web Bluetooth
 - Settings load from and save to device over BLE
 - 12-slider live performance interface (landscape fullscreen on mobile)
@@ -36,7 +36,7 @@ KB1 is a compact MIDI keyboard controller built specifically for the Polyend Tra
 ### 1. Flash Firmware
 
 1. **Connect KB1** to your computer via USB-C
-2. **Open the flash tool** in Chrome or Edge: [https://pocketmidi.github.io/KB1-flash/](https://pocketmidi.github.io/KB1-flash/)
+2. **Open the flash tool** in browser: [https://pocketmidi.github.io/KB1-flash/](https://pocketmidi.github.io/KB1-flash/)
 3. **Click CONNECT** and select your KB1 from the serial port dialog
 
    ![KB1 Flash Tool — Connected](assets/installation/connected.png)
@@ -59,7 +59,7 @@ The flash tool also includes:
 
 Bluetooth is off by default. To toggle it:
 
-1. Push both levers toward each other (left lever right, right lever left) and hold for 3 seconds
+1. Squeeze both levers toward each other (left lever right, right lever left) and hold for 3 seconds
 2. LED feedback during hold:
    - Octave arrow LEDs turn on immediately
    - Pink + blue LEDs pulse with increasing speed
@@ -69,15 +69,14 @@ The gesture is cancelled if any key is pressed during the hold.
 
 ### 3. Configure
 
-Open [https://pocketmidi.github.io/KB1-config](https://pocketmidi.github.io/KB1-config) in Chrome, Edge, or Opera.
+Open [https://pocketmidi.github.io/KB1-config](https://pocketmidi.github.io/KB1-config)
 
-1. Click **DISCONNECTED** (top-right) and pair with "KB1"
+1. Click **KB1 CONFIGURATOR** (logo) and pair with "KB1"
 2. Settings load automatically from the device
-3. Edit settings and click **Save to Device**
+3. Edit settings and click bouncing yellow arrow to send to KB1
 
 **Sliders tab**: 12 CC controllers (CC 51–62). On mobile, rotate to landscape for fullscreen mode.
 
-**iOS**: Safari does not support Web Bluetooth. Use V Browser (App Store). In V Browser, live mode compensates for touch offset automatically; one slider may appear grayed out (11 remain active).
 
 ## Documentation
 
