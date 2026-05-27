@@ -35,9 +35,9 @@ KB1 is a compact MIDI keyboard controller built specifically for the Polyend Tra
 
 ### 1. Flash Firmware
 
-1. **Connect KB1** to your computer via USB-C
+1. **Connect ***KB1*** to your computer via USB-C
 2. **Open the flash tool** in browser: [https://pocketmidi.github.io/KB1-flash/](https://pocketmidi.github.io/KB1-flash/)
-3. **Click CONNECT** and select your KB1 from the serial port dialog
+3. **Click CONNECT** and select ***KB1*** from the serial port dialog
 
    ![KB1 Flash Tool — Connected](assets/installation/connected.png)
 
@@ -71,9 +71,9 @@ The gesture is cancelled if any key is pressed during the hold.
 
 Open [https://pocketmidi.github.io/KB1-config](https://pocketmidi.github.io/KB1-config)
 
-1. Click **KB1 CONFIGURATOR** (logo) and pair with "KB1"
+1. Click ***KB1 CONFIGURATOR*** (logo) and pair with ***KB1***
 2. Settings load automatically from the device
-3. Edit settings and click bouncing yellow arrow to send to KB1
+3. Edit settings, then click bouncing yellow arrow (upper right) to send to ***KB1***
 
 **Sliders tab**: 12 CC controllers (CC 51–62). On mobile, rotate to landscape for fullscreen mode.
 
