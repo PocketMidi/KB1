@@ -1,6 +1,6 @@
-# KB1 - Pocket MIDI Keyboard Controller
+# ***KB1*** - Pocket MIDI Keyboard Controller
 
-KB1 is a compact MIDI keyboard controller built specifically for the Polyend Tracker Mini. It is configured via a browser-based web app connected via Bluetooth Low Energy.
+***KB1*** is a compact MIDI keyboard controller built specifically for the Polyend Tracker Mini. It is configured via a browser-based web app connected via Bluetooth Low Energy.
 
 ![KB1 banner](assets/banner_1.jpg)
 
