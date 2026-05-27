@@ -1,31 +1,31 @@
 # KB1 - Pocket MIDI Keyboard Controller
 
-KB1 is a compact MIDI keyboard controller built around the Polyend Tracker Mini. It connects over Bluetooth Low Energy and is configured via a browser-based web app.
+KB1 is a compact MIDI keyboard controller built specifically for the Polyend Tracker Mini. It is configured via a browser-based web app connected via Bluetooth Low Energy.
 
 ![KB1 banner](assets/banner_1.jpg)
 
 ## System Overview
 
 **Hardware**
-- 19-key keyboard (digital switches, no velocity)
+- 19-key keyboard
 - 2 analog levers with integrated push buttons
-- 2 capacitive touch inputs
-- 2× 8Ω 1W speakers (PAM8406 Class-D amplifier)
+- 1 capacitive touch input
+- 2× 8Ω 1W speakers
 - XIAO ESP32-S3 MCU with BLE and USB-C
-- 420mAh Li-ion battery, charged via USB-C (requires USB enumeration — dumb chargers do not work)
+- 420mAh Li-ion battery, charged via USB-C 
 
 **Firmware** ([details](firmware/README.md))
+- Lever and Press and Touch controls: configurable CC output with interpolation curves
 - Scale mode: note output quantized to a selectable musical scale
 - Chord mode: 10 chord types with strum, voicing (1–3 octave expansion), and swing
-- Press controls: configurable CC, pitch bend (CC 208), or sustain (CC 209)
-- Lever and touch controls: configurable CC output with interpolation curves
-- Hardware CCs to step through scale type, chord type, and root note (CC 204–206)
-- 12 performance sliders (CC 51–62): bipolar/unipolar, momentary/latched
+- Arp Mode: User defined arpeggiator
+- 12 performance sliders: bipolar/unipolar, momentary/latched
 - 8 on-device preset slots
-- BLE MIDI and Serial MIDI output
+- Serial MIDI output
 
 **Web Configuration App** ([details](https://github.com/PocketMidi/KB1-config)) [![Traffic](https://img.shields.io/badge/analytics-umami-blue)](https://cloud.umami.is/analytics/us/share/X00Oso9T1qydknsS)
-- Runs in Chrome, Edge, or Opera — no installation required
+- Mobile first design
+- Runs in Chromium based browsers (V Browser recommended for iOS)
 - Connects over Web Bluetooth
 - Settings load from and save to device over BLE
 - 12-slider live performance interface (landscape fullscreen on mobile)
