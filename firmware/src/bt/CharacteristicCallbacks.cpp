@@ -62,9 +62,19 @@ void GenericSettingsCallback::onWrite(BLECharacteristic *pCharacteristic) {
     } else if (_prefKey == "leverpush2" && syncLeverPush2Callback) {
         syncLeverPush2Callback();
     }
-    // When chord settings change (e.g., strumSpeed), sync all levers
-    // in case any are assigned to CC 200 (Strum Speed)
+    // Sync lever internal values when settings change
+    if (_prefKey == "lever1" && syncLever1Callback) {
+        syncLever1Callback();
+    } else if (_prefKey == "leverpush1" && syncLeverPush1Callback) {
+        syncLeverPush1Callback();
+    } else if (_prefKey == "lever2" && syncLever2Callback) {
+        syncLever2Callback();
+    } else if (_prefKey == "leverpush2" && syncLeverPush2Callback) {
+        syncLeverPush2Callback();
+    }
+    // Sync pattern controls and levers when chord settings change
     else if (_prefKey == "chord") {
+        // Sync all levers in case any are assigned to CC 200 (Strum Speed)
         if (syncLever1Callback) syncLever1Callback();
         if (syncLeverPush1Callback) syncLeverPush1Callback();
         if (syncLever2Callback) syncLever2Callback();

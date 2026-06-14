@@ -149,6 +149,10 @@ extern Preferences preferences;
 
 extern MIDI_NAMESPACE::MidiInterface<MIDI_NAMESPACE::SerialMIDI<HardwareSerial>> MIDI;
 
+// MIDI reliability helpers (defined in main.cpp)
+extern void waitForMidiTxDrain();
+extern void sendMidiPanic();
+
 // Lever cooldown after BLE toggle (prevents MIDI output during lever release)
 extern unsigned long leverCooldownUntil;
 

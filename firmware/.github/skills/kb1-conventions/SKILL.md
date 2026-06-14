@@ -43,6 +43,49 @@ When adding new control modes that have directional behavior, ensure LED feedbac
 
 ---
 
+## Battery Charging Convention
+
+**#1 RULE: Power device ON (running on battery), THEN plug in USB**
+
+### Why This Matters
+
+The XIAO ESP32-S3's built-in charge controller has two modes determined **at boot time**:
+
+1. **USB at boot** → Bypass/power mode → Device powered, battery NOT charging
+2. **Battery boot → plug USB** → Charging mode → Device powered AND battery charging
+
+Once in bypass mode, the charge controller cannot switch to charging mode without power cycling.
+
+### User Instructions (MUST be documented)
+
+**Correct charging sequence:**
+1. Turn device ON (ensure it's running on battery)
+2. Connect USB cable
+3. Pink/blue LEDs pulse = charging active
+4. Leave for 5+ hours total (partial sessions accumulate)
+
+**If LEDs don't pulse after connecting USB:**
+- Device was in bypass mode (USB connected during boot)
+- **Fix:** Disconnect USB, wait 5 seconds, reconnect USB
+- LEDs should now pulse
+
+### Firmware Implementation
+
+```cpp
+// Early in setup(), BEFORE loadBatteryState()
+bool usbConnectedAtBoot = isUsbPowered();
+
+// Later in battery monitoring
+if (!usbConnectedAtBoot && usbNowConnected) {
+    // Valid charging sequence - start/resume calibration timer
+    isChargingMode = true;
+}
+```
+
+**See:** `.github/skills/kb1-hardware/` for complete charging behavior details
+
+---
+
 ## MIDI Implementation
 
 ### Hardware Interface

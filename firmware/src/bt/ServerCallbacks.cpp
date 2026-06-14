@@ -1,7 +1,7 @@
 #include <BLEDevice.h>
 #include <bt/ServerCallbacks.h>
 #include <bt/BluetoothController.h>
-#include "objects/Globals.h"
+#include <objects/Globals.h>
 
 ServerCallbacks::ServerCallbacks(BluetoothController* controller) : _controller(controller) {}
 
@@ -24,6 +24,11 @@ void ServerCallbacks::onConnect(BLEServer* pServer) {
 void ServerCallbacks::onDisconnect(BLEServer* pServer) {
     // Update battery tracking for time spent in current BLE mode before disconnecting
     _controller->updateBatteryModeTracking();
+    
+    // CRITICAL: Clear MIDI state on disconnect to prevent hanging notes during config changes
+    // User may have been mid-edit when connection dropped
+    sendMidiPanic();
+    SERIAL_PRINTLN("MIDI panic sent on BLE disconnect");
     
     // Mark as manual disconnect (not eligible for auto-reconnect)
     // Note: If this was a keepalive timeout, main loop will override this

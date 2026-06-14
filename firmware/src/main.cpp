@@ -153,6 +153,36 @@ const unsigned long BLUE_RAMP_DOWN_MS = 150;
 
 MIDI_CREATE_INSTANCE(HardwareSerial, Serial0, MIDI);
 
+// Forward declaration for keyboard control (defined later in setup)
+void clearKeyboardNoteTracking();
+
+// MIDI reliability helpers: explicit TX buffer management
+// These ensure critical MIDI messages are fully transmitted before continuing
+
+inline void waitForMidiTxDrain() {
+    // Wait for TX buffer to drain (all queued MIDI messages transmitted)
+    // At 31250 baud: ~320 bytes/second, 512-byte buffer = ~1.6 seconds worst case
+    unsigned long startMs = millis();
+    while (Serial0.availableForWrite() < 480 && (millis() - startMs) < 2000) {
+        delay(10);  // Check every 10ms
+    }
+}
+
+inline void sendMidiPanic() {
+    // Send All Notes Off + Reset All Controllers to all 16 channels
+    // Used before sleep, on boot, and during critical state changes
+    for (int ch = 1; ch <= 16; ch++) {
+        MIDI.sendControlChange(123, 0, ch);  // All Notes Off
+        MIDI.sendControlChange(121, 0, ch);  // Reset All Controllers
+    }
+    waitForMidiTxDrain();  // Ensure all panic messages are transmitted
+    
+    // CRITICAL: Clear internal note tracking to prevent guard in stopMidiNote()
+    // from blocking valid note-offs after panic. Without this, _isNoteOn[] could
+    // get out of sync with actual MIDI state, causing stuck notes.
+    clearKeyboardNoteTracking();
+}
+
 //----------------------------------
 // Octave Control Setup
 //----------------------------------
@@ -198,18 +228,23 @@ KeyboardControl<decltype(MIDI), decltype(octaveControl)> keyboardControl(
     chordSettings
 );
 
+// Implementation of forward-declared helper for sendMidiPanic()
+void clearKeyboardNoteTracking() {
+    keyboardControl.clearNoteTracking();
+}
+
 //----------------------------------
 // Lever 1 Setup
 //----------------------------------
 LeverSettings lever1Settings = {
-    .ccNumber = 3,
+    .ccNumber = 208,
     .minCCValue = 0,
     .maxCCValue = 127,
     .stepSize = 1,
-    .functionMode = LeverFunctionMode::INTERPOLATED,
+    .functionMode = LeverFunctionMode::PITCH_BEND,
     .valueMode = ValueMode::BIPOLAR,
-    .onsetTime = 100,
-    .offsetTime = 100,
+    .onsetTime = 25,
+    .offsetTime = 25,
     .onsetType = InterpolationType::LINEAR,
     .offsetType = InterpolationType::LINEAR,
 };
@@ -1176,16 +1211,21 @@ void setup() {
     // Priority 2 (higher than LED task) for minimal input latency
     xTaskCreatePinnedToCore(readInputs, "readInputs", 4096, nullptr, 2, nullptr, 1);
 
+    // Configure Serial0 explicitly before MIDI.begin() to ensure proper buffer sizes
+    // Default ESP32 TX buffer (256 bytes) can overflow during rapid MIDI transmission
+    // Larger TX buffer (512 bytes) prevents note-off message loss during chord/arp bursts
+    // CRITICAL: setTxBufferSize() must be called BEFORE begin()
+    Serial0.setRxBufferSize(256);  // RX buffer (not critical for MIDI out)
+    Serial0.setTxBufferSize(512);  // TX buffer - CRITICAL for preventing note-off loss
+    Serial0.begin(31250);  // Standard MIDI baud rate
     MIDI.begin(1);
 
     // MIDI panic on boot: clear any garbage state caused by UART TX floating during
     // ESP32 reset/flash. Sends All Notes Off + Reset All Controllers on all 16 channels.
     // This auto-recovers connected synths without needing a manual patch reload.
     delay(100);  // Let UART settle before sending
-    for (int ch = 1; ch <= 16; ch++) {
-        MIDI.sendControlChange(121, 0, ch);  // Reset All Controllers
-        MIDI.sendControlChange(123, 0, ch);  // All Notes Off
-    }
+    sendMidiPanic();  // Send panic and wait for TX buffer to drain
+    SERIAL_PRINTLN("MIDI panic sent on boot");
     keyboardControl.begin();
     octaveControl.begin();
 
@@ -1328,9 +1368,14 @@ void loop() {
     // Check both isChargingMode AND current USB state for immediate response
     static bool wasCharging = false;
     static bool chargingLEDsEnabled = false; // Guard flag
+    static unsigned long chargingModeStartMs = 0;  // Track when charging started
+    static unsigned long estimatedChargeDurationMs = BATTERY_FULL_CHARGE_MS;  // Estimated time to full charge
+    static uint8_t lastBatteryPercentAtChargeStart = 254;  // Track to detect manual % changes
     static uint32_t lastUsbFrameCheck = 0;
     static uint8_t usbDisconnectCount = 0;  // Debounce counter for USB disconnect
     const uint8_t USB_DISCONNECT_THRESHOLD = 3;  // Require 3 consecutive misses before stopping
+    const unsigned long USB_CHECK_GRACE_PERIOD = 180000;  // 3 minutes - after this, ignore frame counter (computer may sleep)
+    const unsigned long MIN_CHARGE_LED_DURATION = 1800000;  // 30 minutes minimum LED pulse time
     
     // Real-time USB check using frame counter (same method as battery monitoring)
     uint32_t currentFrame = USB_SERIAL_JTAG.fram_num.sof_frame_index;
@@ -1339,16 +1384,67 @@ void loop() {
     bool usbCurrentlyConnected = frameActive || serialActive;
     lastUsbFrameCheck = currentFrame;
     
-    // Debounce USB disconnect detection to prevent false negatives during blocking operations
-    if (!usbCurrentlyConnected) {
-        usbDisconnectCount++;
-    } else {
-        usbDisconnectCount = 0;  // Reset counter if USB detected
+    // Track when charging mode starts OR when user manually adjusts battery %
+    bool chargingJustStarted = (batteryState.isChargingMode && chargingModeStartMs == 0);
+    bool batteryPercentChanged = (batteryState.isChargingMode && 
+                                   batteryState.estimatedPercentage != lastBatteryPercentAtChargeStart &&
+                                   lastBatteryPercentAtChargeStart != 254);  // Don't trigger on first init
+    
+    if (chargingJustStarted || batteryPercentChanged) {
+        chargingModeStartMs = millis();  // Reset timer when charging starts or % manually changed
+        lastBatteryPercentAtChargeStart = batteryState.estimatedPercentage;
+        
+        // Calculate estimated charge time based on current battery %
+        if (batteryState.estimatedPercentage < 254 && batteryState.estimatedPercentage < 100) {
+            float remainingPercent = 100.0f - batteryState.estimatedPercentage;
+            estimatedChargeDurationMs = (remainingPercent / 100.0f) * BATTERY_FULL_CHARGE_MS;
+            
+            // Round up to nearest 10 minutes (600000ms)
+            estimatedChargeDurationMs = ((estimatedChargeDurationMs + 599999) / 600000) * 600000;
+            
+            // Apply 30-minute minimum
+            if (estimatedChargeDurationMs < MIN_CHARGE_LED_DURATION) {
+                estimatedChargeDurationMs = MIN_CHARGE_LED_DURATION;
+            }
+            
+            SERIAL_PRINT("Charge time est: ");
+            SERIAL_PRINT(estimatedChargeDurationMs / 60000);
+            SERIAL_PRINT("min (from ");
+            SERIAL_PRINT(batteryState.estimatedPercentage);
+            SERIAL_PRINTLN("%)");
+        } else {
+            // Uncalibrated or already at 100% - use full 5-hour charge
+            estimatedChargeDurationMs = BATTERY_FULL_CHARGE_MS;
+        }
+    } else if (!batteryState.isChargingMode) {
+        chargingModeStartMs = 0;  // Reset when not charging
+        lastBatteryPercentAtChargeStart = 254;  // Reset tracker
     }
     
-    bool usbActuallyDisconnected = (usbDisconnectCount >= USB_DISCONNECT_THRESHOLD);
+    // Calculate how long we've been in charging mode
+    unsigned long chargeElapsed = chargingModeStartMs > 0 ? (millis() - chargingModeStartMs) : 0;
     
-    if (batteryState.isChargingMode && !usbActuallyDisconnected) {
+    // Check if estimated charge duration has elapsed OR battery reached 100%
+    bool estimatedChargeComplete = (chargeElapsed >= estimatedChargeDurationMs);
+    bool batteryFull = (batteryState.estimatedPercentage >= 100);
+    
+    // Only check USB frame counter during grace period (first 3 minutes)
+    // After that, assume computer might sleep - trust estimated charge timer instead
+    bool shouldCheckUSB = (chargeElapsed < USB_CHECK_GRACE_PERIOD);
+    bool usbActuallyDisconnected = false;
+    
+    if (shouldCheckUSB) {
+        // Debounce USB disconnect detection to prevent false negatives during blocking operations
+        if (!usbCurrentlyConnected) {
+            usbDisconnectCount++;
+        } else {
+            usbDisconnectCount = 0;  // Reset counter if USB detected
+        }
+        usbActuallyDisconnected = (usbDisconnectCount >= USB_DISCONNECT_THRESHOLD);
+    }
+    // After grace period: ignore frame counter, LEDs stay on until estimated charge time completes
+    
+    if (batteryState.isChargingMode && !usbActuallyDisconnected && !estimatedChargeComplete && !batteryFull) {
         if (!chargingLEDsEnabled) {
             // Just started charging pattern
             chargingLEDsEnabled = true;
@@ -1358,12 +1454,14 @@ void loop() {
             SERIAL_PRINT(" isChargingMode=");
             SERIAL_PRINT(batteryState.isChargingMode);
             SERIAL_PRINT(" usbConnected=");
-            SERIAL_PRINTLN(!usbActuallyDisconnected);
+            SERIAL_PRINT(!usbActuallyDisconnected);
+            SERIAL_PRINT(" graceActive=");
+            SERIAL_PRINTLN(shouldCheckUSB ? "yes" : "no");
         }
         updateChargingLEDPattern();
         wasCharging = true;
     } else {
-        // Stop immediately when USB disconnects OR charging mode exits
+        // Stop charging LEDs when: USB disconnects, charging mode exits, estimated time elapsed, or battery full
         if (wasCharging || chargingLEDsEnabled) {
             // Disable pattern FIRST to prevent any new ramp commands
             chargingLEDsEnabled = false;
@@ -1387,7 +1485,16 @@ void loop() {
             ledSet(LedColor::PINK, 0);
             ledSet(LedColor::BLUE, 0);
             
-            SERIAL_PRINT("Charging LEDs stopped - isChargingMode=");
+            SERIAL_PRINT("Charging LEDs stopped - ");
+            if (estimatedChargeComplete) {
+                SERIAL_PRINT("est.time complete (");
+                SERIAL_PRINT(estimatedChargeDurationMs / 60000);
+                SERIAL_PRINT("min) ");
+            }
+            if (batteryFull) {
+                SERIAL_PRINT("battery full ");
+            }
+            SERIAL_PRINT("isChargingMode=");
             SERIAL_PRINT(batteryState.isChargingMode);
             SERIAL_PRINT(" usbConnected=");
             SERIAL_PRINTLN(!usbActuallyDisconnected);

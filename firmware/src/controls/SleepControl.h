@@ -13,6 +13,10 @@
 #include <bt/BluetoothController.h>
 #include <objects/Settings.h>
 
+// Forward declarations for MIDI helpers (defined in main.cpp)
+void sendMidiPanic();
+void waitForMidiTxDrain();
+
 // These functions are implemented as templates so they can be used with the
 // project's templated control types without requiring concrete typedefs here.
 
@@ -77,6 +81,10 @@ inline void enterLightSleep(TouchT &touch,
                             const unsigned long BLUE_RAMP_UP_MS,
                             const unsigned long BLUE_RAMP_DOWN_MS) {
     SERIAL_PRINTLN("Preparing to enter light sleep mode...");
+    
+    // CRITICAL: Clear all MIDI state before sleeping to prevent hanging notes
+    sendMidiPanic();
+    SERIAL_PRINTLN("MIDI panic sent before light sleep");
 
     const uint32_t LIGHT_SLEEP_MAX_MS = 90000UL; // 90 seconds
     uint32_t lightSleepMaxMs = LIGHT_SLEEP_MAX_MS;
@@ -197,6 +205,10 @@ inline void enterDeepSleep(TouchT &touch,
     SERIAL_PRINT("Touch wake threshold: "); SERIAL_PRINTLN(wakeThreshold);
     SERIAL_PRINT("Free heap (bytes): "); SERIAL_PRINTLN(freeHeap);
     SERIAL_PRINTLN("-------------------------");
+    
+    // CRITICAL: Clear all MIDI state before deep sleep to prevent hanging notes
+    sendMidiPanic();
+    SERIAL_PRINTLN("MIDI panic sent before deep sleep");
 
     touchAttachInterrupt(wakePin, touchWakeCallback, wakeThreshold);
     touchSleepWakeUpEnable(wakePin, wakeThreshold);

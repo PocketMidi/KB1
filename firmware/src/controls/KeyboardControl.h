@@ -331,7 +331,8 @@ public:
                     for (int i = 0; i < intervalCount; i++) {
                         // Get note index (reverse order if speed is negative)
                         int noteIndex = reverse ? (intervalCount - 1 - i) : i;
-                        int chordNote = rootNote + intervals[noteIndex];
+                        // CRITICAL: Clamp chord notes to valid MIDI range (0-127)
+                        int chordNote = constrain(rootNote + intervals[noteIndex], 0, 127);
                         int velocity = calculateChordVelocity(noteIndex, intervalCount);
                         
                         _strumNotes[i] = chordNote;
@@ -372,7 +373,8 @@ public:
                     
                     // Chord mode: send all notes immediately
                     for (int i = 0; i < intervalCount; i++) {
-                        int chordNote = rootNote + intervals[i];
+                        // CRITICAL: Clamp chord notes to valid MIDI range (0-127)
+                        int chordNote = constrain(rootNote + intervals[i], 0, 127);
                         int velocity = calculateChordVelocity(i, intervalCount);
                         _activeChordNotes[note][i] = chordNote;
                         
@@ -553,7 +555,17 @@ public:
     // Register a callback to be notified when velocity changes via setVelocity()
     void registerVelocityChangeHook(void (*hook)(int)) { _velocityChangeHook = hook; }
 
+    // Clear internal note tracking without sending MIDI
+    // Used by sendMidiPanic() to keep _isNoteOn[] synchronized with MIDI state
+    void clearNoteTracking() {
+        for (int i = 0; i < 128; ++i) {
+            _isNoteOn[i] = false;
+        }
+    }
+
     void resetAllKeys() {
+        // CRITICAL: Send note-off for all notes AND clear tracking
+        // This ensures _isNoteOn[] stays synchronized with MIDI state
         for (int i = 0; i < 128; ++i) {
             _midi.sendNoteOff(i, 0, 1);
             if (_isNoteOn[i]) {
@@ -939,7 +951,8 @@ public:
         } else {
             // CHORD mode: Calculate note from root + interval
             int interval = _arpPattern[_arpCurrentIndex];
-            _arpCurrentNote = _arpRootNote + interval;
+            // CRITICAL: Clamp arp note to valid MIDI range (0-127)
+            _arpCurrentNote = constrain(_arpRootNote + interval, 0, 127);
             int velocity = calculateChordVelocity(_arpCurrentIndex, _arpPatternLength);
             
             _midi.sendNoteOn(_arpCurrentNote, velocity, 1);

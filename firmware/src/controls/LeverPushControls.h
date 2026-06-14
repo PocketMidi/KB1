@@ -581,6 +581,8 @@ void LeverPushControls<MidiTransport>::updateValue() {
                 SERIAL_PRINTLN(sendVal);
                 lastPushCCPrint = now;
             }
+            // CRITICAL: Ensure CC value is within MIDI spec (0-127)
+            sendVal = constrain(sendVal, 0, 127);
             _midi.sendControlChange(_settings.ccNumber, sendVal, 1);
         }
         // _ledController.set(_ledColor, _currentValue);
