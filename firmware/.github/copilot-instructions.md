@@ -50,8 +50,8 @@ Override default hardware LEDs when mode requires directional feedback (e.g., Pa
 1. Bump `FIRMWARE_VERSION` in `src/objects/Constants.h`
 2. Update version in `build_complete.sh`  
 3. Run `bash build_complete.sh` → outputs `KB1-firmware-vX.Y.Z.bin`
-4. Copy to `kb1-flash/public/firmware/`
-5. Update `kb1-flash/public/firmware/releases.json`
+4. Copy to `kb1-studio/public/firmware/`
+5. Update `kb1-studio/public/firmware/releases.json`
 6. Bump `APP_VERSION` in `KB1-config/src/constants.ts`
 7. Commit + push all three repos, tag firmware repo
 

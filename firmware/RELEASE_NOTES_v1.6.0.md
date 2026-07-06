@@ -163,15 +163,15 @@ esptool.py --chip esp32s3 --port /dev/cu.usbmodem* write_flash \
 - **Backward compatible** - works with older web app versions
 
 ### First-Time Setup
-1. Flash using the **[KB1 Web Flash Tool](https://pocketmidi.github.io/KB1-flash/)** — no software needed (Chrome required), or flash manually via `esptool.py`
+1. Flash using **[KB1 Studio](https://pocketmidi.github.io/KB1-studio/)** — no software needed (Chrome required), or flash manually via `esptool.py`
 2. Open KB1 Configurator web app (auto-updates to v1.6)
 3. Connect via Bluetooth
 4. Battery tracking active immediately (calibrated or estimating)
 5. Optional: Use dev mode to set initial battery % for testing
 
-### KB1 Web Flash Tool
+### KB1 Studio Flash Tools
 
-New in v1.6: the **[KB1 Web Flash Tool](https://pocketmidi.github.io/KB1-flash/)** makes firmware updates easy — select a version, click Flash, done. No drivers, no CLI tools required. The tool automatically backs up and restores your NVS settings (presets, calibration, configuration) so nothing is lost during an update.
+New in v1.6: the flash workflow (now available in **[KB1 Studio](https://pocketmidi.github.io/KB1-studio/)**) makes firmware updates easy — select a version, click Flash, done. No drivers, no CLI tools required. The tool automatically backs up and restores your NVS settings (presets, calibration, configuration) so nothing is lost during an update.
 
 ## 📝 Known Limitations
 

@@ -548,8 +548,8 @@ This runs `esptool.py merge_bin` to combine:
 1. Bump `FIRMWARE_VERSION` in `src/objects/Constants.h`
 2. Update `FIRMWARE_VERSION` in `build_complete.sh`
 3. Run `bash build_complete.sh` → outputs `KB1-firmware-vX.Y.Z.bin` in firmware root
-4. Copy bin → `kb1-flash/public/firmware/KB1-firmware-vX.Y.Z.bin`
-5. Add entry to `kb1-flash/public/firmware/releases.json` (use `wc -c` for exact byte size)
+4. Copy bin → `kb1-studio/public/firmware/KB1-firmware-vX.Y.Z.bin`
+5. Add entry to `kb1-studio/public/firmware/releases.json` (use `wc -c` for exact byte size)
 6. Bump `APP_VERSION` in `KB1-config/src/constants.ts`
 7. Commit + push all three repos; tag firmware repo with `vX.Y.Z`
 

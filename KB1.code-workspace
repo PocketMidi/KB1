@@ -8,6 +8,9 @@
 		},
 		{
 			"path": "kb1-flash"
+		},
+		{
+			"path": "kb1-studio"
 		}
 	],
 	"settings": {}

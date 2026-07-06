@@ -165,12 +165,12 @@ Edit `platformio.ini` to customize build settings, upload port, or target board.
 
 ## Flashing Firmware
 
-The easiest way to flash KB1 firmware is the **[KB1 Web Flash Tool](https://pocketmidi.github.io/KB1-flash/)** — no software installation required.
+The easiest way to flash KB1 firmware is via **[KB1 Studio](https://pocketmidi.github.io/KB1-studio/)** — no software installation required.
 
-### Web Flash Tool (Recommended)
+### KB1 Studio Flash Tools (Recommended)
 
 1. Connect your KB1 to your computer via USB-C
-2. Open **[pocketmidi.github.io/KB1-flash](https://pocketmidi.github.io/KB1-flash/)** in Chrome (Web Serial required)
+2. Open **[pocketmidi.github.io/KB1-studio](https://pocketmidi.github.io/KB1-studio/)** in Chrome (Web Serial required)
 3. Select your firmware version from the list
 4. Click **Flash Firmware** and follow the on-screen prompts
 5. The tool will back up your NVS settings before flashing and restore them automatically
