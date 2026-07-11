@@ -23,6 +23,9 @@
 #include <esp_sleep.h>
 #include <esp_system.h>
 #include <driver/gpio.h>
+#include <driver/rtc_cntl.h>
+#include <soc/uart_reg.h>
+#include <soc/rtc_cntl_reg.h>
 #include <soc/usb_serial_jtag_reg.h>
 #include <soc/usb_serial_jtag_struct.h>
 #include <bt/BluetoothController.h>
@@ -1092,6 +1095,119 @@ void updateChargingLEDPattern() {
     }
 }
 
+//---------------------------------------------------
+// Low battery warning LED (same slow breathing as charge pattern)
+// Graduated warning — urgency increases as battery drops:
+//   ≤25%: double-blink, 8s pause
+//   ≤20%: double-blink, 4s pause
+//   ≤15%: continuous slow pulse
+// MCP23017 octave LEDs are digital-only; ledSet() applies instantly.
+//---------------------------------------------------
+enum LowBatPatternState {
+    LOWBAT_BURST_P1_ON,   // pulse 1 on
+    LOWBAT_BURST_P1_OFF,  // brief gap between pulses
+    LOWBAT_BURST_P2_ON,   // pulse 2 on
+    LOWBAT_BURST_PAUSE,   // long off pause before repeating
+    LOWBAT_CONT_ON,       // continuous on (≤15%)
+    LOWBAT_CONT_OFF       // continuous off (≤15%)
+};
+
+LowBatPatternState lowBatPatternState = LOWBAT_BURST_P1_ON;
+unsigned long lastLowBatPatternUpdate = 0;
+uint8_t lastLowBatUrgency = 0;  // 0=none 1=≤25% 2=≤20% 3=≤15%
+
+const unsigned long LOWBAT_PULSE_ON_MS  = 500;   // each blink on
+const unsigned long LOWBAT_PULSE_GAP_MS = 300;   // gap between the two blinks
+const unsigned long LOWBAT_PAUSE_25_MS  = 8000;  // pause after burst at ≤25%
+const unsigned long LOWBAT_PAUSE_20_MS  = 4000;  // pause after burst at ≤20%
+const unsigned long LOWBAT_CONT_ON_MS   = 1200;  // continuous on at ≤15%
+const unsigned long LOWBAT_CONT_OFF_MS  = 1200;  // continuous off at ≤15%
+
+void updateLowBatteryLEDPattern() {
+    unsigned long currentTime = millis();
+
+    uint8_t urgency = (batteryState.estimatedPercentage <= 15) ? 3 :
+                      (batteryState.estimatedPercentage <= 20) ? 2 : 1;
+
+    // On urgency change: apply new state's LEDs immediately, reset timer
+    if (urgency != lastLowBatUrgency) {
+        lastLowBatUrgency = urgency;
+        lastLowBatPatternUpdate = currentTime;
+        lowBatPatternState = (urgency == 3) ? LOWBAT_CONT_ON : LOWBAT_BURST_P1_ON;
+        ledSet(LedColor::OCTAVE_UP,   1);  // Always start ON
+        ledSet(LedColor::OCTAVE_DOWN, 1);
+        return;
+    }
+
+    // waitMs = how long the current LED state (on/off) persists
+    unsigned long waitMs;
+    switch (lowBatPatternState) {
+        case LOWBAT_BURST_P1_ON:  waitMs = LOWBAT_PULSE_ON_MS;  break;
+        case LOWBAT_BURST_P1_OFF: waitMs = LOWBAT_PULSE_GAP_MS; break;
+        case LOWBAT_BURST_P2_ON:  waitMs = LOWBAT_PULSE_ON_MS;  break;
+        case LOWBAT_BURST_PAUSE:  waitMs = (urgency == 2) ? LOWBAT_PAUSE_20_MS : LOWBAT_PAUSE_25_MS; break;
+        case LOWBAT_CONT_ON:      waitMs = LOWBAT_CONT_ON_MS;   break;
+        case LOWBAT_CONT_OFF:     waitMs = LOWBAT_CONT_OFF_MS;  break;
+        default:                  waitMs = 1000; break;
+    }
+
+    if (currentTime - lastLowBatPatternUpdate < waitMs) {
+        return;
+    }
+
+    lastLowBatPatternUpdate = currentTime;
+
+    // Transition: apply the next state's LED action
+    switch (lowBatPatternState) {
+        case LOWBAT_BURST_P1_ON:   // P1 done → brief gap (off)
+            ledSet(LedColor::OCTAVE_UP, 0);
+            ledSet(LedColor::OCTAVE_DOWN, 0);
+            lowBatPatternState = LOWBAT_BURST_P1_OFF;
+            break;
+        case LOWBAT_BURST_P1_OFF:  // Gap done → P2 (on)
+            ledSet(LedColor::OCTAVE_UP, 1);
+            ledSet(LedColor::OCTAVE_DOWN, 1);
+            lowBatPatternState = LOWBAT_BURST_P2_ON;
+            break;
+        case LOWBAT_BURST_P2_ON:   // P2 done → long pause (off)
+            ledSet(LedColor::OCTAVE_UP, 0);
+            ledSet(LedColor::OCTAVE_DOWN, 0);
+            lowBatPatternState = LOWBAT_BURST_PAUSE;
+            break;
+        case LOWBAT_BURST_PAUSE:   // Pause done → new burst (on)
+            ledSet(LedColor::OCTAVE_UP, 1);
+            ledSet(LedColor::OCTAVE_DOWN, 1);
+            lowBatPatternState = LOWBAT_BURST_P1_ON;
+            break;
+        case LOWBAT_CONT_ON:       // On done → off
+            ledSet(LedColor::OCTAVE_UP, 0);
+            ledSet(LedColor::OCTAVE_DOWN, 0);
+            lowBatPatternState = LOWBAT_CONT_OFF;
+            break;
+        case LOWBAT_CONT_OFF:      // Off done → on
+            ledSet(LedColor::OCTAVE_UP, 1);
+            ledSet(LedColor::OCTAVE_DOWN, 1);
+            lowBatPatternState = LOWBAT_CONT_ON;
+            break;
+    }
+}
+
+//---------------------------------------------------
+// Brownout ISR — MIDI All Notes Off before chip resets
+// Registered alongside the default Arduino handler via rtc_isr_register().
+// Three direct UART FIFO writes: safe from ISR context, no heap, no RTOS.
+//---------------------------------------------------
+static void IRAM_ATTR brownout_midi_cleanup(void *arg) {
+    if (!(REG_READ(RTC_CNTL_INT_ST_REG) & RTC_CNTL_BROWN_OUT_INT_ST)) {
+        return;  // Not a brownout interrupt (watchdog or other RTC source)
+    }
+    // All Notes Off on channel 1 — prevents stuck notes on Polyend Tracker
+    REG_WRITE(UART_FIFO_AHB_REG(0), 0xB0);  // CC status byte, channel 1
+    REG_WRITE(UART_FIFO_AHB_REG(0), 123);    // CC 123 = All Notes Off
+    REG_WRITE(UART_FIFO_AHB_REG(0), 0);      // value 0
+    // Default Arduino handler fires next and resets the chip
+}
+
 // sleep helpers implemented in controls/SleepControl.h
 
 
@@ -1223,6 +1339,10 @@ void setup() {
     // MIDI panic on boot: clear any garbage state caused by UART TX floating during
     // ESP32 reset/flash. Sends All Notes Off + Reset All Controllers on all 16 channels.
     // This auto-recovers connected synths without needing a manual patch reload.
+    // Register brownout MIDI cleanup alongside default Arduino handler.
+    // Fires before the chip resets, writes All Notes Off to UART FIFO.
+    rtc_isr_register(brownout_midi_cleanup, NULL, RTC_CNTL_BROWN_OUT_INT_ENA);
+
     delay(100);  // Let UART settle before sending
     sendMidiPanic();  // Send panic and wait for TX buffer to drain
     SERIAL_PRINTLN("MIDI panic sent on boot");
@@ -1444,7 +1564,7 @@ void loop() {
     }
     // After grace period: ignore frame counter, LEDs stay on until estimated charge time completes
     
-    if (batteryState.isChargingMode && !usbActuallyDisconnected && !estimatedChargeComplete && !batteryFull) {
+    if (batteryState.isChargingMode && !usbActuallyDisconnected && !estimatedChargeComplete) {
         if (!chargingLEDsEnabled) {
             // Just started charging pattern
             chargingLEDsEnabled = true;
@@ -1502,7 +1622,35 @@ void loop() {
             SERIAL_PRINTLN("Charging LEDs stopped");
         }
     }
-    
+
+    // Low battery warning LED pattern (25% threshold)
+    // Uses OCTAVE_UP/DOWN at same speed as charging LEDs — visible while playing
+    // Active when calibrated, at or below 25%, and not in charging mode
+    static bool lowBatLEDsEnabled = false;
+    bool lowBatCondition = (batteryState.estimatedPercentage <= 25 &&
+                            batteryState.estimatedPercentage < 254 &&
+                            !batteryState.isChargingMode);
+
+    if (lowBatCondition) {
+        if (!lowBatLEDsEnabled) {
+            lowBatLEDsEnabled = true;
+            lowBatPatternState = LOWBAT_BURST_P1_ON;
+            lastLowBatUrgency = 0;
+            lastLowBatPatternUpdate = 0;
+            SERIAL_PRINT("Low battery warning LEDs: ");
+            SERIAL_PRINT(batteryState.estimatedPercentage);
+            SERIAL_PRINTLN("%");
+        }
+        updateLowBatteryLEDPattern();
+    } else if (lowBatLEDsEnabled) {
+        lowBatLEDsEnabled = false;
+        lowBatPatternState = LOWBAT_BURST_P1_ON;
+        lastLowBatUrgency = 0;
+        ledSet(LedColor::OCTAVE_UP, 0);
+        ledSet(LedColor::OCTAVE_DOWN, 0);
+        SERIAL_PRINTLN("Low battery LEDs cleared");
+    }
+
     // Periodically check if USB CDC terminal is connected (every 5 seconds)
     #ifdef SERIAL_PRINT_ENABLED
     static unsigned long lastSerialCheck = 0;
