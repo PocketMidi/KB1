@@ -460,7 +460,7 @@ GPIOCache readAllGPIO() {
 // USB Power Detection (uses USB peripheral, not Serial CDC)
 // Returns true if USB VBUS power is connected (works with computer or wall charger)
 bool isUsbPowered() {
-    // ESP32-S3 XIAO doesn't expose VBUS sensing, so we use multiple detection methods
+    // ESP32-S3 XIAO doesn't expose VBUS sensing, use frame counter + serial CDC
     
     static uint32_t lastFrameCount = 0;
     static unsigned long lastCheckMs = 0;
@@ -475,25 +475,14 @@ bool isUsbPowered() {
     
     uint32_t currentFrame = USB_SERIAL_JTAG.fram_num.sof_frame_index;
     
-    // Method 1: USB frame counter (works when connected to computer)
-    bool frameActive = (currentFrame != lastFrameCount);
-    
-    // Method 2: Serial CDC available (also indicates USB connection to computer)
+    // After a long gap (e.g. waking from sleep), the USB JTAG peripheral may have
+    // reset its frame counter. Update the reference WITHOUT claiming activity —
+    // the next 100ms check will correctly show whether frames are advancing.
+    bool wasSleeping = (now - lastCheckMs > 2000);
+    bool frameActive = !wasSleeping && (currentFrame != lastFrameCount);
     bool serialActive = (bool)Serial;
     
-    // Method 3: Check if we recently detected USB (sticky detection for wall chargers)
-    // Once USB is detected, assume it stays connected until explicitly unplugged
-    // This handles wall chargers that don't enumerate as USB devices
-    static bool stickyUsb = false;
-    if (frameActive || serialActive) {
-        stickyUsb = true;  // USB detected, remember it
-    }
-    
-    // For wall charger detection: if we've never seen USB frames/serial, but device is running,
-    // we might be on wall charger. But we can't distinguish from battery power this way.
-    // Solution: Use user-initiated detection at boot (check immediately after power-on)
-    
-    bool connected = frameActive || serialActive || stickyUsb;
+    bool connected = frameActive || serialActive;
     
     lastFrameCount = currentFrame;
     lastCheckMs = now;
@@ -1625,11 +1614,12 @@ void loop() {
 
     // Low battery warning LED pattern (25% threshold)
     // Uses OCTAVE_UP/DOWN at same speed as charging LEDs — visible while playing
-    // Active when calibrated, at or below 25%, and not in charging mode
+    // Active when calibrated, at or below 25%, not charging, and not USB-powered
     static bool lowBatLEDsEnabled = false;
     bool lowBatCondition = (batteryState.estimatedPercentage <= 25 &&
                             batteryState.estimatedPercentage < 254 &&
-                            !batteryState.isChargingMode);
+                            !batteryState.isChargingMode &&
+                            !isUsbPowered());  // hide while USB is present
 
     if (lowBatCondition) {
         if (!lowBatLEDsEnabled) {
