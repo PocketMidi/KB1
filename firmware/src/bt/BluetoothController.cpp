@@ -265,14 +265,15 @@ void BluetoothController::enable() {
         _pBatteryStatusCharacteristic->addDescriptor(new BLE2902());
         
         // Initialize with current battery state
-        // Format: [percentage(1), remainingSeconds(4 LE), usbConnected(1), calibrationTimestamp(4 LE)] = 10 bytes
-        uint8_t batteryData[10];
+        // Format: [percentage(1), remainingSeconds(4 LE), usbConnected(1), calibrationTimestamp(4 LE), accumulatedChargeMs(4 LE)] = 14 bytes
+        uint8_t batteryData[14];
         batteryData[0] = batteryState.estimatedPercentage;
         uint32_t remainingSeconds = 0;  // Will be calculated properly on each update
         memcpy(&batteryData[1], &remainingSeconds, 4);
         batteryData[5] = batteryState.lastUsbState ? 1 : 0;
         memcpy(&batteryData[6], &batteryState.calibrationTimestamp, 4);
-        _pBatteryStatusCharacteristic->setValue(batteryData, 10);
+        memcpy(&batteryData[10], &batteryState.accumulatedChargeMs, 4);
+        _pBatteryStatusCharacteristic->setValue(batteryData, 14);
 
         // Battery Control Characteristic (Write - for commands like reset/recalibrate)
         _pBatteryControlCharacteristic = _pService->createCharacteristic(
@@ -649,14 +650,20 @@ void BluetoothController::updateBatteryStatus() {
             remainingSeconds = (uint32_t)(remainingHours * 3600.0f);
         }
         
-        // Format: [percentage(1), remainingSeconds(4 LE), usbConnected(1), calibrationTimestamp(4 LE)] = 10 bytes
-        uint8_t batteryData[10];
+        // Format: [percentage(1), remainingSeconds(4 LE), usbConnected(1), calibrationTimestamp(4 LE), accumulatedChargeMs(4 LE)] = 14 bytes
+        // accumulatedChargeMs = historical + current session (if charging) for live progress display
+        uint8_t batteryData[14];
         batteryData[0] = batteryState.estimatedPercentage;  // 0-100, 254 (uncalibrated), or 255 (charging)
         memcpy(&batteryData[1], &remainingSeconds, 4);       // Remaining seconds (little-endian)
         batteryData[5] = batteryState.lastUsbState ? 1 : 0;  // USB connection status
         memcpy(&batteryData[6], &batteryState.calibrationTimestamp, 4);  // Calibration timestamp (little-endian)
+        uint32_t totalAccumulatedMs = batteryState.accumulatedChargeMs;
+        if (batteryState.isChargingMode && batteryState.chargeSessionStartMs > 0) {
+            totalAccumulatedMs += (millis() - batteryState.chargeSessionStartMs);  // Add live session time
+        }
+        memcpy(&batteryData[10], &totalAccumulatedMs, 4);   // Accumulated charge ms (little-endian)
         
-        _pBatteryStatusCharacteristic->setValue(batteryData, 10);
+        _pBatteryStatusCharacteristic->setValue(batteryData, 14);
         
         // Notify if device is connected
         if (_deviceConnected) {

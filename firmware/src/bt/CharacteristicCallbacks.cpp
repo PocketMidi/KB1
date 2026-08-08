@@ -271,7 +271,10 @@ void BatteryControlCallback::onWrite(BLECharacteristic *pCharacteristic) {
         batteryState.bleIdleTimeMs = 0;
         
         batteryState.estimatedPercentage = percentage;
-        batteryState.isFullyCharged = (percentage == 100);
+        batteryState.isFullyCharged = true;  // Manual set always implies calibrated battery
+        // Reset charge accumulation - prior history is irrelevant after manual set
+        batteryState.accumulatedChargeMs = 0;
+        batteryState.chargeSessionStartMs = 0;
         if (percentage > 0 && batteryState.calibrationTimestamp == 0) {
             batteryState.calibrationTimestamp = millis() / 1000;
         }
@@ -282,13 +285,14 @@ void BatteryControlCallback::onWrite(BLECharacteristic *pCharacteristic) {
         _preferences.putUInt("batLightMs", 0);
         _preferences.putUInt("batDeepMs", 0);
         _preferences.putUInt("batDischMs", activeMs);
+        _preferences.putULong("batAccChgMs", 0);  // Reset charge accumulation on manual set
         
         // Save BLE adaptive power tracker zeroes (v1.7.0+)
         _preferences.putUInt("batBLeLive", 0);
         _preferences.putUInt("batBLeCfg", 0);
         _preferences.putUInt("batBLeIdl", 0);
         
-        _preferences.putBool("batFull", percentage == 100);
+        _preferences.putBool("batFull", true);  // Manual set always implies calibrated
         if (batteryState.calibrationTimestamp > 0) {
             _preferences.putUInt("batCalTime", batteryState.calibrationTimestamp);
         }

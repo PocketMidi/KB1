@@ -410,6 +410,7 @@ bool firstBatteryUpdate = true;  // Flag to detect USB at boot on first update
 // Sleep / Deep Sleep Management
 //----------------------------------
 unsigned long lastActivityMillis = 0;
+unsigned long lastPlayActivityMs = 0;  // 0 = no play input yet; used for charge LED suppression
 unsigned long lightSleepIdleMs = 300000; // Default: 5 minutes
 bool deepSleepTriggered = false;
 
@@ -1553,9 +1554,15 @@ void loop() {
     }
     // After grace period: ignore frame counter, LEDs stay on until estimated charge time completes
     
-    if (batteryState.isChargingMode && !usbActuallyDisconnected && !estimatedChargeComplete) {
+    // Suppress charging LEDs during active play - resume after 30s idle
+    // Uses lastActivityMillis which is updated by all key/lever/touch events
+    const unsigned long CHARGE_LED_PLAY_SUPPRESS_MS = 30000;  // 30s after last play input
+    bool playActivitySuppressed = (lastPlayActivityMs > 0) &&
+                                   (millis() - lastPlayActivityMs) < CHARGE_LED_PLAY_SUPPRESS_MS;
+
+    if (batteryState.isChargingMode && !usbActuallyDisconnected && !estimatedChargeComplete && !playActivitySuppressed) {
         if (!chargingLEDsEnabled) {
-            // Just started charging pattern
+            // Just started (or resumed after play suppression)
             chargingLEDsEnabled = true;
             usbDisconnectCount = 0;  // Reset disconnect counter when starting
             SERIAL_PRINT("Charging LEDs started - usbAtBoot=");
@@ -1928,6 +1935,12 @@ void loop() {
         // Arp running in latch mode counts as active (prevents IDLE BLE params from causing I2C glitch)
         bool arpActive = keyboardControl.isArpActive();
         bool bleKeepAliveActive = bluetoothControllerPtr && bluetoothControllerPtr->isKeepAliveActive();
+
+        // Track play-only activity for charge LED suppression (excludes BLE keepalive and charging)
+        bool playInputActive = touchActive || keyboardActive || arpActive || pinkLedPressed || blueLeftPressed || leverPushIsPressed;
+        if (playInputActive) {
+            lastPlayActivityMs = millis();
+        }
         
         // Prevent sleep during charging
         bool activelyCharging = batteryState.isChargingMode && (batteryState.chargeSessionStartMs > 0);
