@@ -10,7 +10,7 @@ public:
     OctaveControl(
         GpioExpander& mcp, LedManager& ledController)
         : mcp(mcp), ledController(ledController), currentOctave(0),
-          isS3Pressed(false), isS4Pressed(false) {}
+          s3(), s4(), lastShiftMs(0) {}
 
     void begin() {
         mcp.pinMode(S3_PIN, INPUT_PULLUP);
@@ -20,29 +20,9 @@ public:
     void update(const GPIOCache& gpioCache) {
         // Extract octave button states from cached GPIO (no I2C overhead)
         // S3 and S4 are on U2 (pins 4 and 6)
-        const bool s3State = gpioCache.isU2PinLow(S3_PIN);
-        const bool s4State = gpioCache.isU2PinLow(S4_PIN);
-
-        // Handle individual octave shifts on release
-        if (!s3State && isS3Pressed) {
-            isS3Pressed = false;
-            shiftOctave(-1);
-            char buf[8];
-            snprintf(buf, sizeof(buf), "O%+d", currentOctave);
-            SERIAL_PRINTLN(buf);
-        } else if (s3State) {
-            isS3Pressed = true;
-        }
-
-        if (!s4State && isS4Pressed) {
-            isS4Pressed = false;
-            shiftOctave(1);
-            char buf[8];
-            snprintf(buf, sizeof(buf), "O%+d", currentOctave);
-            SERIAL_PRINTLN(buf);
-        } else if (s4State) {
-            isS4Pressed = true;
-        }
+        const unsigned long nowMs = millis();
+        handleButton(s3, gpioCache.isU2PinLow(S3_PIN), -1, nowMs);
+        handleButton(s4, gpioCache.isU2PinLow(S4_PIN), 1, nowMs);
     }
 
     int getOctave() const {
@@ -50,6 +30,56 @@ public:
     }
 
 private:
+    struct ButtonState {
+        bool lastReading = false;
+        bool debouncedState = false;
+        bool armed = false;
+        unsigned long lastChangeMs = 0;
+    };
+
+    // Shift on the debounced press edge, then lock out retriggers for RETRIGGER_LOCKOUT_MS.
+    // The lockout (not the release debounce) is what rejects contact bounce.
+    void handleButton(ButtonState& btn, bool raw, int shift, unsigned long nowMs) {
+        if (raw != btn.lastReading) {
+            btn.lastReading = raw;
+            btn.lastChangeMs = nowMs;
+        }
+
+        const unsigned long debounceMs = raw ? PRESS_DEBOUNCE_MS : RELEASE_DEBOUNCE_MS;
+        if ((nowMs - btn.lastChangeMs) < debounceMs) {
+            return;
+        }
+
+        // MCP pins can read LOW until the pullups settle at boot; ignore edges until a
+        // stable release has been observed so the settle doesn't look like a press.
+        if (!btn.armed) {
+            if (!raw) {
+                btn.armed = true;
+                btn.debouncedState = false;
+            }
+            return;
+        }
+
+        if (raw == btn.debouncedState) {
+            return;
+        }
+
+        btn.debouncedState = raw;
+        if (!raw) {
+            return;  // act on press only
+        }
+
+        if (nowMs - lastShiftMs < RETRIGGER_LOCKOUT_MS) {
+            return;
+        }
+        lastShiftMs = nowMs;
+
+        shiftOctave(shift);
+        char buf[8];
+        snprintf(buf, sizeof(buf), "O%+d", currentOctave);
+        SERIAL_PRINTLN(buf);
+    }
+
     void shiftOctave(int shift) {
         currentOctave += shift;
         if (currentOctave < -4) {
@@ -83,11 +113,16 @@ private:
     LedManager& ledController;
     int currentOctave;
 
-    bool isS3Pressed;
-    bool isS4Pressed;
+    ButtonState s3;
+    ButtonState s4;
+    unsigned long lastShiftMs;
 
     static const int S3_PIN = 4;
     static const int S4_PIN = 6;
+
+    static constexpr unsigned long PRESS_DEBOUNCE_MS = 4;
+    static constexpr unsigned long RELEASE_DEBOUNCE_MS = 40;
+    static constexpr unsigned long RETRIGGER_LOCKOUT_MS = 180;
 };
 
 #endif

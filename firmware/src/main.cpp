@@ -463,33 +463,31 @@ GPIOCache readAllGPIO() {
 bool isUsbPowered() {
     // ESP32-S3 XIAO doesn't expose VBUS sensing, use frame counter + serial CDC
     
-    static uint32_t lastFrameCount = 0;
     static unsigned long lastCheckMs = 0;
     static bool lastState = false;
+    static bool firstCheck = true;
     
     unsigned long now = millis();
     
     // Check every 100ms to avoid excessive polling
-    if (now - lastCheckMs < 100) {
+    if (!firstCheck && (now - lastCheckMs < 100)) {
         return lastState;
     }
+    firstCheck = false;
     
-    uint32_t currentFrame = USB_SERIAL_JTAG.fram_num.sof_frame_index;
-    
-    // After a long gap (e.g. waking from sleep), the USB JTAG peripheral may have
-    // reset its frame counter. Update the reference WITHOUT claiming activity —
-    // the next 100ms check will correctly show whether frames are advancing.
-    bool wasSleeping = (now - lastCheckMs > 2000);
-    bool frameActive = !wasSleeping && (currentFrame != lastFrameCount);
+    // Sample the SOF counter twice ~2ms apart. A connected host emits a frame every
+    // 1ms, so this measurement is self-contained: the result never depends on how
+    // often this function is called (a stale-reference compare gave false negatives
+    // whenever the caller polled slowly, e.g. the 30s battery poll).
+    uint32_t frameBefore = USB_SERIAL_JTAG.fram_num.sof_frame_index;
+    delayMicroseconds(2200);
+    bool frameActive = (USB_SERIAL_JTAG.fram_num.sof_frame_index != frameBefore);
     bool serialActive = (bool)Serial;
     
-    bool connected = frameActive || serialActive;
-    
-    lastFrameCount = currentFrame;
+    lastState = frameActive || serialActive;
     lastCheckMs = now;
-    lastState = connected;
     
-    return connected;
+    return lastState;
 }
 
 //---------------------------------------------------
@@ -1463,7 +1461,10 @@ void loop() {
     // Fast polling (1s) for first 60 seconds for responsive USB detection, then slow down to 30s
     unsigned long pollInterval = (millis() < 60000) ? 1000 : 30000;
     
-    if (millis() - lastBatteryUpdate > pollInterval) {
+    // Plug/unplug must be handled immediately, not on the next slow poll
+    bool usbEdgeDetected = (isUsbPowered() != batteryState.lastUsbState);
+    
+    if (usbEdgeDetected || millis() - lastBatteryUpdate > pollInterval) {
         updateBatteryMonitoring();
         
         // Update BLE characteristic if enabled
@@ -1481,18 +1482,13 @@ void loop() {
     static unsigned long chargingModeStartMs = 0;  // Track when charging started
     static unsigned long estimatedChargeDurationMs = BATTERY_FULL_CHARGE_MS;  // Estimated time to full charge
     static uint8_t lastBatteryPercentAtChargeStart = 254;  // Track to detect manual % changes
-    static uint32_t lastUsbFrameCheck = 0;
     static uint8_t usbDisconnectCount = 0;  // Debounce counter for USB disconnect
     const uint8_t USB_DISCONNECT_THRESHOLD = 3;  // Require 3 consecutive misses before stopping
     const unsigned long USB_CHECK_GRACE_PERIOD = 180000;  // 3 minutes - after this, ignore frame counter (computer may sleep)
     const unsigned long MIN_CHARGE_LED_DURATION = 1800000;  // 30 minutes minimum LED pulse time
     
-    // Real-time USB check using frame counter (same method as battery monitoring)
-    uint32_t currentFrame = USB_SERIAL_JTAG.fram_num.sof_frame_index;
-    bool frameActive = (currentFrame != lastUsbFrameCheck);
-    bool serialActive = (bool)Serial;
-    bool usbCurrentlyConnected = frameActive || serialActive;
-    lastUsbFrameCheck = currentFrame;
+    // Real-time USB check (cached 100ms internally, safe to call every loop)
+    bool usbCurrentlyConnected = isUsbPowered();
     
     // Track when charging mode starts OR when user manually adjusts battery %
     bool chargingJustStarted = (batteryState.isChargingMode && chargingModeStartMs == 0);
@@ -1545,10 +1541,15 @@ void loop() {
     
     if (shouldCheckUSB) {
         // Debounce USB disconnect detection to prevent false negatives during blocking operations
-        if (!usbCurrentlyConnected) {
-            usbDisconnectCount++;
-        } else {
-            usbDisconnectCount = 0;  // Reset counter if USB detected
+        // Sampled every 250ms so the threshold spans real time, not loop iterations
+        static unsigned long lastUsbDebounceMs = 0;
+        if (millis() - lastUsbDebounceMs >= 250) {
+            lastUsbDebounceMs = millis();
+            if (!usbCurrentlyConnected) {
+                usbDisconnectCount++;
+            } else {
+                usbDisconnectCount = 0;  // Reset counter if USB detected
+            }
         }
         usbActuallyDisconnected = (usbDisconnectCount >= USB_DISCONNECT_THRESHOLD);
     }

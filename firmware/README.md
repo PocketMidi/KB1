@@ -125,7 +125,7 @@ After flashing firmware, you must enable Bluetooth to connect with the configura
 
 1. **Cross-lever gesture**: Push both levers toward each other (left lever → right, right lever → left) and **hold for 3 seconds**
 2. **Watch for progressive LED feedback:**
-   - Octave arrow LEDs turn ON immediately (gesture detected)
+  - All LEDs turn ON immediately (gesture detected)
    - Pink + blue LEDs pulse with increasing speed as you hold
    - **All LEDs turn OFF** = activation complete, release levers
 3. Repeat the same gesture anytime to toggle Bluetooth on/off
