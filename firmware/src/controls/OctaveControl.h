@@ -15,6 +15,16 @@ public:
     void begin() {
         mcp.pinMode(S3_PIN, INPUT_PULLUP);
         mcp.pinMode(S4_PIN, INPUT_PULLUP);
+        // Suppressed until endBootSuppression() is called - see that method for why.
+        bootSuppressed = true;
+    }
+
+    // Call once the boot-time LED sequence (startupPulseSequence) has finished. That
+    // sequence writes OCTAVE_UP/OCTAVE_DOWN on the same MCP chip as these button pins for
+    // over a second, and a fixed post-begin() delay can't reliably outlast it - confirmed
+    // by boot diagnostics showing spurious edges while the LED sequence was still running.
+    void endBootSuppression() {
+        bootSuppressed = false;
     }
 
     void update(const GPIOCache& gpioCache) {
@@ -53,10 +63,16 @@ private:
         // MCP pins can read LOW until the pullups settle at boot; ignore edges until a
         // stable release has been observed so the settle doesn't look like a press.
         if (!btn.armed) {
-            if (!raw) {
+            if (!raw && !bootSuppressed) {
                 btn.armed = true;
                 btn.debouncedState = false;
             }
+            return;
+        }
+
+        // Suppress any shift while the boot LED sequence is still running on the same
+        // MCP chip, regardless of arm state.
+        if (bootSuppressed) {
             return;
         }
 
@@ -116,6 +132,7 @@ private:
     ButtonState s3;
     ButtonState s4;
     unsigned long lastShiftMs;
+    bool bootSuppressed = true;
 
     static const int S3_PIN = 4;
     static const int S4_PIN = 6;

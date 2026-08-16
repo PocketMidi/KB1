@@ -1363,6 +1363,9 @@ void setup() {
 
     // Run LED startup sequence
     startupPulseSequence();
+    // Boot LED sequence writes OCTAVE_UP/DOWN on the same MCP chip as the octave buttons;
+    // only trust button input once it has finished.
+    octaveControl.endBootSuppression();
 
     // Initialize Bluetooth controller
 
