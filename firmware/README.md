@@ -107,12 +107,11 @@ pio device monitor
 **⚠️ CRITICAL:** For distribution, always build **complete images** that include bootloader, partitions, and app.
 
 ```bash
-./build_factory.sh
+bash build_complete.sh
 ```
 
-This prevents SHA-256 verification failures and bricking. See [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md) for details.
-
-> **Troubleshooting**: See [docs/INSTALL.md](docs/INSTALL.md) for PlatformIO upload fixes (e.g. installing `intelhex`).
+This runs `esptool.py merge_bin` to combine bootloader (`0x0`), partitions (`0x8000`), and firmware (`0x10000`).
+The merged binary is output directly to `kb1-studio/dist/firmware/KB1-firmware-vX.Y.Z.bin`.
 
 ### First Time Setup
 
@@ -180,10 +179,10 @@ The easiest way to flash KB1 firmware is via **[KB1 Studio](https://pocketmidi.g
 
 ```bash
 esptool.py --chip esp32s3 --port /dev/cu.usbmodem* write_flash \
-  0x0 KB1-firmware-v1.6.0.bin
+  0x0 KB1-firmware-v2.3.3.bin
 ```
 
-See [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md) for building from source.
+Run `bash build_complete.sh` to compile and create merged release binaries.
 
 ## Companion Web App
 
