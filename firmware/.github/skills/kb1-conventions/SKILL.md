@@ -541,17 +541,16 @@ This runs `esptool.py merge_bin` to combine:
 - `partitions.bin` @ `0x8000`
 - `firmware.bin`   @ `0x10000`
 
-**Output:** `KB1-firmware-v1.6.2.bin` — merged, flashes at offset `0x0`
+**Output:** `kb1-studio/dist/firmware/KB1-firmware-vX.Y.Z.bin` — merged, flashes at offset `0x0` (stored directly in `kb1-studio/dist/firmware`, no redundant binary files stored in `firmware/`).
 
 ### Release Checklist (All Three Repos)
 
 1. Bump `FIRMWARE_VERSION` in `src/objects/Constants.h`
 2. Update `FIRMWARE_VERSION` in `build_complete.sh`
-3. Run `bash build_complete.sh` → outputs `KB1-firmware-vX.Y.Z.bin` in firmware root
-4. Copy bin → `kb1-studio/public/firmware/KB1-firmware-vX.Y.Z.bin`
-5. Add entry to `kb1-studio/public/firmware/releases.json` (use `wc -c` for exact byte size)
-6. Bump `APP_VERSION` in `KB1-config/src/constants.ts`
-7. Commit + push all three repos; tag firmware repo with `vX.Y.Z`
+3. Run `bash build_complete.sh` → outputs `KB1-firmware-vX.Y.Z.bin` directly in `kb1-studio/dist/firmware/`
+4. Add entry to `kb1-studio/public/firmware/releases.json` (or `dist/firmware/releases.json`) (use `wc -c` for exact byte size)
+5. Bump `APP_VERSION` in `KB1-config/src/constants.ts`
+6. Commit + push all three repos; tag firmware repo with `vX.Y.Z`
 
 ---
 

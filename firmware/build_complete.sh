@@ -7,12 +7,18 @@ set -e  # Exit on error
 
 FIRMWARE_VERSION="v2.3.3"
 BUILD_DIR=".pio/build/seeed_xiao_esp32s3"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+DIST_DIR="${SCRIPT_DIR}/../kb1-studio/dist/firmware"
 OUTPUT_NAME="KB1-firmware-${FIRMWARE_VERSION}.bin"
+OUTPUT_PATH="${DIST_DIR}/${OUTPUT_NAME}"
 
 echo "======================================"
 echo "KB1 Complete Firmware Builder"
 echo "Version: ${FIRMWARE_VERSION}"
 echo "======================================"
+
+# Ensure target directory exists
+mkdir -p "${DIST_DIR}"
 
 # Clean and build firmware
 echo "Cleaning previous build..."
@@ -53,7 +59,7 @@ fi
 # --flash_size 8MB: Total flash capacity
 echo "Creating complete firmware image..."
 python3 "${ESPTOOL}" --chip esp32s3 merge_bin \
-    -o "${OUTPUT_NAME}" \
+    -o "${OUTPUT_PATH}" \
     --flash_mode dio \
     --flash_freq 80m \
     --flash_size 8MB \
@@ -65,14 +71,14 @@ echo ""
 echo "======================================"
 echo "✅ Complete firmware image created successfully!"
 echo "======================================"
-echo "File: ${OUTPUT_NAME}"
-ls -lh "${OUTPUT_NAME}"
+echo "File: ${OUTPUT_PATH}"
+ls -lh "${OUTPUT_PATH}"
 echo ""
 echo "MD5:"
-md5 "${OUTPUT_NAME}" | awk '{print $4}'
+md5 "${OUTPUT_PATH}" | awk '{print $4}'
 echo ""
 echo "Version info:"
-strings "${OUTPUT_NAME}" | grep -E "(KB1 FIRMWARE|Build Date)" | head -2
+strings "${OUTPUT_PATH}" | grep -E "(KB1 FIRMWARE|Build Date)" | head -2
 echo ""
 echo "⚠️  IMPORTANT: Flash complete image at offset 0x0"
 echo "This includes bootloader + partitions + app"
