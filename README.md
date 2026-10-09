@@ -8,18 +8,17 @@
 
 **Hardware**
 - 19-key keyboard
-- 2 analog levers with integrated push buttons
+- 2 levers with integrated push buttons
 - 1 capacitive touch input
 - 2× 8Ω 1W speakers
 - XIAO ESP32-S3 MCU with BLE and USB-C
 - 420mAh Li-ion battery, charged via USB-C 
 
 **Firmware** ([details](firmware/README.md))
-- Lever and Press and Touch controls: configurable CC output with interpolation curves
+- Lever, press, and touch controls: configurable CC output and parameter-specific behavior
 - Scale mode: note output quantized to a selectable musical scale
-- Chord mode: 10 chord types with strum, voicing (1–3 octave expansion), and swing
+- Chord mode: selectable chord types, Block/Strum playback, and 1–3 octave range
 - Arp Mode: User defined arpeggiator
-- 12 performance sliders: bipolar/unipolar, momentary/latched
 - 8 on-device preset slots
 - Serial MIDI output
 
@@ -31,34 +30,21 @@
 - 12-slider live performance interface (landscape fullscreen on mobile)
 - Preset management stored in browser
 
-## User Guide and suite of tools
-
-### (https://pocketmidi.github.io/KB1-studio/)
-
-
-
-
-
 ## Documentation
 
-- [Configuration App Guide](https://github.com/PocketMidi/KB1-config)
-- [Firmware Documentation](firmware/README.md)
-- [Hardware Design](hardware/)
+- [KB1 Studio User Guide and Tools](https://pocketmidi.github.io/KB1-studio/): Hardware setup, charging, Tracker configuration, firmware updates, and instrument building.
+- [Configurator User Guide](https://github.com/PocketMidi/KB1-config/blob/main/docs/USER_GUIDE.md): Current app settings, presets, and performance sliders.
+- [Firmware README](firmware/README.md): Development builds and complete release images.
+- [Hardware Design and Assembly](hardware/README.md): Electronic and mechanical files.
+- [Contributing](CONTRIBUTING.md): Shared conventions, documentation ownership, and release validation.
+
+Each repository README covers its own setup. Detailed user instructions live in the guides above rather than repeated copies.
 
 ## Building from Source
 
-**Firmware** (PlatformIO):
-```bash
-cd firmware
-pio run --target upload
-```
-
-**Web App** (Vite + Vue 3):
-```bash
-cd KB1-config
-npm install
-npm run build
-```
+- [Firmware build and upload](firmware/README.md#development-build); use the [complete-image builder](firmware/README.md#complete-release-images) for distributable firmware.
+- [Configurator development](https://github.com/PocketMidi/KB1-config#development).
+- [Studio development](https://github.com/PocketMidi/KB1-studio#development--deployment).
 
 ## Gallery
 
@@ -68,5 +54,4 @@ npm run build
 ## License
 
 - **Software & Firmware**: MIT License (see LICENSE)
-- **Hardware Designs**: CERN Open Hardware Licence v2 – Strongly Reciprocal (see hardware/LICENSE-CERN-OHL-S.txt)
-
+- **Hardware Designs**: CERN Open Hardware Licence v2 – Strongly Reciprocal (see [hardware license](hardware/LICENSE.txt))

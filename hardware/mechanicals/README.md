@@ -1,5 +1,4 @@
-### This folder conatains the CAD files needed to print your own KB1 mechanical parts along with a Desktop Stand.
-
+### This folder contains the CAD files needed to print your own KB1 mechanical parts along with a Desktop Stand.
 
 
 

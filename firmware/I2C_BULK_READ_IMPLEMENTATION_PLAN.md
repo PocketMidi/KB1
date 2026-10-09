@@ -1,5 +1,7 @@
 # I2C Bulk Read Implementation Plan
 
+> **Historical proposal (April 2026), not a current implementation guide.** The steps and code snippets below are preserved for context, not instructions to apply verbatim. Expected performance and power savings are estimates, not current measurements. See the [firmware README](README.md) for maintained documentation.
+
 **Goal:** Reduce I2C transactions from 25+ to 2 per scan cycle (12× speedup, 92% reduction)  
 **Expected Impact:** -5ms input latency, -8-12mA power consumption, smoother overall performance
 

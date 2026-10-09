@@ -1,5 +1,7 @@
 # KB1 I2C Bus Efficiency Analysis
 
+> **Historical analysis of the v1.6.x firmware (April 2026).** "Current" below refers to that snapshot, not today's implementation. Source locations and performance estimates require fresh verification. See the [firmware README](README.md) for maintained documentation.
+
 **Date:** April 12, 2026  
 **Current Firmware:** v1.6.x series  
 **Issue:** Investigating I2C bus efficiency and power consumption

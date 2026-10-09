@@ -1,204 +1,79 @@
 # KB1 Firmware
 
-The KB1 firmware is a feature-rich, production-ready embedded system for the PocketMidi KB1 MIDI controller. This release delivers a comprehensive suite of musical capabilities including dual-mode keyboard operation (Scale/Chord modes with chord/strum options), flexible lever controls with advanced interpolation, customizable touch sensing, intelligent power management, and 12-channel performance sliders—all controllable wirelessly via Bluetooth Low Energy.
+Embedded firmware for the handcrafted PocketMidi KB1 MIDI controller, built with PlatformIO and Arduino for the Seeed XIAO ESP32-S3.
 
+## Capabilities
 
-## Features
+- Scale, Chord (Block/Strum), and Arp keyboard modes.
+- Configurable lever, press, and capacitive touch controls.
+- Serial MIDI output, with BLE configuration and real-time CC control from the companion app.
+- Eight device preset slots and persistent settings.
+- Idle sleep, touch wake, and time-based battery tracking.
 
-### Keyboard Modes
-- **Scale Mode**: Quantized note output with multiple scale types (Chromatic, Major, Minor, Pentatonic, Blues, and more)
-- **Chord Mode**: Full chord playback with 10 chord types (Major, Minor, Diminished, Augmented, Sus2, Sus4, Power, Major7, Minor7, Dominant7)
-- **Chord/Strum Toggle**: Switch between simultaneous chord notes or cascading strum
-- **Smart Slider**: Dynamic velocity spread (Chord mode) or strum timing (Strum mode)
-- **Natural/Compact Key Mapping**: Choose between spaced or dense key layouts
+## User Documentation
 
-### Control Surface
-- **2 Analog Levers**: Fully configurable CC output with range, step quantization, function modes (uni/bi-directional, momentary, toggle), value modes (jump, hook, pickup, latch), and interpolation curves (linear, S-curve, logarithmic)
-- **2 Lever Push Buttons**: Independent CC mapping with trigger/momentary/toggle modes and interpolation
-- **Capacitive Touch Sensor**: Adjustable threshold with CC output and multiple function modes
-- **12 Performance Sliders**: Real-time CC control (51-62) with bipolar/unipolar and momentary/latched modes
+Use these maintained guides instead of a duplicate settings reference here:
 
-### Power Management
-- **Light Sleep**: Configurable timeout (3-10 minutes, default: 5 min) - triggers pulsing LED feedback and low power mode
-- **Deep Sleep**: Fixed at light sleep + 90s - ensures consistent 90-second LED warning before deep sleep
-- **BLE Timeout**: Adjustable Bluetooth keep-alive (5-20 minutes, default: 10 min) - web app pings prevent sleep while connected
-- **Sleep Behavior**: 
-  - Without web app: Automatic sleep progression after idle timeouts
-  - With web app connected: Keepalive pings reset sleep timers, keeping device awake during configuration
-  - BLE radio disabled before entering sleep modes
-- **Automatic Wake**: Touch sensor wakes from deep sleep; any control interaction prevents sleep entry
+- [KB1 Studio User Guide](https://pocketmidi.github.io/KB1-studio/): Hardware setup, charging, LED signals, and Tracker MIDI settings.
+- [Configurator User Guide](https://github.com/PocketMidi/KB1-config/blob/main/docs/USER_GUIDE.md): Current app labels and control behavior.
+- [KB1 Configurator](https://pocketmidi.github.io/KB1-config/): Wireless settings and performance sliders.
 
-### Bluetooth Low Energy
-- **Standard BLE MIDI**: Compatible with all major DAWs and MIDI applications
-- **Configuration Service**: Full wireless configuration via companion web app
-- **Preset Management**: 8 on-device preset slots for storing complete configurations
-- **Keep-Alive Protocol**: Connection maintenance with 10-minute firmware grace period
-- **Security**: Optional pairing with secure bonding
+Bluetooth must be enabled using the inward-lever hold gesture before pairing with the Configurator. Charging and calibration instructions are maintained in the guides above, not duplicated here.
 
-### Storage & Presets
-- **Non-Volatile Settings**: All configuration persisted to flash memory
-- **8 Device Presets**: Store and recall complete configurations on-device
-- **Flash Management**: Automatic save/load with wear leveling
+## Development Build
 
-## Technical Details
+Install [PlatformIO](https://platformio.org/) and run from this directory:
 
-### Platform
-- **Framework**: [PlatformIO](https://platformio.org) with Arduino framework
-- **Target**: ESP32-based hardware (optimized for ESP32-S3)
-- **Language**: C++17
-- **Architecture**: Modular, object-oriented design
-
-### Project Structure
-
-```
-src/
-├── main.cpp                      # Main program loop and initialization
-├── bt/                           # Bluetooth Low Energy subsystem
-│   ├── BluetoothController.*     # BLE stack management
-│   ├── CharacteristicCallbacks.* # BLE characteristic handlers
-│   ├── PresetCallbacks.*         # Preset management handlers
-│   ├── SecurityCallbacks.*       # BLE security/pairing
-│   └── ServerCallbacks.*         # BLE connection lifecycle
-├── controls/                     # Hardware control interfaces
-│   ├── KeyboardControl.h         # Scale/Chord keyboard implementation
-│   ├── LeverControls.h           # Analog lever logic
-│   ├── LeverPushControls.h       # Push button handling
-│   ├── OctaveControl.h           # Octave shift control
-│   ├── SleepControl.h            # Power management
-│   └── TouchControl.h            # Capacitive touch sensing
-├── led/                          # LED feedback system
-│   ├── LEDController.*           # RGB LED control
-│   └── patterns/                 # Status indication patterns
-├── music/                        # Music theory engine
-│   └── ScaleManager.*            # Scale/chord generation
-└── objects/                      # Core data structures
-    ├── Constants.h               # System-wide constants
-    ├── Globals.h                 # Shared state
-    └── Settings.h                # Configuration structures
-```
-
-### Building & Flashing
-
-1. Install PlatformIO:
 ```bash
-# Via PlatformIO IDE extension for VS Code
-# Or via CLI:
-pip install platformio
-```
-
-2. Build the project:
-```bash
-cd firmware
-pio run
-```
-
-3. Upload to device:
-```bash
-pio run --target upload
-```
-
-4. Monitor serial output:
-```bash
+pio run --environment seeed_xiao_esp32s3
+pio run --target upload --environment seeed_xiao_esp32s3
 pio device monitor
 ```
 
-### Building Release Firmware
+PlatformIO uploads the appropriate components to their correct offsets. Edit [platformio.ini](platformio.ini) for build or port settings.
 
-**⚠️ CRITICAL:** For distribution, always build **complete images** that include bootloader, partitions, and app.
+## Complete Release Images
+
+**Never distribute the app-only binary as a complete image.** Flashing the app partition at offset `0x0` will not boot.
 
 ```bash
 bash build_complete.sh
 ```
 
-This runs `esptool.py merge_bin` to combine bootloader (`0x0`), partitions (`0x8000`), and firmware (`0x10000`).
-The merged binary is output directly to `kb1-studio/dist/firmware/KB1-firmware-vX.Y.Z.bin`.
+[build_complete.sh](build_complete.sh) builds and merges:
 
-### First Time Setup
+| Component | Offset |
+|---|---|
+| Bootloader | `0x0` |
+| Partition table | `0x8000` |
+| Application | `0x10000` |
 
-**IMPORTANT: Enable Bluetooth Before Connecting**
+The script targets ESP32-S3 with DIO, 80 MHz, and 8 MB flash. Output is `../kb1-studio/dist/firmware/KB1-firmware-vX.Y.Z.bin`.
 
-After flashing firmware, you must enable Bluetooth to connect with the configuration app:
+For browser flashing, use [KB1 Studio's Flash Tools](https://pocketmidi.github.io/KB1-studio/) on a desktop browser with Web Serial (Chrome, Edge, or Opera). Normal updates back up and restore NVS, preserving calibration, settings, and presets. **Clear device data on update** intentionally skips preservation.
 
-1. **Cross-lever gesture**: Push both levers toward each other (left lever → right, right lever → left) and **hold for 3 seconds**
-2. **Watch for progressive LED feedback:**
-  - All LEDs turn ON immediately (gesture detected)
-   - Pink + blue LEDs pulse with increasing speed as you hold
-   - **All LEDs turn OFF** = activation complete, release levers
-3. Repeat the same gesture anytime to toggle Bluetooth on/off
+For release coordination and hardware validation, see [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-**Note:** The gesture is automatically cancelled if any keyboard key is pressed, preventing accidental triggers during performance.
+## Source Layout
 
-Without enabling Bluetooth, the web configuration app will not detect your device.
+- [src/main.cpp](src/main.cpp): Setup, tasks, battery tracking, and main loop.
+- [src/bt/](src/bt/): BLE services and callbacks.
+- [src/controls/](src/controls/): Keyboard, lever, press, touch, octave, and sleep behavior.
+- [src/led/](src/led/): LED feedback.
+- [src/music/](src/music/): Scales, chords, and patterns.
+- [src/objects/](src/objects/): Constants, shared state, and settings structures.
 
-### ⚠️ Battery Calibration Required
+BLE, touch, and all I2C work must remain on Core 1. Do not split the two GPIO expanders or input/LED I2C tasks across cores.
 
-**IMPORTANT:** After flashing new firmware, the battery meter will show "uncalibrated" (gray `?` icon) until you complete a **full charge cycle**.
+## Historical Notes
 
-**Why?** The firmware cannot measure battery voltage directly—it estimates battery life by tracking usage time. A fresh firmware install doesn't know if your battery is at 100%, 50%, or 20%.
+These are development snapshots, not current setup instructions or verified current performance claims:
 
-**How to Calibrate:**
-1. Connect USB cable to your KB1 device
-2. Leave charging for **ONE continuous 5.5+ hour session**
-3. **Do NOT unplug during this time!**
-4. Battery meter will automatically mark as "calibrated" and show accurate percentage
-5. From this point forward, the meter tracks discharge accurately
-
-**⚠️ CRITICAL - All-or-Nothing Calibration:**
-- The 5 hour charge **MUST be continuous** in ONE session
-- If you unplug before 5 hours, the timer **resets to ZERO**
-- Partial charges **do NOT accumulate** (3hrs + 2.5hrs ≠ calibrated)
-- This is **intentional** to ensure genuine full charge and accurate baseline
-- **Only needs to happen ONCE** - future USB connections just pause discharge tracking
-
-**Until Calibrated:** The battery meter will display a gray `?` icon and "Needs Calibration" message. Ignore battery percentage estimates until you've completed a full charge cycle.
-
-**After Calibration:** The battery meter provides accurate estimates based on measured power consumption:
-- Active mode: 95mA drain
-- Light sleep: 2mA drain  
-- Deep sleep: 0.014mA drain
-
-### Configuration
-
-Edit `platformio.ini` to customize build settings, upload port, or target board.
-
-## Flashing Firmware
-
-The easiest way to flash KB1 firmware is via **[KB1 Studio](https://pocketmidi.github.io/KB1-studio/)** — no software installation required.
-
-### KB1 Studio Flash Tools (Recommended)
-
-1. Connect your KB1 to your computer via USB-C
-2. Open **[pocketmidi.github.io/KB1-studio](https://pocketmidi.github.io/KB1-studio/)** in Chrome (Web Serial required)
-3. Select your firmware version from the list
-4. Click **Flash Firmware** and follow the on-screen prompts
-5. The tool will back up your NVS settings before flashing and restore them automatically
-
-> **Note:** Web Serial API requires Chrome or Edge on desktop. Not supported in Safari or Firefox.
-
-### Command Line (Advanced)
-
-```bash
-esptool.py --chip esp32s3 --port /dev/cu.usbmodem* write_flash \
-  0x0 KB1-firmware-v2.3.3.bin
-```
-
-Run `bash build_complete.sh` to compile and create merged release binaries.
-
-## Companion Web App
-
-The firmware is designed to work seamlessly with the **[KB1 Configurator](https://pocketmidi.com)** web application, which provides wireless configuration of all parameters via Bluetooth Low Energy. The companion app offers an intuitive interface for:
-
-- Keyboard mode selection and chord/scale configuration
-- Lever and control parameter tuning
-- Performance slider setup and preset management
-- Power management settings
-- Device preset save/load/management
+- [I2C efficiency analysis](I2C_EFFICIENCY_ANALYSIS.md)
+- [Bulk-read implementation proposal](I2C_BULK_READ_IMPLEMENTATION_PLAN.md)
+- [Additional optimization proposals](ADDITIONAL_PERFORMANCE_OPPORTUNITIES.md)
+- [Archived Arduino firmware](initial_arduino_code/README.md)
 
 ## License
 
-See [LICENSE](LICENSE) file for details.
-
-## Development
-
-This firmware represents the first production release of the KB1 system. It provides a complete, feature-rich foundation for expressive MIDI performance with extensive configurability and wireless control.
-
+See the repository [LICENSE](../LICENSE).

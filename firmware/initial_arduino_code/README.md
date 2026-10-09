@@ -1,6 +1,8 @@
 > [!WARNING]
 > This is the initial Arduino based source code for the firmware. It is no longer actively developed or maintained. 
 
+For current builds and behavior, see the [firmware README](../README.md). Core assignments, LED meanings, and control mappings below describe this archived code only; do not use them as conventions for current firmware.
+
 ## KB1 Firmware v1.1 Source Code Summary
 
 ### Introduction
@@ -57,6 +59,5 @@ Various buttons on U1 and U2 pins are mapped to MIDI notes and control changes.
 *OCT_UP* blinks at varying speeds with octave level increase.
 
 Simultaneous pressing of both octave buttons resets the octave level.
-
 
 

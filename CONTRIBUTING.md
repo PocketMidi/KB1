@@ -1,210 +1,71 @@
 # Contributing to KB1
 
-> **Purpose:** This guide documents project conventions, architecture decisions, and development workflows. Useful for contributors, maintainers, and AI assistants working on the codebase.
+KB1 is a one-person, handcrafted ESP32-S3 MIDI controller project. Prioritize clear user experience, maintainable code, and verification on real hardware.
 
----
+## Workspace
 
-## Project Overview
+- [firmware/](firmware/): PlatformIO/Arduino C++ firmware in this repository.
+- [KB1-config](https://github.com/PocketMidi/KB1-config): Vue/TypeScript Configurator, checked out alongside firmware.
+- [KB1-studio](https://github.com/PocketMidi/KB1-studio): TypeScript user guides, Flash Tools, and Instrument Builder.
 
-**KB1 MIDI Controller** - A handcrafted ESP32-S3 based MIDI controller with:
-- Dual workspace: `firmware/` (C++ embedded) and `KB1-config/` (Vue.js web app)
-- BLE-based wireless configuration and MIDI output
-- One-person artisanal operation - avoid mass-production terminology
+See each repository's README for its development commands. The Configurator and Studio have separate Git histories; check status in each repository before changing or committing files.
 
-### ⚠️ CRITICAL: ESP32-S3 Compatibility
-**The combined .bin files MUST remain ESP32-S3 compatible!**
-- Always use `--chip esp32s3` in esptool merge commands
-- Target: `seeed_xiao_esp32s3` board
-- Flash settings: DIO mode, 80MHz, 8MB flash size
-- This is verified in `build_complete.sh` - don't modify without testing
+## Documentation Ownership
 
----
+- The [root README](README.md) is the project overview and documentation index.
+- The [firmware README](firmware/README.md) owns firmware build and complete-image instructions.
+- The [Configurator User Guide](https://github.com/PocketMidi/KB1-config/blob/main/docs/USER_GUIDE.md) owns the written app-settings reference, aligned with the in-app USER GUIDE and **i** dialogs.
+- [Studio's User Guide](https://pocketmidi.github.io/KB1-studio/) owns hardware setup, charging, LED signals, and Tracker configuration. Its tool guides cover flashing and instrument building.
+- The [hardware documentation](hardware/README.md) owns design and assembly files.
 
-## Terminology Preferences
+Link to the owning guide instead of copying detailed parameter lists into multiple READMEs. Use the actual UI labels and displayed units, not internal enum names or raw firmware values. If guides disagree, verify against current app components and firmware before editing.
 
-### ❌ AVOID
-- **"Factory"** - use "complete" or "handcrafted" instead
-- "Production line" or mass-manufacturing terms
-- Overly corporate language
+Preserve useful historical investigations with a prominent historical notice. Do not present old implementation proposals, source line numbers, or estimated gains as verified current behavior.
 
-### ✅ USE
-- **"Complete firmware image"** (not "factory image")
-- **"Handcrafted"**, **"curated"**, **"bespoke"**
-- Language that reflects a one-person, artisanal operation
-- `build_complete.sh` (not `build_factory.sh`)
+## Terminology
 
----
+Use **complete firmware image**, **starter presets**, and language reflecting a handcrafted project. Avoid mass-manufacturing terminology. Distinguish starter presets from **Load Defaults**, which resets the editable configuration without replacing saved slots.
 
-## Architecture & Critical Info
+## Firmware Constraints
 
-### Sleep System (Fixed in v1.1.4)
-- **Light Sleep:** User-configurable timeout (3-10 min, default 5 min)
-- **Deep Sleep:** Auto-calculated as light sleep + 90s (hardcoded warning period)
-- **BLE Timeout:** Keepalive prevents sleep (5-20 min, default 10 min)
-- **Bug History:** Pre-v1.1.4 firmware ignored `lightSleepTimeout` setting (used `deepSleepTimeout` instead)
+- Target **Seeed XIAO ESP32-S3**; esptool commands must use `--chip esp32s3`.
+- Complete images contain bootloader at `0x0`, partition table at `0x8000`, and application at `0x10000`. Never publish an app-only image as a complete image.
+- BLE, touch sensing, and **all I2C work must remain on Core 1**. Input reads and LED writes share the two MCP23017 expanders; do not split them across cores.
+- Use `SERIAL_PRINT()` macros for debug output and throttle high-frequency logging.
+- Directional feedback uses **pink for up/forward/increase**, **blue for down/reverse/decrease**.
+- Capture USB-at-boot detection before loading persisted battery state; do not overwrite it with a fresh-boot default.
+- Sleep settings are user-facing seconds; convert to milliseconds for runtime scheduling. Deep sleep follows the idle warning by 90 seconds, rather than exposing a separate user setting.
 
-### Serial Debugging
-- Controlled by `SERIAL_PRINT_ENABLED` macro in Constants.h
-- Startup delay optimized to 600ms (v1.1.4+) - was 5000ms before
-- Timeout-based wait: exits immediately when serial monitor connects
+## Configurator Conventions
 
-### Version Update Checklist
-When bumping firmware version (e.g., 1.1.3 → 1.1.4):
-1. `firmware/src/objects/Constants.h` - FIRMWARE_VERSION defines
-2. `firmware/build_complete.sh` - FIRMWARE_VERSION variable
-3. `firmware/README.md` - Latest Release section
-4. `KB1-config/package.json` - version field
-5. Create `firmware/RELEASE_NOTES_v1.x.x.md`
-6. Run `./build_complete.sh` to generate complete binary
+- Keep protocol encoding and validation in the BLE layer, not UI components.
+- Use typed data, existing components, and `v-model` for settings.
+- Keep visual styling in the theme system. See the [typography reference](https://github.com/PocketMidi/KB1-config/blob/main/TYPOGRAPHY_REFERENCE.md).
+- Display the units and ranges appropriate to each selected parameter; do not equate every UI value with a raw MIDI byte.
+- Verify sending, refresh-from-device, preset Apply, and NVS sync independently. Loading a browser preset is not the same as sending it to hardware.
 
----
+## Release Coordination
 
-## File Organization
+1. Update firmware version defines in [Constants.h](firmware/src/objects/Constants.h) and the version in [build_complete.sh](firmware/build_complete.sh).
+2. Run `bash build_complete.sh` from the firmware directory.
+3. Add the complete image to Studio's published firmware assets and update `public/firmware/releases.json` with the exact byte size. The builder outputs to Studio's `dist/firmware/`; preserve release assets in `public/firmware/` for subsequent Vite builds.
+4. Update the Configurator's `APP_VERSION` in `src/constants.ts` when coordinating a compatible release. Do not use the package version as a proxy for the displayed app version.
+5. Update directly affected guides and the release manifest's notes.
+6. Validate on actual hardware before publication. Coordinate commits across repositories and tag the firmware release.
 
-### Firmware Structure
-```
-firmware/
-├── src/
-│   ├── main.cpp                 # Main loop, setup, sleep logic
-│   ├── bt/                      # BLE controllers and callbacks
-│   ├── controls/                # Input handlers (keyboard, levers, touch)
-│   ├── led/                     # LED controller
-│   ├── music/                   # Scale manager
-│   └── objects/
-│       ├── Constants.h          # VERSION defines, UUIDs, config
-│       ├── Globals.h            # Shared types and externs
-│       └── Settings.h           # Setting structures
-├── build_complete.sh            # Complete firmware builder
-├── RELEASE_NOTES_v*.md          # Version-specific release notes
-└── README.md                    # Project documentation
-```
+## Validation
 
-### Web App Structure
-```
-KB1-config/
-├── src/
-│   ├── ble/
-│   │   ├── bleClient.ts         # BLE connection management
-│   │   └── kb1Protocol.ts       # Settings validation, defaults
-│   ├── components/
-│   │   └── SystemSettings.vue   # Power management UI
-│   └── ...
-└── package.json                 # Web app version
-```
+Use the smallest relevant build or type-check for code changes. Documentation-only changes need label, link, and consistency checks, not a firmware rebuild.
 
----
+Before releasing firmware or changing protocol behavior, verify:
 
-## Code Conventions
-
-### Firmware (C++)
-- Use `SERIAL_PRINT()` macro for debug output (auto-disabled in production)
-- Sleep timeouts stored in **seconds** (user-facing) but converted to **milliseconds** internally
-- Variable naming: `lightSleepIdleMs`, `deepSleepIdleMs` (not "timeout" for internal vars)
-- BLE characteristic callbacks in separate files (`*Callbacks.cpp`)
-
-### Web App (Vue/TypeScript)
-- Settings use **seconds** as base unit
-- Add "s" suffix labels to timing inputs for consistency
-- Validation in `kb1Protocol.ts` - don't duplicate in components
-- Auto-calculated values (like deep sleep) should use `watch()` in Vue
-- Hint text format: Brief explanation of behavior, not just field labels
-
----
-
-## Common Tasks
-
-### Building Complete Firmware
-```bash
-cd firmware
-./build_complete.sh
-# Output: KB1-firmware-v1.x.x.bin
-```
-
-### Flashing Device
-```bash
-# Method 1: PlatformIO (dev builds)
-platformio run --target upload --environment seeed_xiao_esp32s3
-
-# Method 2: ESPConnect web tool (complete images)
-# https://thelastoutpostworkshop.github.io/ESPConnect/
-# Flash at 0x0 with "Erase entire flash" checked
-```
-
-### Clean Build
-```bash
-# Light clean (rebuild sources)
-platformio run --target clean --environment seeed_xiao_esp32s3
-
-# Full clean (re-download all dependencies)
-platformio run --target fullclean --environment seeed_xiao_esp32s3
-```
-
----
-
-## Known Issues & Gotchas
-
-### BLE Keepalive
-- Web app must ping to keep device awake
-- BLE radio **disabled** before sleep - cannot wake from deep sleep via BLE
-- Only **touch sensor** wakes from deep sleep
-
-### Sleep Warning Period
-- 90-second pulsing LED period is **hardcoded** in `SleepControl.h`
-- Not user-configurable by design
-- Deep sleep always = light sleep + 90s
-
-### Memory Constraints
-- Flash: ~76% full (1MB / 1.3MB) as of v1.1.4
-- RAM: ~16% usage (51KB / 327KB)
-- Keep BLE characteristics minimal
-
----
-
-## Release History Context
-
-### v1.1.4 (Mar 1, 2026)
-- **Critical Fix:** Sleep timeout bug (ignored lightSleepTimeout since v1.0)
-- **Optimization:** Startup reduced from 5s to 600ms
-- **UX:** Removed deep sleep user control (auto-calculated)
-- **Terminology:** Changed "BT CONNECTION" → "BLE TIMEOUT"
-- **Naming:** Removed "factory" terminology, use "complete" instead
-
-### v1.1.3 (Feb 28, 2026)
-- Fixed chord mode scale quantization bug
-- Chords now chromatic regardless of scale selection
-
-### v1.1.2
-- Preset system improvements
-
-### v1.1.1
-- Initial production release
-
----
-
-## Development Notes
-
-### Testing Checklist
-- [ ] Sleep timing verification (light sleep triggers at configured time)
-- [ ] Deep sleep triggers 90s after light sleep
-- [ ] BLE keepalive prevents sleep when app connected
-- [ ] Touch sensor wakes from deep sleep
-- [ ] Settings persist across power cycles
-- [ ] Serial debugging works without delays
-
-### Future Considerations
-- Flash space getting tight (~76% full) - consider optimization if adding features
-- 90s warning period is hardcoded - would require `SleepControl.h` changes
-- BLE keepalive grace period is 10 min default (changeable in Constants.h)
-
----
-
-## Project Philosophy
-
-This is a **one-person, handcrafted operation**. Language should reflect:
-- Artisanal quality over mass production
-- Thoughtful design over corporate speak
-- Personal touch and care in development
-
----
-
-**Last Updated:** March 1, 2026 (v1.1.4 release)
+- [ ] Settings load, send, persist across restart, and refresh correctly.
+- [ ] Preset Apply and device-slot NVS sync retain their distinct behavior.
+- [ ] Light sleep uses the configured timeout; deep sleep follows after 90 seconds.
+- [ ] BLE keepalive prevents sleep while configuring.
+- [ ] Touch wakes from deep sleep.
+- [ ] Battery boot followed by USB connection starts tracked charging.
+- [ ] USB-at-boot bypass does not falsely signal tracked charging.
+- [ ] Partial tracked charge sessions preserve calibration progress.
+- [ ] Normal Studio updates preserve NVS; clear-data updates erase it only when explicitly selected.
+- [ ] The released binary is a complete image, tested on ESP32-S3 hardware.

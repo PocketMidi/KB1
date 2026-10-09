@@ -1,5 +1,7 @@
 # Additional Performance Optimization Opportunities
 
+> **Historical proposal (April 2026), not a current implementation guide.** Statuses, source line numbers, timing estimates, and power claims below describe the investigation at that time and must be rechecked against current code and hardware. See the [firmware README](README.md) for maintained documentation.
+
 **Date:** April 12, 2026  
 **Context:** Beyond I2C bulk reads, what else can improve perceived snappiness?
 
